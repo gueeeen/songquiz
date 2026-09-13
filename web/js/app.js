@@ -26,7 +26,6 @@
 
   var state = {
     game: null,
-    mode: null,
     /** 這一題的計時器 handle，離開畫面時要收乾淨。 */
     ticker: null,
     /** 這一題的截止時間（performance.now 座標）。 */
@@ -35,6 +34,13 @@
     answering: false,
     /** 結算頁正在播放的那顆重聽鈕。 */
     playing: null,
+  };
+
+  /** 開場挑的設定。開一場遊戲就是把這三個值交給 Game。 */
+  var setup = {
+    languages: [],
+    questionCount: Rules.QUESTIONS_PER_ROUND,
+    mode: 'stage',
   };
 
   function show(name) {
@@ -84,11 +90,27 @@
   function playPreview(url) {
     player.src = url;
     player.currentTime = 0;
-    // 自動播放需要使用者手勢，而「試聽／選模式／下一題」那一下就是手勢，所以這裡不會被擋。
+    // 自動播放需要使用者手勢，而「試聽／開始／下一題」那一下就是手勢，所以這裡不會被擋。
     return player.play();
   }
 
-  // ---- 開場：題庫狀態 ----
+  // ---- 題庫 ----
+  function countByLanguage() {
+    var counts = {};
+    if (!bankReady) return counts;
+    bank.tracks.forEach(function (track) {
+      counts[track.language] = (counts[track.language] || 0) + 1;
+    });
+    return counts;
+  }
+
+  var bankCounts = countByLanguage();
+
+  /** 題庫裡真的有歌的語種。一首都沒有的語種不該出現在選項裡讓人白選。 */
+  var availableLanguages = Rules.LANGUAGES.filter(function (language) {
+    return bankCounts[language];
+  });
+
   function describeBank() {
     var line = el('bank-line');
 
@@ -97,15 +119,8 @@
       return;
     }
 
-    var counts = {};
-    bank.tracks.forEach(function (track) {
-      counts[track.language] = (counts[track.language] || 0) + 1;
-    });
-
-    var census = Rules.LANGUAGES.filter(function (language) {
-      return counts[language];
-    }).map(function (language) {
-      return Rules.nameOf(language) + ' ' + counts[language];
+    var census = availableLanguages.map(function (language) {
+      return Rules.nameOf(language) + ' ' + bankCounts[language];
     }).join('、');
 
     // 順手寫出建立日期：Apple 的試聽網址會過期，題庫放久了要重建。
@@ -115,15 +130,178 @@
       bank.decoys.length + ' 個誘餌' + built;
   }
 
-  describeBank();
+  // ---- 設定區 ----
+  // 語種與題數的清單都從 Rules 與題庫算出來，不寫死在 HTML 裡，
+  // 否則哪天加了新語種或改了題數選項，畫面和規則層就會各說各話。
+
+  function loadSetup() {
+    var saved = String(recall('songquiz.setup.languages', ''));
+    var wanted = saved ? saved.split(',') : availableLanguages;
+
+    setup.languages = availableLanguages.filter(function (language) {
+      return wanted.indexOf(language) !== -1;
+    });
+    if (setup.languages.length === 0) setup.languages = availableLanguages.slice();
+
+    var count = Number(recall('songquiz.setup.count', Rules.QUESTIONS_PER_ROUND));
+    setup.questionCount = Rules.QUESTION_COUNT_CHOICES.indexOf(count) === -1
+      ? Rules.QUESTIONS_PER_ROUND
+      : count;
+
+    var mode = String(recall('songquiz.setup.mode', 'stage'));
+    setup.mode = ['stage', 'speed', 'combo'].indexOf(mode) === -1 ? 'stage' : mode;
+  }
+
+  function saveSetup() {
+    remember('songquiz.setup.languages', setup.languages.join(','));
+    remember('songquiz.setup.count', setup.questionCount);
+    remember('songquiz.setup.mode', setup.mode);
+  }
+
+  function chip(label, pressed, onClick) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'chip';
+    button.textContent = label;
+    button.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  function renderLanguageChips() {
+    var box = el('lang-chips');
+    box.replaceChildren();
+
+    availableLanguages.forEach(function (language) {
+      var on = setup.languages.indexOf(language) !== -1;
+      var label = Rules.nameOf(language) + ' ' + bankCounts[language];
+
+      box.append(chip(label, on, function () {
+        toggleLanguage(language);
+      }));
+    });
+  }
+
+  function toggleLanguage(language) {
+    var at = setup.languages.indexOf(language);
+
+    // 全部取消就無法出題了。最後一個不給取消，比按下去沒反應再跳錯誤好。
+    if (at !== -1 && setup.languages.length === 1) return;
+
+    if (at === -1) setup.languages.push(language);
+    else setup.languages.splice(at, 1);
+
+    setup.languages = Rules.orderLanguages(setup.languages);
+    refreshSetup();
+  }
+
+  function renderCountChips() {
+    var box = el('count-chips');
+    box.replaceChildren();
+
+    Rules.QUESTION_COUNT_CHOICES.forEach(function (count) {
+      box.append(chip(count + ' 題', count === setup.questionCount, function () {
+        setup.questionCount = count;
+        refreshSetup();
+      }));
+    });
+  }
 
   var modeButtons = document.querySelectorAll('.mode');
 
-  // 題庫不在就不讓人按下去：按了只會在出題那一步壞掉，不如一開始就按不動。
-  if (!bankReady) {
-    for (var i = 0; i < modeButtons.length; i++) modeButtons[i].disabled = true;
-    el('btn-test').disabled = true;
+  for (var m = 0; m < modeButtons.length; m++) {
+    modeButtons[m].addEventListener('click', function () {
+      setup.mode = this.dataset.mode;
+      refreshSetup();
+    });
   }
+
+  /** 每個模式按鈕下面那行小字：這個設定在這個模式底下的實際後果。 */
+  function modeNote(mode) {
+    var count = setup.questionCount;
+
+    if (mode === 'stage') {
+      var stages = Rules.stagesFor(setup.languages, count, mode);
+      return stages.length + ' 關 × 每關 ' + count + ' 題，共 ' + (stages.length * count) + ' 題';
+    }
+
+    if (mode === 'combo') {
+      return count + ' 題，滿分 ' + num(Rules.perfectScoreFor(mode, count));
+    }
+
+    return count + ' 題，滿分 ' + num(Rules.perfectScoreFor(mode, count));
+  }
+
+  /** 按下開始之前的最後確認：設定要在畫面上看得出後果。 */
+  function summaryLine() {
+    var names = setup.languages.map(Rules.nameOf).join('／');
+    var count = setup.questionCount;
+
+    if (setup.mode === 'stage') {
+      var stages = Rules.stagesFor(setup.languages, count, setup.mode);
+      var thresholds = stages.length === 1
+        ? num(stages[0].scoreToClear)
+        : num(stages[0].scoreToClear) + '→' + num(stages[stages.length - 1].scoreToClear);
+
+      return '闖關模式 · ' + stages.length + ' 關 × 每關 ' + count + ' 題 · ' +
+        names + ' · 過關門檻 ' + thresholds;
+    }
+
+    if (setup.mode === 'combo') {
+      return '積分模式 · ' + count + ' 題 · ' + names +
+        ' · 滿分 ' + num(Rules.perfectScoreFor('combo', count)) +
+        '（連對最高 ×' + Rules.COMBO_MAX_MULTIPLIER + '）';
+    }
+
+    return '競速模式 · ' + count + ' 題 · ' + names +
+      ' · 滿分 ' + num(Rules.perfectScoreFor('speed', count));
+  }
+
+  /**
+   * 題庫湊不出這場的話，要在開打前講清楚差多少、怎麼辦。
+   * 玩到第三關才發現沒歌可出，是最糟的收場方式。
+   */
+  function warningLine(capacity) {
+    var worst = capacity.shortfall[0];
+    if (!worst) return '';
+
+    var where = worst.stage ? '第 ' + worst.stage + ' 關' : '這一場';
+    var langs = worst.languages.map(Rules.nameOf).join('／');
+
+    return '題庫湊不出' + where + '：' + langs + ' 需要 ' + worst.needed +
+      ' 首，只有 ' + worst.available + ' 首。少選幾題，或多勾幾個語種。';
+  }
+
+  function refreshSetup() {
+    for (var i = 0; i < modeButtons.length; i++) {
+      var button = modeButtons[i];
+      var on = button.dataset.mode === setup.mode;
+      button.setAttribute('aria-pressed', on ? 'true' : 'false');
+      button.querySelector('[data-note]').textContent = bankReady ? modeNote(button.dataset.mode) : '';
+    }
+
+    renderLanguageChips();
+    renderCountChips();
+
+    var capacity = bankReady
+      ? Rules.capacityFor(bank, setup.languages, setup.questionCount, setup.mode)
+      : { ok: false, shortfall: [] };
+
+    el('setup-summary').textContent = bankReady ? summaryLine() : '';
+
+    var warning = el('setup-warning');
+    warning.textContent = bankReady ? warningLine(capacity) : '';
+    warning.hidden = !warning.textContent;
+
+    el('btn-start').disabled = !capacity.ok;
+    saveSetup();
+  }
+
+  describeBank();
+  loadSetup();
+  refreshSetup();
+
+  if (!bankReady) el('btn-test').disabled = true;
 
   el('btn-test').addEventListener('click', function () {
     var track = bank.tracks[Math.floor(Math.random() * bank.tracks.length)];
@@ -137,15 +315,16 @@
   });
 
   // ---- 開一場 ----
-  for (var m = 0; m < modeButtons.length; m++) {
-    modeButtons[m].addEventListener('click', function () {
-      startGame(this.dataset.mode);
-    });
-  }
+  el('btn-start').addEventListener('click', startGame);
 
-  function startGame(mode) {
-    state.mode = mode;
-    state.game = new window.Game(mode, bank);
+  function startGame() {
+    state.game = new window.Game({
+      mode: setup.mode,
+      bank: bank,
+      languages: setup.languages,
+      questionCount: setup.questionCount,
+    });
+
     el('hud-score').textContent = '0';
     show('play');
     nextQuestion();
@@ -160,10 +339,12 @@
     var question = state.game.nextQuestion();
     if (!question) return showResult();
 
-    el('hud-stage').textContent = question.stageLabel || '競速模式';
+    el('hud-stage').textContent = question.stageLabel
+      ? '第 ' + question.stage + ' / ' + question.stageCount + ' 關'
+      : modeName(state.game.mode);
     el('hud-progress').textContent = '第 ' + question.number + ' / ' + question.total + ' 題';
-    el('hud-target').textContent =
-      question.scoreToClear > 0 ? '過關需 ' + num(question.scoreToClear) : '';
+    el('hud-target').textContent = targetLine(question);
+    el('hud-target').classList.toggle('combo', state.game.mode === 'combo');
 
     // HUD 的分數講的是「這一關」（門檻也是這一關的），所以每關第一題先歸零，
     // 不要讓上一關的數字留在畫面上。
@@ -175,6 +356,26 @@
     });
     startTimer(question.seconds);
     state.answering = false;
+  }
+
+  function modeName(mode) {
+    if (mode === 'combo') return '積分模式';
+    if (mode === 'speed') return '競速模式';
+    return '闖關模式';
+  }
+
+  /**
+   * HUD 右下角那一行。闖關看門檻，積分看連對——
+   * 這兩件事在各自的模式裡都是「現在最該盯著的數字」。
+   */
+  function targetLine(question) {
+    if (state.game.mode === 'combo') {
+      return question.streak > 0
+        ? '×' + question.multiplier + ' 連對中（' + question.streak + ' 題）'
+        : '答對就開始連莊';
+    }
+
+    return question.scoreToClear > 0 ? '過關需 ' + num(question.scoreToClear) : '';
   }
 
   function renderChoices(choices) {
@@ -244,14 +445,24 @@
     var title = el('verdict-title');
     var answer = el('verdict-answer');
     var next = el('btn-next');
+    var combo = state.game.mode === 'combo';
 
     box.hidden = false;
     box.classList.toggle('ok', outcome.correct);
     box.classList.toggle('no', !outcome.correct);
 
-    title.textContent = outcome.correct ? '答對！＋' + outcome.gained : '答錯';
+    if (outcome.correct) {
+      // 積分模式要看得出「這分是怎麼來的」，否則玩家不知道連對有沒有生效。
+      title.textContent = combo
+        ? '答對！＋' + outcome.gained + '（×' + Math.min(outcome.streak, Rules.COMBO_MAX_MULTIPLIER) + '）'
+        : '答對！＋' + outcome.gained;
+    } else {
+      title.textContent = combo && outcome.streak === 0 ? '答錯，連對歸零' : '答錯';
+    }
+
     answer.textContent = outcome.correct ? outcome.correctLabel : '正解：' + outcome.correctLabel;
     el('hud-score').textContent = num(outcome.roundScore);
+    el('hud-target').textContent = targetLine(outcome);
 
     if (outcome.status === 'stageCleared') {
       title.textContent = '第 ' + outcome.stage + ' 關過關！';
@@ -284,51 +495,72 @@
     show('result');
 
     el('result-title').textContent = stageMode
-      ? (cleared ? '六關全破！' : '闖關失敗：第 ' + game.stage + ' 關')
-      : '競速結算';
+      ? (cleared ? game.stageCount + ' 關全破！' : '闖關失敗：第 ' + game.stage + ' 關')
+      : modeName(game.mode) + '結算';
 
     el('result-score').textContent = num(game.totalScore);
-    el('result-of').textContent = stageMode ? '分（累積）' : '/ ' + num(Rules.PERFECT_SCORE);
+
+    // 闖關的總分是幾關累積的，拿單關滿分當分母會看起來像超過 100%。
+    el('result-of').textContent = stageMode
+      ? '分（累積）'
+      : '/ ' + num(Rules.perfectScoreFor(game.mode, game.questionCount));
 
     var correct = game.records.filter(function (record) {
       return record.correct;
     }).length;
 
     el('result-note').textContent = stageMode
-      ? '打到第 ' + game.stage + ' / ' + Rules.STAGE_COUNT + ' 關，共答對 ' + correct + ' 題'
-      : '答對 ' + correct + ' / ' + game.records.length + ' 題';
+      ? '打到第 ' + game.stage + ' / ' + game.stageCount + ' 關，共答對 ' + correct + ' 題'
+      : '答對 ' + correct + ' / ' + game.records.length + ' 題' +
+        (game.mode === 'combo' ? '，最長連對 ' + longestStreak(game.records) + ' 題' : '');
 
     showBest(game);
     renderReview(game.records);
   }
 
+  /** 最長連對要從紀錄倒推：game.streak 只留著結束那一刻的值。 */
+  function longestStreak(records) {
+    var best = 0;
+    var run = 0;
+
+    records.forEach(function (record) {
+      run = record.gained > 0 ? run + 1 : 0;
+      if (run > best) best = run;
+    });
+
+    return best;
+  }
+
   // ---- 個人最佳 ----
-  // 沒有伺服器可以存排行榜，所以成績記在這台瀏覽器裡，兩種模式各記一份；
-  // 換一台裝置就是另一份紀錄——這是純靜態站換來的代價。
-  function bestKey(mode, field) {
-    return 'songquiz.best.' + mode + '.' + field;
+  // 沒有伺服器可以存排行榜，所以成績記在這台瀏覽器裡。
+  //
+  // key 要把「模式 + 題數 + 語種」都算進去：5 題的積分和 20 題的闖關根本不是
+  // 同一件事，只用模式當 key 的話，紀錄會互相蓋掉而且毫無意義
+  // （選了只有華語的 5 題，卻被拿去和五語種 20 題比）。
+  function bestKey(game, field) {
+    return ['songquiz.best', game.mode, game.questionCount,
+      game.languages.join('-'), field].join('.');
   }
 
   function showBest(game) {
-    var mode = game.mode;
-    var bestScore = Number(recall(bestKey(mode, 'score'), 0));
-    var bestStage = Number(recall(bestKey(mode, 'stage'), 0));
+    var bestScore = Number(recall(bestKey(game, 'score'), 0));
+    var bestStage = Number(recall(bestKey(game, 'stage'), 0));
 
     // 先比對再覆蓋，否則畫面就只會看到「你的最佳＝這一次」。
     var newScore = game.totalScore > bestScore;
-    var newStage = mode === 'stage' && game.stage > bestStage;
+    var newStage = game.mode === 'stage' && game.stage > bestStage;
 
-    if (newScore) remember(bestKey(mode, 'score'), game.totalScore);
-    if (newStage) remember(bestKey(mode, 'stage'), game.stage);
+    if (newScore) remember(bestKey(game, 'score'), game.totalScore);
+    if (newStage) remember(bestKey(game, 'stage'), game.stage);
 
     var line = el('result-best');
     var parts = [];
 
     if (bestScore === 0) {
-      parts.push('這是你在這台裝置上的第一筆紀錄');
+      parts.push('這是你在這個設定下的第一筆紀錄');
     } else {
-      parts.push('你的最佳 ' + num(bestScore) + ' 分' +
-        (mode === 'stage' ? '、最遠第 ' + bestStage + ' 關' : ''));
+      parts.push('這個設定的最佳 ' + num(bestScore) + ' 分' +
+        (game.mode === 'stage' ? '、最遠第 ' + bestStage + ' 關' : ''));
       if (newScore) parts.push('破紀錄！多了 ' + num(game.totalScore - bestScore) + ' 分');
       if (newStage) parts.push('也是走得最遠的一次');
     }
@@ -395,9 +627,7 @@
   player.addEventListener('ended', clearPlayingMark);
   player.addEventListener('pause', clearPlayingMark);
 
-  el('btn-again').addEventListener('click', function () {
-    startGame(state.mode);
-  });
+  el('btn-again').addEventListener('click', startGame);
 
   el('btn-home').addEventListener('click', function () {
     stopTimer();
