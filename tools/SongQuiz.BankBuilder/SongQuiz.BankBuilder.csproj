@@ -1,9 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\SongQuiz.Common\SongQuiz.Common.csproj" />
-    <ProjectReference Include="..\..\src\SongQuiz.Quiz\SongQuiz.Quiz.csproj" />
-  </ItemGroup>
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>

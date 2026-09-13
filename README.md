@@ -1,46 +1,36 @@
 # 流行音樂猜歌王 SongQuiz
 
-聽 30 秒試聽裡的一段，從九個選項裡選出是哪一首。兩種玩法：
+聽 30 秒試聽裡的一段，從九個選項裡選出是哪一首。**純靜態網頁**，雙擊就能玩。
 
 - **闖關模式**：六關，每關十題。語種一關一關解鎖：華語 → 台語 → 西洋 → 韓語 → 日語。
   過關看分數（4000 → 9000），沒過就從第一關重來。
 - **競速模式**：十題，每題十二秒，答得越快分越高，滿分 10,000。
 
-題庫目前 **512 首可出題**、**765 個誘餌**（只當錯誤選項、不會被出題的歌名）。
+題庫 **512 首可出題**、**765 個誘餌**（只當錯誤選項、不會被出題的歌名）。
 
 ---
 
-## 跑起來
+## 玩
 
-雙擊 **`啟動.cmd`**，瀏覽器會自己開 <http://localhost:5000>。
+雙擊 **`開啟網站.cmd`**，或直接雙擊 `web\index.html`。
 
-> **剛改完程式立刻啟動，可能會被 Smart App Control 擋下來**（「存取被拒」或
-> 「應用程式控制原則已封鎖此檔案」）。這台機器的 SAC 開在強制執行模式，
-> 會封鎖**剛寫入**、還沒建立信譽的執行檔與 DLL；同一個檔案過幾分鐘到幾十分鐘
-> 就會自己放行。不是壞了，等一下再跑就好。詳見 `..\代辦清單.md` 的「環境備忘」。
->
-> 啟動.cmd 走的是「請已簽章的 dotnet 主機載入 DLL」這條路，被擋的機率比
-> `dotnet run`（要啟動剛編出來的 .exe）低，但不是免疫：
->
-> ```
-> cd src\SongQuiz.Server
-> dotnet bin\Debug\net8.0\SongQuiz.Server.dll --urls http://localhost:5000
-> ```
->
-> 要 `cd` 進專案目錄，因為 ContentRoot 取的是工作目錄，而 `wwwroot`
-> 和 `data\bank.json` 都掛在那底下。
+沒有伺服器、沒有安裝步驟、沒有打包工具。整個 `web\` 資料夾丟到任何靜態空間
+（GitHub Pages 之類）也能直接跑。
 
-擺攤（讓同一個 Wi-Fi 的手機都能連）：雙擊 **`擺攤.cmd`**，
-它會把這台電腦的區域網路位址列出來。
+個人最佳成績記在瀏覽器的 localStorage 裡，分模式各記一筆（闖關另外記最遠關卡）。
+換瀏覽器或清掉網站資料就會歸零——這是刻意的，沒有伺服器就沒有跨裝置的成績。
 
 ## 重建題庫
 
-題庫檔（`src/SongQuiz.Server/data/bank.json`）沒有進版控，因為它可以重建：
-雙擊 **`重建題庫.cmd`**。
+雙擊 **`重建題庫.cmd`**（需要網路，約一分鐘）。
 
-它會照 `tools/SongQuiz.BankBuilder/Artists.cs` 的演出者名單，
-循序向 Apple 的公開 Search API 查歌（約 64 個請求、每次間隔 400 毫秒，
-大概一分鐘），產生題庫與誘餌。想換歌就改那份名單。
+它會照 `tools\SongQuiz.BankBuilder\Artists.cs` 的演出者名單，循序向 Apple 的
+公開 Search API 查歌（約 64 個請求、每次間隔 400 毫秒），產生 `web\data\bank.js`。
+想換歌就改那份名單。
+
+`bank.js` **有進版控**——純靜態站的話，那個檔就是網站的內容本體，
+少了它 clone 下來沒裝 .NET 的人就沒得玩。但 Apple 的試聽網址會過期，
+放久了記得重建。
 
 參數：
 
@@ -50,27 +40,20 @@
 | `--decoys` | 12 | 每位演出者取幾首當誘餌 |
 | `--country` | TW | Apple 商店地區 |
 | `--delay` | 400 | 兩次請求間隔（毫秒） |
-| `--out` | `src/SongQuiz.Server/data/bank.json` | 輸出位置 |
+| `--out` | `web\data\bank.js` | 輸出位置 |
 
 ## 測試
 
+**遊戲規則**（34 項）：打開 `web\tests.html`，最上面會顯示 `RESULT PASS 34/34`。
+
+這台機器沒有 Node 也沒有 Python，所以那一頁是自己寫的極小跑法，零依賴。
+要無頭跑（CI 也能用同一條）：
+
 ```
-dotnet test
+msedge --headless=new --disable-gpu --virtual-time-budget=5000 --dump-dom "file:///…/web/tests.html"
 ```
 
-53 個測試，蓋住計分邊界（秒答 1000、11.9 秒還有分、12.0 秒零分）、
-六關的門檻與解鎖、出題永遠九個選項、歌名清洗，以及「整場不重複同一首歌」。
-
----
-
-## 擺攤的時候
-
-雙擊 `擺攤.cmd`，它會列出這台電腦的區域網路位址，
-告訴大家用手機瀏覽器打開那個網址。第一次可能要在防火牆提示上按「允許」。
-
-- 音量在首頁調，「試聽」按鈕會放三秒讓你對現場音響。
-- 一場遊戲的狀態放在伺服器記憶體裡，兩小時沒動作就自動清掉。
-- 伺服器重開，所有進行中的對局就沒了——這是刻意的，見 `架構.md` 第五節。
+**題庫產生器**（19 項，歌名清洗與輸出格式）：`dotnet test`。
 
 ---
 
@@ -79,8 +62,9 @@ dotnet test
 播放的是 **Apple Music 官方 30 秒試聽**，由 Apple 的伺服器直接串到瀏覽器。
 本專案不下載、不轉存、不代理任何音訊，題庫裡存的只是網址。
 
-程式碼是自己寫的。玩法（九選一、十二秒、六關解鎖）參考了
-台大流行音樂創作社的 [ntupm-songguesser](https://github.com/ntupm18th/ntupm-songguesser)（MIT），
+程式碼是自己寫的。玩法（九選一、十二秒、六關解鎖、題庫用 `.js` 而不是 `.json`）
+參考了台大流行音樂創作社的
+[ntupm-songguesser](https://github.com/ntupm18th/ntupm-songguesser)（MIT），
 沒有取用它的程式碼或題庫。
 
 ---
@@ -88,14 +72,25 @@ dotnet test
 ## 目錄
 
 ```
-src/
-  SongQuiz.Common/    時鐘、洗牌（零依賴）
-  SongQuiz.Quiz/      題庫、歌名清洗、出題（不知道有「遊戲」這回事）
-  SongQuiz.Game/      計分、關卡、回合狀態機
-  SongQuiz.Server/    minimal API + wwwroot 前端
+web/                  這就是網站本體
+  index.html
+  style.css
+  js/rules.js         規則與計分（純函式，不碰 DOM）
+  js/questions.js     出題：九選一、同語種誘餌
+  js/game.js          回合狀態機：闖關／競速
+  js/app.js           唯一碰 DOM 與音訊的檔案
+  data/bank.js        題庫（window.SONG_BANK）
+  tests.html          規則測試，打開就跑
 tools/
-  SongQuiz.BankBuilder/  題庫產生器（離線跑，不是伺服器的一部分）
+  SongQuiz.BankBuilder/   C# 離線工具：產生 data/bank.js
 tests/
-架構.md               為什麼這樣切，以及答案為什麼不能進瀏覽器
+  SongQuiz.BankBuilder.Tests/
+架構.md               為什麼是靜態站、答案在瀏覽器裡的取捨
 代辦清單.md           做到哪、下一步做什麼
 ```
+
+## 已知的取捨
+
+**答案在瀏覽器裡。** 純靜態就代表題庫、正解、計分公式都在玩家手上，
+開發者工具看得到——和參考站一樣。要做可信的排行榜時，判分必須搬回伺服器；
+第一版的 ASP.NET Core 判分實作留在 git 歷史（提交 `8464317`）可以翻回去參考。

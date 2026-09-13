@@ -1,6 +1,4 @@
-using SongQuiz.Quiz;
-
-namespace SongQuiz.Quiz.Tests;
+namespace SongQuiz.BankBuilder.Tests;
 
 public class TitleCleanerTests
 {

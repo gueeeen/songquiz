@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace SongQuiz.Quiz;
+namespace SongQuiz.BankBuilder;
 
 /// <summary>
 /// 歌名清洗。音樂平台的歌名常帶一串註記——(feat. …)、[Remastered]、

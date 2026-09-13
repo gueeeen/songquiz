@@ -1,11 +1,13 @@
 using SongQuiz.BankBuilder;
-using SongQuiz.Quiz;
 
-// 用法：
-//   dotnet run --project tools/SongQuiz.BankBuilder -- [--out 路徑] [--per-artist 8] [--decoys 12]
-//                                                     [--country TW] [--delay 400]
+// 用法：跑「重建題庫.cmd」。要帶參數就接在後面：
+//   重建題庫.cmd [--out 路徑] [--per-artist 8] [--decoys 12] [--country TW] [--delay 400]
 //
-// 產物是一份 bank.json：可出題的歌 + 只當錯誤選項的誘餌。
+// 不要用 dotnet run——這台機器的 Smart App Control 會擋剛編出來、還沒有信譽的
+// 執行檔（「存取被拒」）。腳本改請已簽章的 dotnet 主機載入 DLL，比較不容易被擋。
+//
+// 產物是一份 bank.js：可出題的歌 + 只當錯誤選項的誘餌，掛在 window.SONG_BANK 上
+// （為什麼是 .js 而不是 .json，見 SongBank.Save）。
 // 音檔本身不下載也不轉存——題庫裡放的是 Apple 官方試聽的網址。
 
 // 主控台輸出中文：Windows 預設 cp950，不換成 UTF-8 會變亂碼。
@@ -124,7 +126,7 @@ internal static class CommandLine
         return new BuilderOptions(output, perArtist, decoys, country, delay);
     }
 
-    /// <summary>預設寫到伺服器讀的位置，讓「跑完就能玩」成立。</summary>
+    /// <summary>預設寫到網頁讀的位置，讓「跑完就能玩」成立。</summary>
     private static string DefaultOutput()
     {
         var dir = AppContext.BaseDirectory;
@@ -132,6 +134,6 @@ internal static class CommandLine
             dir = Path.GetDirectoryName(dir);
 
         dir ??= Directory.GetCurrentDirectory();
-        return Path.Combine(dir, "src", "SongQuiz.Server", "data", "bank.json");
+        return Path.Combine(dir, "web", "data", "bank.js");
     }
 }
