@@ -1,0 +1,202 @@
+/* 深色為主：擺攤現場多半燈光不亮，而且玩家的眼睛要盯九個選項，底色越安靜越好。 */
+:root {
+  --bg: #0d0b14;
+  --bg-raised: #191527;
+  --line: #2c2540;
+  --ink: #f3f0ff;
+  --ink-dim: #a79fc4;
+  --accent: #ff4d88;
+  --accent-2: #6ee7ff;
+  --good: #3ddc97;
+  --bad: #ff5c7c;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #2a1b3d 0%, transparent 60%),
+    var(--bg);
+  color: var(--ink);
+  font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+#app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.screen { animation: rise .25s ease both; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+
+/* ---- 開場 ---- */
+.brand { text-align: center; margin: 24px 0 28px; }
+.brand h1 {
+  font-size: clamp(2rem, 9vw, 3rem);
+  margin: 0;
+  letter-spacing: .04em;
+}
+.brand h1 span {
+  color: var(--accent);
+  text-shadow: 0 0 24px rgba(255, 77, 136, .45);
+}
+.tagline { color: var(--ink-dim); margin: .6em 0 0; font-size: .95rem; }
+
+.volume {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 20px;
+  font-size: .9rem;
+}
+.volume label { color: var(--ink-dim); white-space: nowrap; }
+.volume input[type=range] { flex: 1; accent-color: var(--accent); }
+
+.modes { display: grid; gap: 12px; }
+.mode {
+  display: grid; gap: 6px;
+  text-align: left;
+  padding: 18px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: inherit;
+  cursor: pointer;
+  transition: border-color .15s, transform .15s;
+}
+.mode:hover { border-color: var(--accent); transform: translateY(-2px); }
+.mode strong { font-size: 1.15rem; }
+.mode span { color: var(--ink-dim); font-size: .88rem; line-height: 1.6; }
+.mode em { color: var(--accent-2); font-size: .8rem; font-style: normal; }
+
+.bank, .credit { color: var(--ink-dim); font-size: .78rem; text-align: center; }
+.bank { margin-top: 22px; }
+.credit { margin-top: 6px; opacity: .7; }
+
+/* ---- HUD ---- */
+.hud {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  margin-bottom: 14px;
+}
+.hud-left { display: grid; gap: 2px; }
+.hud-right { text-align: right; display: grid; gap: 2px; }
+.stage { color: var(--accent); font-weight: 700; font-size: .95rem; }
+.progress, .target { color: var(--ink-dim); font-size: .8rem; }
+.score { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ---- 計時條 ---- */
+.timer {
+  position: relative;
+  height: 10px;
+  background: var(--bg-raised);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.timer-bar {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, var(--accent-2), var(--accent));
+  transform-origin: left;
+}
+.timer-text {
+  display: block;
+  text-align: right;
+  font-size: .78rem;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 12px;
+}
+.timer.urgent .timer-bar { background: var(--bad); }
+
+.hint { color: var(--ink-dim); font-size: .85rem; text-align: center; margin: 6px 0 14px; }
+
+/* ---- 九個選項：手機上兩欄，桌機三欄 ---- */
+.choices {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+@media (min-width: 560px) { .choices { grid-template-columns: repeat(3, 1fr); } }
+
+.choice {
+  padding: 14px 12px;
+  min-height: 64px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: inherit;
+  font-size: .85rem;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.choice:hover:not(:disabled) { border-color: var(--accent); }
+.choice:disabled { cursor: default; opacity: .55; }
+.choice.correct { border-color: var(--good); background: rgba(61, 220, 151, .14); opacity: 1; }
+.choice.wrong { border-color: var(--bad); background: rgba(255, 92, 124, .14); opacity: 1; }
+
+/* ---- 判定 ---- */
+.verdict {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: grid; gap: 8px; justify-items: center; text-align: center;
+}
+.verdict strong { font-size: 1.1rem; }
+.verdict.ok strong { color: var(--good); }
+.verdict.no strong { color: var(--bad); }
+.verdict span { color: var(--ink-dim); font-size: .85rem; }
+
+/* ---- 結算 ---- */
+#screen-result h2 { text-align: center; margin: 24px 0 4px; }
+.result-score { text-align: center; margin: 0 0 4px; }
+.result-score span { font-size: 3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.result-score small { color: var(--ink-dim); font-size: .9rem; margin-left: 4px; }
+.result-note { text-align: center; color: var(--accent-2); font-size: .9rem; margin: 0 0 20px; }
+
+.review { list-style: none; padding: 0; margin: 0 0 24px; display: grid; gap: 6px; }
+.review li {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 10px;
+  font-size: .82rem;
+}
+.review li.ok { border-left-color: var(--good); }
+.review li.no { border-left-color: var(--bad); }
+.review .song { display: grid; gap: 2px; min-width: 0; }
+.review .song b { font-weight: 600; }
+.review .song i { color: var(--ink-dim); font-style: normal; font-size: .76rem; }
+.review .pts { color: var(--ink-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.result-actions { display: flex; gap: 10px; justify-content: center; }
+
+/* ---- 按鈕 ---- */
+button { font: inherit; font-family: inherit; }
+.primary, .ghost {
+  padding: 12px 22px;
+  border-radius: 99px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.primary { background: var(--accent); color: #fff; border: none; font-weight: 700; }
+.primary:hover { filter: brightness(1.08); }
+.ghost { background: transparent; color: var(--ink-dim); border-color: var(--line); }
+.ghost:hover { color: var(--ink); border-color: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .screen { animation: none; }
+  .timer-bar { transition: none !important; }
+}
