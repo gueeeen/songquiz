@@ -1,0 +1,156 @@
+/* 多人房間專用的樣式。共用的東西（配色變數、選項鈕、計時條、按鈕）
+   全部沿用 style.css，這個檔只補房間才有的東西：
+   連線狀態列、房號、名冊、比分板。 */
+
+#app.room { max-width: 760px; }
+
+/* ---- 連線狀態 ---- */
+/* 多人功能壞掉的時候，第一個要回答的問題是「線有沒有通」。
+   所以狀態列永遠在最上面，而且不是可以關掉的通知——它是常駐儀表。 */
+.net {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-raised);
+  color: var(--ink-dim);
+  font-size: .78rem;
+  text-align: center;
+}
+.net.ok { border-color: rgba(61, 220, 151, .5); color: var(--good); }
+.net.bad { border-color: rgba(255, 92, 124, .6); color: var(--bad); }
+
+.net-notice {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 200, 80, .45);
+  border-left-width: 4px;
+  border-radius: 10px;
+  background: rgba(255, 200, 80, .08);
+  color: #ffd98a;
+  font-size: .82rem;
+  line-height: 1.7;
+}
+
+/* ---- 大廳 ---- */
+.lab { display: block; color: var(--ink-dim); font-size: .82rem; margin-bottom: 6px; }
+
+.room input[type=text] {
+  width: 100%;
+  padding: 12px 14px;
+  background: #100d1b;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  font: inherit;
+}
+.room input[type=text]:focus { outline: none; border-color: var(--accent); }
+
+/* 房號要一眼就讀得完、也要一眼看出打錯了幾個字，所以放大並拉開字距。 */
+.code-input {
+  text-align: center;
+  font-size: 1.8rem !important;
+  letter-spacing: .35em;
+  text-indent: .35em;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+.lobby-error {
+  margin: 12px 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255, 92, 124, .12);
+  border: 1px solid rgba(255, 92, 124, .45);
+  color: #ffb3c2;
+  font-size: .85rem;
+  line-height: 1.7;
+}
+
+.two-up { display: grid; gap: 16px; margin-top: 18px; }
+@media (min-width: 640px) { .two-up { grid-template-columns: 1fr 1.25fr; align-items: start; } }
+
+.card {
+  padding: 18px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.card h2 { margin: 0 0 14px; font-size: 1.05rem; }
+.card .primary.big { width: 100%; }
+
+/* ---- 等待室 ---- */
+.code-label { margin: 24px 0 0; text-align: center; color: var(--ink-dim); font-size: .8rem; }
+.code-big {
+  margin: 4px 0 8px;
+  text-align: center;
+  font-size: clamp(3rem, 18vw, 5rem);
+  font-weight: 700;
+  letter-spacing: .18em;
+  color: var(--accent-2);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  text-shadow: 0 0 30px rgba(110, 231, 255, .35);
+}
+.room-settings { margin: 0 0 24px; text-align: center; color: var(--ink-dim); font-size: .85rem; }
+
+.room h2 { font-size: 1rem; }
+.room h2 small { color: var(--ink-dim); font-weight: 400; font-size: .78rem; margin-left: 8px; }
+
+.players { list-style: none; margin: 0 0 20px; padding: 0; display: grid; gap: 8px; }
+.players li {
+  padding: 12px 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+/* 房主看得出是誰，現場才知道該找誰按開始。 */
+.players li.host { border-color: var(--accent); }
+.players li.host::after { content: "房主"; float: right; color: var(--accent); font-size: .75rem; }
+
+.waiting-hint { color: var(--ink-dim); font-size: .85rem; line-height: 1.8; }
+
+.row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.row .primary { flex: 1; }
+
+/* ---- 遊戲中 ---- */
+.mode-line { color: var(--ink-dim); font-size: .78rem; text-align: right; }
+
+.hint.bad { color: var(--bad); }
+
+/* 自己按的那一顆要看得出來，不然被搶走的時候會分不清「我按了嗎」。 */
+.choice.mine { border-color: var(--accent-2); box-shadow: 0 0 0 2px rgba(110, 231, 255, .3) inset; }
+
+/* 被搶走要和自己答錯分開：一個是「來不及」，一個是「答錯」，感受完全不同。 */
+.verdict.taken { border-color: var(--accent-2); }
+.verdict.taken strong { color: var(--accent-2); }
+
+.board-title { margin: 28px 0 10px; }
+
+.board { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.board li {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: .88rem;
+}
+.board li.me { border-color: var(--accent-2); }
+.board li b { color: var(--accent-2); font-size: 1.05rem; }
+
+/* ---- 結算 ---- */
+.standings { list-style: none; margin: 20px 0; padding: 0; display: grid; gap: 8px; }
+.standings li {
+  display: grid; grid-template-columns: 2.2rem 1fr auto; align-items: center; gap: 10px;
+  padding: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.standings li.me { border-color: var(--accent-2); }
+.standings li:first-child { border-color: var(--accent); background: rgba(255, 77, 136, .08); }
+.standings i {
+  font-style: normal; text-align: center;
+  color: var(--ink-dim); font-size: 1.2rem; font-weight: 700;
+}
+.standings li:first-child i { color: var(--accent); }
+.standings b { color: var(--accent-2); }

@@ -302,3 +302,8 @@ button { font: inherit; font-family: inherit; }
 /* 積分模式的連對狀態借用 HUD 右下角那一行——
    在那個模式裡，連對就是「現在最該盯著的數字」，等同闖關模式的門檻。 */
 .target.combo { color: var(--accent); font-weight: 700; }
+
+/* 通往多人房間的入口。刻意做得比「開始」小——多數人是一個人玩。 */
+.to-room { text-align: center; margin: 14px 0 0; font-size: .85rem; }
+.to-room a { color: var(--accent-2); text-decoration: none; }
+.to-room a:hover { text-decoration: underline; }
