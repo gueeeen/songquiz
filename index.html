@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>流行音樂猜歌王</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app">
+
+  <!-- 開場 -->
+  <section class="screen" id="screen-home">
+    <header class="brand">
+      <h1>流行音樂<span>猜歌王</span></h1>
+      <p class="tagline">九個選項，十二秒，你只會聽到三十秒裡的一段。</p>
+    </header>
+
+    <div class="volume">
+      <label for="volume">音量 <output id="volume-out">80%</output></label>
+      <input type="range" id="volume" min="0" max="100" value="80">
+      <button type="button" class="ghost" id="btn-test">試聽</button>
+    </div>
+
+    <div class="modes">
+      <button type="button" class="mode" data-mode="stage">
+        <strong>闖關模式</strong>
+        <span>六關，每關十題。語種一關一關解鎖：華語 → 台語 → 西洋 → 韓語 → 日語。</span>
+        <em>分數不夠就從第一關重來</em>
+      </button>
+      <button type="button" class="mode" data-mode="speed">
+        <strong>競速模式</strong>
+        <span>十題，每題十二秒，答得越快分越高。</span>
+        <em>滿分 10,000</em>
+      </button>
+    </div>
+
+    <p class="bank" id="bank-line">題庫載入中…</p>
+    <p class="credit">音源為 Apple Music 官方 30 秒試聽，由 Apple 伺服器直接播放。</p>
+  </section>
+
+  <!-- 遊戲中 -->
+  <section class="screen" id="screen-play" hidden>
+    <div class="hud">
+      <div class="hud-left">
+        <span class="stage" id="hud-stage"></span>
+        <span class="progress" id="hud-progress">第 1 / 10 題</span>
+      </div>
+      <div class="hud-right">
+        <span class="score" id="hud-score">0</span>
+        <span class="target" id="hud-target"></span>
+      </div>
+    </div>
+
+    <div class="timer">
+      <div class="timer-bar" id="timer-bar"></div>
+    </div>
+    <span class="timer-text" id="timer-text">12.0</span>
+
+    <p class="hint" id="play-hint">正在播放…選出你聽到的那一首</p>
+
+    <div class="choices" id="choices"></div>
+
+    <div class="verdict" id="verdict" hidden>
+      <strong id="verdict-title"></strong>
+      <span id="verdict-answer"></span>
+      <button type="button" class="primary" id="btn-next">下一題</button>
+    </div>
+  </section>
+
+  <!-- 結算 -->
+  <section class="screen" id="screen-result" hidden>
+    <h2 id="result-title">結算</h2>
+    <p class="result-score"><span id="result-score">0</span><small id="result-of"></small></p>
+    <p class="result-note" id="result-note"></p>
+    <p class="result-best" id="result-best"></p>
+    <ol class="review" id="review"></ol>
+    <div class="result-actions">
+      <button type="button" class="primary" id="btn-again">再來一場</button>
+      <button type="button" class="ghost" id="btn-home">回首頁</button>
+    </div>
+  </section>
+
+</main>
+
+<audio id="player" preload="auto" crossorigin="anonymous"></audio>
+
+<!-- 順序有意義：規則 → 出題 → 遊戲 → 題庫 → 畫面。
+     app.js 一載入就要讀得到 window.Rules 與 window.SONG_BANK，所以它排最後。
+     全部都是傳統 script（不是 module），這樣雙擊 index.html 從 file:// 開也能玩。 -->
+<script src="js/rules.js"></script>
+<script src="js/questions.js"></script>
+<script src="js/game.js"></script>
+<script src="data/bank.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
