@@ -228,3 +228,77 @@ button { font: inherit; font-family: inherit; }
 .mode:disabled, .ghost:disabled { opacity: .45; cursor: default; }
 .mode:disabled:hover { border-color: var(--line); transform: none; }
 .ghost:disabled:hover { color: var(--ink-dim); border-color: var(--line); }
+
+/* ---- 開場設定區 ---- */
+/* 手機上這一區是最多互動的地方，所以每個可點的東西都給足夠的觸控面積
+   （原生 checkbox 在小螢幕上擠一排會點不到）。 */
+.setup { display: grid; gap: 14px; margin-bottom: 18px; }
+
+.field {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  padding: 12px 14px 14px;
+  margin: 0;
+}
+.field legend {
+  padding: 0 6px;
+  font-size: .85rem;
+  color: var(--ink);
+}
+.field legend i {
+  color: var(--ink-dim);
+  font-style: normal;
+  font-size: .74rem;
+  margin-left: 8px;
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.chip {
+  padding: 9px 14px;
+  min-height: 40px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-dim);
+  font-size: .85rem;
+  cursor: pointer;
+  transition: border-color .12s, color .12s, background .12s;
+}
+.chip:hover { color: var(--ink); border-color: var(--accent); }
+.chip[aria-pressed="true"] {
+  color: #fff;
+  border-color: var(--accent);
+  background: rgba(255, 77, 136, .22);
+  font-weight: 600;
+}
+
+/* 被選中的模式要一眼看得出來——它決定了上面兩區設定的意義。 */
+.mode[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: rgba(255, 77, 136, .12);
+}
+
+.setup-summary {
+  text-align: center;
+  font-size: .85rem;
+  color: var(--accent-2);
+  margin: 0 0 10px;
+  line-height: 1.6;
+}
+.setup-warning {
+  text-align: center;
+  font-size: .82rem;
+  color: var(--bad);
+  margin: 0 0 12px;
+  line-height: 1.6;
+}
+
+.start-row { display: flex; justify-content: center; }
+.primary.big { padding: 14px 48px; font-size: 1.05rem; }
+.primary:disabled { opacity: .4; cursor: default; filter: none; }
+
+/* 積分模式的連對狀態借用 HUD 右下角那一行——
+   在那個模式裡，連對就是「現在最該盯著的數字」，等同闖關模式的門檻。 */
+.target.combo { color: var(--accent); font-weight: 700; }

@@ -22,17 +22,46 @@
       <button type="button" class="ghost" id="btn-test">試聽</button>
     </div>
 
-    <div class="modes">
-      <button type="button" class="mode" data-mode="stage">
-        <strong>闖關模式</strong>
-        <span>六關，每關十題。語種一關一關解鎖：華語 → 台語 → 西洋 → 韓語 → 日語。</span>
-        <em>分數不夠就從第一關重來</em>
-      </button>
-      <button type="button" class="mode" data-mode="speed">
-        <strong>競速模式</strong>
-        <span>十題，每題十二秒，答得越快分越高。</span>
-        <em>滿分 10,000</em>
-      </button>
+    <!-- 設定區的內容（語種、題數）由 app.js 依題庫與 Rules 產生，
+         寫死在 HTML 裡會和規則層的清單分岔。 -->
+    <div class="setup">
+      <fieldset class="field">
+        <legend>語種<i>至少選一個，數字是題庫裡的首數</i></legend>
+        <div class="chips" id="lang-chips"></div>
+      </fieldset>
+
+      <fieldset class="field">
+        <legend>題數<i>闖關是「每關題數」，競速與積分是「整場題數」</i></legend>
+        <div class="chips" id="count-chips"></div>
+      </fieldset>
+
+      <fieldset class="field">
+        <legend>模式</legend>
+        <div class="modes" id="modes">
+          <button type="button" class="mode" data-mode="stage" aria-pressed="false">
+            <strong>闖關模式</strong>
+            <span>關卡依你勾的語種生成：一關解鎖一個新語種，最後一關全部混合。每關要拿到門檻分數才過。</span>
+            <em data-note></em>
+          </button>
+          <button type="button" class="mode" data-mode="speed" aria-pressed="false">
+            <strong>競速模式</strong>
+            <span>一場打完，每題十二秒，答得越快分越高。</span>
+            <em data-note></em>
+          </button>
+          <button type="button" class="mode" data-mode="combo" aria-pressed="false">
+            <strong>積分模式（連對加成）</strong>
+            <span>答對就連莊，倍率一路往上最高 ×5，答錯歸零。不看速度，只看你能連幾題。</span>
+            <em data-note></em>
+          </button>
+        </div>
+      </fieldset>
+    </div>
+
+    <!-- 設定要在畫面上看得出後果：這一行是按下開始之前的最後確認。 -->
+    <p class="setup-summary" id="setup-summary"></p>
+    <p class="setup-warning" id="setup-warning" hidden></p>
+    <div class="start-row">
+      <button type="button" class="primary big" id="btn-start">開始</button>
     </div>
 
     <p class="bank" id="bank-line">題庫載入中…</p>
