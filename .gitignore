@@ -1,0 +1,27 @@
+# ---- .NET build output ----
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+.vs/
+.vscode/
+artifacts/
+
+# ---- 本機設定與機密 ----
+appsettings.Local.json
+.env
+.claude/settings.local.json
+
+# ---- 題庫產物 ----
+# bank.json 由 tools/SongQuiz.BankBuilder 產生，體積大且可重建
+src/SongQuiz.Server/data/bank.json
+# 使用者自備的本機音檔（版權屬原權利人，不進版控）
+audio/
+
+# ---- 其他 ----
+*.log
+Thumbs.db
+desktop.ini
+publish/
