@@ -21,8 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\SongQuiz.Game\SongQuiz.Game.csproj" />
-    <ProjectReference Include="..\..\src\SongQuiz.Quiz\SongQuiz.Quiz.csproj" />
+    <ProjectReference Include="..\..\tools\SongQuiz.BankBuilder\SongQuiz.BankBuilder.csproj" />
   </ItemGroup>
 
 </Project>

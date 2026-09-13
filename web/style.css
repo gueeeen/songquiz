@@ -200,3 +200,31 @@ button { font: inherit; font-family: inherit; }
   .screen { animation: none; }
   .timer-bar { transition: none !important; }
 }
+
+/* ---- 個人最佳（純靜態站沒有伺服器，成績記在這台瀏覽器的 localStorage） ---- */
+.result-best {
+  text-align: center;
+  color: var(--ink-dim);
+  font-size: .82rem;
+  margin: -12px 0 20px;
+}
+.result-best.record { color: var(--accent); font-weight: 700; }
+
+/* ---- 結算頁的重聽鈕 ---- */
+.review .play {
+  flex: none;
+  width: 34px; height: 34px;
+  border-radius: 99px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  font-size: .74rem;
+  cursor: pointer;
+}
+.review .play:hover { color: var(--ink); border-color: var(--accent); }
+.review .play.playing { color: var(--accent); border-color: var(--accent); }
+
+/* ---- 題庫還沒建的時候，按鈕要看得出來按不動 ---- */
+.mode:disabled, .ghost:disabled { opacity: .45; cursor: default; }
+.mode:disabled:hover { border-color: var(--line); transform: none; }
+.ghost:disabled:hover { color: var(--ink-dim); border-color: var(--line); }

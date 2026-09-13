@@ -1,5 +1,3 @@
-using SongQuiz.Quiz;
-
 namespace SongQuiz.BankBuilder;
 
 /// <summary>

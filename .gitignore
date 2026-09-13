@@ -14,9 +14,10 @@ appsettings.Local.json
 .env
 .claude/settings.local.json
 
-# ---- 題庫產物 ----
-# bank.json 由 tools/SongQuiz.BankBuilder 產生，體積大且可重建
-src/SongQuiz.Server/data/bank.json
+# ---- 題庫 ----
+# web/data/bank.js 刻意「進」版控：這是純靜態站，那個檔就是網站的內容本體。
+# 不進版控的話，clone 下來的人沒裝 .NET 就沒得玩，丟上 GitHub Pages 也是空的。
+# 它可以用「重建題庫.cmd」重新產生，但重建需要網路與一分鐘，不該是玩之前的必要步驟。
 # 使用者自備的本機音檔（版權屬原權利人，不進版控）
 audio/
 

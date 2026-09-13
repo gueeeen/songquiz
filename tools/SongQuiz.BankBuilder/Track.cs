@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace SongQuiz.Quiz;
+namespace SongQuiz.BankBuilder;
 
 /// <summary>
 /// 歌曲的語種分類。闖關模式就是靠這個逐關擴充題庫範圍。
@@ -19,7 +19,7 @@ public enum Language
 /// 音檔由 Apple 的伺服器直接串給瀏覽器——本專案不轉存、不代理、不快取音訊。
 /// </summary>
 /// <param name="Id">穩定識別碼，用 Apple 的 trackId。</param>
-/// <param name="Title">歌名，已去掉副標與版本註記（見 BankBuilder 的清洗規則）。</param>
+/// <param name="Title">歌名，已去掉副標與版本註記（見 TitleCleaner）。</param>
 /// <param name="Artist">演出者。</param>
 /// <param name="Language">語種分類。</param>
 /// <param name="PreviewUrl">30 秒試聽網址。</param>

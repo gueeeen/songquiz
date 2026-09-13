@@ -15,11 +15,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
-rem 同樣不用 dotnet run（Smart App Control 會擋剛寫入的檔案），理由見 啟動.cmd。
+rem 不用 dotnet run：這台機器的 Smart App Control 會擋剛寫入、還沒有信譽的
+rem 執行檔（「存取被拒」）。請已簽章的 dotnet 主機載入 DLL 比較不容易被擋；
+rem 真的被擋就等幾分鐘再跑，同一個檔案信譽跟上之後就會放行。
 dotnet "tools\SongQuiz.BankBuilder\bin\Debug\net8.0\SongQuiz.BankBuilder.dll" %*
 
 echo.
-echo   題庫寫到 src\SongQuiz.Server\data\bank.json
-echo   伺服器只在啟動時讀題庫，所以請重新執行「啟動.cmd」。
+echo   題庫寫到 web\data\bank.js
+echo   網頁每次開啟都會重新讀它，所以直接重新整理瀏覽器就生效。
 echo.
 pause

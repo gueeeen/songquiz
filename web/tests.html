@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>測試</title>
+<style>
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #14161c;
+    color: #d8dbe4;
+    font: 15px/1.7 "Segoe UI", "Microsoft JhengHei", sans-serif;
+  }
+  h1 {
+    margin: 0 0 4px;
+    font-size: 22px;
+    font-family: Consolas, monospace;
+  }
+  h1.pass { color: #57d98a; }
+  h1.fail { color: #ff6b6b; }
+  p.hint { margin: 0 0 20px; color: #7c8494; font-size: 13px; }
+  h2 {
+    margin: 24px 0 8px;
+    font-size: 14px;
+    font-weight: normal;
+    color: #7c8494;
+    border-bottom: 1px solid #262a33;
+    padding-bottom: 4px;
+  }
+  ul { margin: 0; padding: 0; list-style: none; }
+  li { padding: 2px 0; }
+  li.pass::before { content: "通過　"; color: #57d98a; }
+  li.fail::before { content: "失敗　"; color: #ff6b6b; }
+  li.fail { color: #ff9d9d; }
+  li .why {
+    display: block;
+    margin-left: 4em;
+    color: #ffc9c9;
+    font-family: Consolas, monospace;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<h1 id="result">RESULT 尚未執行</h1>
+<p class="hint">這一頁打開就跑完所有測試。沒有 Node、沒有測試框架，所以結果直接畫進 DOM，讓無頭瀏覽器 dump 出來也判讀得到。</p>
+<div id="report"></div>
+
+<!-- 載入順序是死的：game.js 在 IIFE 裡就抓 window.Rules，questions.js 也要先於它。 -->
+<script src="js/rules.js"></script>
+<script src="js/questions.js"></script>
+<script src="js/game.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var Rules = window.Rules;
+
+  // ---------------------------------------------------------------- 跑法
+
+  var results = [];
+  var currentGroup = '其他';
+
+  function group(name) {
+    currentGroup = name;
+  }
+
+  function test(name, fn) {
+    var entry = { group: currentGroup, name: name, ok: true, why: '' };
+    try {
+      fn();
+    } catch (error) {
+      entry.ok = false;
+      entry.why = (error && error.message) ? error.message : String(error);
+    }
+    results.push(entry);
+  }
+
+  /** 把值印成看得懂的樣子，失敗訊息才能直接看出差在哪。 */
+  function show(value) {
+    if (typeof value === 'string') return '「' + value + '」';
+    if (value === null) return 'null';
+    if (value === undefined) return 'undefined';
+    if (Array.isArray(value)) return '[' + value.map(show).join(', ') + ']';
+    return String(value);
+  }
+
+  /** 陣列要逐項比，不然「選項標籤一不一樣」這種斷言只會比到參考位址。 */
+  function same(a, b) {
+    if (Array.isArray(a) && Array.isArray(b)) {
+      if (a.length !== b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (!same(a[i], b[i])) return false;
+      }
+      return true;
+    }
+    return a === b;
+  }
+
+  function assertEqual(expected, actual, note) {
+    if (!same(expected, actual)) {
+      throw new Error((note ? note + '，' : '') + '預期 ' + show(expected) + '，實際 ' + show(actual));
+    }
+  }
+
+  function assertTrue(value, note) {
+    if (!value) throw new Error((note || '斷言') + '：預期成立，實際不成立');
+  }
+
+  function assertThrows(fn, note) {
+    var threw = false;
+    try {
+      fn();
+    } catch (error) {
+      threw = true;
+    }
+    if (!threw) throw new Error((note || '斷言') + '：預期丟出錯誤，實際順利跑完');
+  }
+
+  // ------------------------------------------------------------ 測試替身
+
+  /**
+   * 假時鐘。計分只看兩次 now() 的差，真時鐘會讓 1000 分與 999 分的邊界
+   * 變成「機器夠不夠快」的賭博。起點刻意不是 0，順便擋住把 issuedAt 當成 0 的實作。
+   */
+  function makeClock() {
+    var seconds = 1000;
+    return {
+      now: function () { return seconds; },
+      advance: function (delta) { seconds += delta; },
+    };
+  }
+
+  /** 線性同餘亂數。要的不是品質，是「同一顆種子永遠出一樣的題」。 */
+  function makeRng(seed) {
+    var state = seed >>> 0;
+    return function () {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 4294967296;
+    };
+  }
+
+  /**
+   * 自己造題庫，不碰 data/bank.js——那是產生物（可能不存在），
+   * 而且真實題庫的歌數會隨著重建題庫而變，測試會跟著飄。
+   *
+   * @param {Array<Array>} spec 形如 [['mandarin', 40], ...]
+   * @param {number} decoyCount 誘餌數（華語）
+   */
+  function bankOf(spec, decoyCount) {
+    var tracks = [];
+    var id = 1;
+
+    spec.forEach(function (pair) {
+      var language = pair[0];
+      for (var i = 0; i < pair[1]; i++) {
+        tracks.push({
+          id: id,
+          title: language + '-歌' + i,
+          artist: language + '-歌手' + i,
+          language: language,
+          previewUrl: 'https://example.test/' + id + '.m4a',
+        });
+        id++;
+      }
+    });
+
+    var decoys = [];
+    for (var d = 0; d < (decoyCount || 0); d++) {
+      decoys.push({ title: '誘餌' + d, artist: '誘餌歌手' + d, language: 'mandarin' });
+    }
+
+    return { tracks: tracks, decoys: decoys };
+  }
+
+  /** 每個語種都夠多歌，六關才跑得完。 */
+  function fullBank(perLanguage) {
+    return bankOf(Rules.LANGUAGES.map(function (language) {
+      return [language, perLanguage || 40];
+    }), 0);
+  }
+
+  function newGame(mode, bank) {
+    var clock = makeClock();
+    var game = new window.Game(mode, bank || fullBank(40), {
+      now: clock.now,
+      rng: makeRng(1),
+    });
+    return { game: game, clock: clock };
+  }
+
+  function answerCorrectly(game) {
+    assertTrue(game.current !== null, '現在沒有題目可以答');
+    return game.answer(game.current.answerId);
+  }
+
+  function answerWrongly(game) {
+    assertTrue(game.current !== null, '現在沒有題目可以答');
+    return game.answer(game.current.answerId === 0 ? 1 : 0);
+  }
+
+  /** 全對且零秒答完一整關，也就是這一關滿分。 */
+  function perfectRound(game, clock) {
+    for (var i = 0; i < Rules.QUESTIONS_PER_ROUND; i++) {
+      assertTrue(game.nextQuestion() !== null, '第 ' + (i + 1) + ' 題出不來');
+      answerCorrectly(game);
+    }
+  }
+
+  /**
+   * 打完一整關：先 perfect 題秒答（每題 1000），
+   * 接著 slowCorrect 題慢 24 毫秒答對（每題 999），其餘全錯。回傳最後一題的回報。
+   */
+  function playRound(game, clock, perfect, slowCorrect) {
+    var last = null;
+
+    for (var i = 0; i < Rules.QUESTIONS_PER_ROUND; i++) {
+      game.nextQuestion();
+
+      if (i < perfect) {
+        last = answerCorrectly(game);
+      } else if (i < perfect + slowCorrect) {
+        clock.advance(0.024);
+        last = answerCorrectly(game);
+      } else {
+        clock.advance(1);
+        last = answerWrongly(game);
+      }
+    }
+
+    return last;
+  }
+
+  function languagesOf(records) {
+    return records.map(function (record) { return record.language; });
+  }
+
+  // -------------------------------------------------------------- 計分邊界
+
+  group('計分邊界');
+
+  test('答錯一律零分，不管多快按下去', function () {
+    assertEqual(0, Rules.scoreFor(false, 0));
+    assertEqual(0, Rules.scoreFor(false, 6));
+  });
+
+  test('秒答拿滿分一千', function () {
+    assertEqual(Rules.BASE_SCORE + Rules.SPEED_BONUS, Rules.scoreFor(true, 0));
+    assertEqual(1000, Rules.scoreFor(true, 0));
+  });
+
+  test('用掉一半時間拿保底加一半獎勵', function () {
+    assertEqual(Rules.BASE_SCORE + Rules.SPEED_BONUS / 2, Rules.scoreFor(true, 6));
+    assertEqual(750, Rules.scoreFor(true, 6));
+  });
+
+  test('十二秒是硬邊界：十一點九秒還有分，十二秒整就當沒答到', function () {
+    assertEqual(504, Rules.scoreFor(true, 11.9), '十一點九秒答對');
+    assertEqual(0, Rules.scoreFor(true, Rules.QUESTION_SECONDS), '十二秒整答對');
+    assertEqual(0, Rules.scoreFor(true, 30), '逾時很久才答對');
+  });
+
+  test('一關滿分是一萬', function () {
+    assertEqual(10000, Rules.PERFECT_SCORE);
+    assertEqual(10000, Rules.scoreFor(true, 0) * Rules.QUESTIONS_PER_ROUND);
+  });
+
+  // ---------------------------------------------------------------- 關卡表
+
+  group('關卡表');
+
+  test('六關的門檻是遞增的四千到九千', function () {
+    assertEqual(6, Rules.STAGE_COUNT);
+    assertEqual(Rules.STAGE_COUNT, Rules.STAGES.length);
+
+    var thresholds = Rules.STAGES.map(function (stage) { return stage.scoreToClear; });
+    assertEqual([4000, 5000, 6000, 7000, 8000, 9000], thresholds);
+  });
+
+  test('關卡的語種只會越開越多，不會中途收回', function () {
+    for (var i = 1; i < Rules.STAGES.length; i++) {
+      var before = Rules.STAGES[i - 1].languages;
+      var after = Rules.STAGES[i].languages;
+      before.forEach(function (language) {
+        assertTrue(after.indexOf(language) !== -1,
+          '第 ' + (i + 1) + ' 關少了前一關有的 ' + language);
+      });
+    }
+  });
+
+  test('每一關新解鎖的語種都真的是新的', function () {
+    var seen = {};
+    Rules.STAGES.forEach(function (stage) {
+      if (stage.unlocks) {
+        assertTrue(!seen[stage.unlocks],
+          '第 ' + stage.number + ' 關重複解鎖了 ' + stage.unlocks);
+        seen[stage.unlocks] = true;
+      } else {
+        stage.languages.forEach(function (language) { seen[language] = true; });
+      }
+    });
+  });
+
+  // ------------------------------------------------------------------ 出題
+
+  group('出題');
+
+  test('一題永遠是九個選項', function () {
+    var bank = bankOf([['mandarin', 20]], 30);
+
+    for (var seed = 0; seed < 20; seed++) {
+      var maker = new window.QuestionMaker(bank, makeRng(seed));
+      var question = maker.next(['mandarin'], {});
+
+      assertTrue(question !== null, '種子 ' + seed + ' 出不了題');
+      assertEqual(Rules.CHOICE_COUNT, question.choices.length, '種子 ' + seed);
+    }
+  });
+
+  test('選項不重複，且恰好有一個是正解', function () {
+    // 跑多顆種子：這條不變式不能只在某個幸運的洗牌結果下成立。
+    var bank = bankOf([['mandarin', 20]], 30);
+
+    for (var seed = 0; seed < 20; seed++) {
+      var maker = new window.QuestionMaker(bank, makeRng(seed));
+      var question = maker.next(['mandarin'], {});
+      var where = '種子 ' + seed;
+
+      var labels = question.choices.map(function (choice) { return choice.label; });
+      var unique = {};
+      labels.forEach(function (label) { unique[label] = true; });
+      assertEqual(labels.length, Object.keys(unique).length, where + ' 的選項有重複');
+
+      var answerLabel = window.labelOf(question.answer);
+      var hits = labels.filter(function (label) { return label === answerLabel; });
+      assertEqual(1, hits.length, where + ' 正解出現的次數');
+
+      var pointed = question.choices.filter(function (choice) {
+        return choice.id === question.answerId;
+      });
+      assertEqual(1, pointed.length, where + ' answerId 指到的選項數');
+      assertEqual(answerLabel, pointed[0].label, where + ' answerId 指到的不是正解');
+    }
+  });
+
+  test('題庫只剩三首歌也要靠誘餌湊滿九個選項', function () {
+    // 誘餌的存在意義就在這裡：歌少的時候選項數量不能縮水，
+    // 否則玩家看選項多寡就知道這題出自哪個池子。
+    var maker = new window.QuestionMaker(bankOf([['mandarin', 3]], 30), makeRng(3));
+
+    var question = maker.next(['mandarin'], {});
+
+    assertEqual(Rules.CHOICE_COUNT, question.choices.length);
+  });
+
+  test('不會出已經聽過的歌，聽完了回 null', function () {
+    var maker = new window.QuestionMaker(bankOf([['mandarin', 4]], 30), makeRng(5));
+    var used = {};
+
+    for (var i = 0; i < 4; i++) {
+      var question = maker.next(['mandarin'], used);
+      assertTrue(question !== null, '第 ' + (i + 1) + ' 題出不來');
+      assertTrue(!used[question.answer.id], '同一首歌被出了第二次');
+      used[question.answer.id] = true;
+    }
+
+    assertEqual(null, maker.next(['mandarin'], used), '歌都出完了');
+  });
+
+  test('只出允許語種的歌', function () {
+    var bank = bankOf([['mandarin', 10], ['japanese', 10]], 30);
+
+    for (var seed = 0; seed < 20; seed++) {
+      var maker = new window.QuestionMaker(bank, makeRng(seed));
+      var question = maker.next(['mandarin'], {});
+      assertEqual('mandarin', question.answer.language, '種子 ' + seed);
+    }
+  });
+
+  test('指定語種時答案就是那個語種', function () {
+    var bank = bankOf([['mandarin', 10], ['taiwanese', 10]], 30);
+
+    for (var seed = 0; seed < 20; seed++) {
+      var maker = new window.QuestionMaker(bank, makeRng(seed));
+      var question = maker.next(['mandarin', 'taiwanese'], {}, 'taiwanese');
+      assertEqual('taiwanese', question.answer.language, '種子 ' + seed);
+    }
+  });
+
+  test('同一顆種子出一樣的題（可重現）', function () {
+    var bank = bankOf([['mandarin', 20]], 30);
+
+    var a = new window.QuestionMaker(bank, makeRng(42)).next(['mandarin'], {});
+    var b = new window.QuestionMaker(bank, makeRng(42)).next(['mandarin'], {});
+
+    assertEqual(a.answer.id, b.answer.id, '答案不同');
+    assertEqual(a.choices.map(function (c) { return c.label; }),
+                b.choices.map(function (c) { return c.label; }), '選項順序不同');
+  });
+
+  // ------------------------------------------------------------ 競速模式
+
+  group('競速模式');
+
+  test('十題答完就結束', function () {
+    var it = newGame('speed');
+
+    for (var i = 0; i < Rules.QUESTIONS_PER_ROUND; i++) {
+      var view = it.game.nextQuestion();
+      assertTrue(view !== null, '第 ' + (i + 1) + ' 題出不來');
+      assertEqual(i + 1, view.number, '題號');
+      assertEqual(Rules.QUESTIONS_PER_ROUND, view.total, '總題數');
+      assertEqual(Rules.CHOICE_COUNT, view.choices.length, '選項數');
+      assertEqual(null, view.stageLabel, '競速模式不該有關卡標籤');
+
+      it.clock.advance(2);
+      answerWrongly(it.game);
+    }
+
+    assertEqual(window.Game.Status.FINISHED, it.game.status);
+    assertEqual(null, it.game.nextQuestion(), '結束之後還出題');
+  });
+
+  test('全對秒答就是滿分一萬', function () {
+    var it = newGame('speed');
+
+    perfectRound(it.game, it.clock);
+
+    assertEqual(Rules.PERFECT_SCORE, it.game.totalScore);
+    assertEqual(window.Game.Status.FINISHED, it.game.status);
+  });
+
+  test('沒作答等於答錯，零分', function () {
+    var it = newGame('speed');
+    it.game.nextQuestion();
+    it.clock.advance(3);
+
+    var outcome = it.game.answer(null);
+
+    assertEqual(false, outcome.correct);
+    assertEqual(0, outcome.gained);
+    assertEqual(0, it.game.totalScore);
+  });
+
+  test('逾時才答對也是零分', function () {
+    var it = newGame('speed');
+    it.game.nextQuestion();
+    it.clock.advance(30);
+
+    var outcome = answerCorrectly(it.game);
+
+    assertEqual(true, outcome.correct, '答的內容是對的');
+    assertEqual(0, outcome.gained, '但逾時不給分');
+  });
+
+  test('答完之後會回報正解，前端才標得出來', function () {
+    var it = newGame('speed');
+    var view = it.game.nextQuestion();
+    it.clock.advance(1);
+
+    var outcome = answerWrongly(it.game);
+
+    assertEqual(false, outcome.correct);
+    var labels = view.choices.map(function (choice) { return choice.label; });
+    assertTrue(labels.indexOf(outcome.correctLabel) !== -1, '回報的正解不在選項裡');
+
+    var pointed = view.choices.filter(function (choice) {
+      return choice.id === outcome.correctChoiceId;
+    });
+    assertEqual(1, pointed.length, 'correctChoiceId 指到的選項數');
+    assertEqual(outcome.correctLabel, pointed[0].label, 'correctChoiceId 指錯了');
+  });
+
+  test('沒有題目的時候作答會被擋掉', function () {
+    var it = newGame('speed');
+
+    assertThrows(function () { it.game.answer(0); }, '還沒出題就作答');
+  });
+
+  test('同一題不能答兩次', function () {
+    var it = newGame('speed');
+    it.game.nextQuestion();
+    it.clock.advance(1);
+    it.game.answer(0);
+
+    assertThrows(function () { it.game.answer(1); }, '重複作答');
+  });
+
+  test('題庫湊不出題時回 null 而不是丟錯', function () {
+    var thin = {
+      tracks: [{
+        id: 1, title: '唯一一首', artist: '甲',
+        language: 'mandarin', previewUrl: 'https://example.test/1.m4a',
+      }],
+      decoys: [],
+    };
+    var it = newGame('speed', thin);
+
+    assertTrue(it.game.nextQuestion() !== null, '第一題出不來');
+    it.clock.advance(1);
+    it.game.answer(0);
+
+    assertEqual(null, it.game.nextQuestion(), '歌用完了應該回 null');
+  });
+
+  test('作答紀錄留下歌名、對錯與秒數', function () {
+    var it = newGame('speed');
+    it.game.nextQuestion();
+    var song = it.game.current.answer;
+    it.clock.advance(3);
+    answerCorrectly(it.game);
+
+    assertEqual(1, it.game.records.length);
+    var record = it.game.records[0];
+    assertEqual(song.title, record.title, '歌名');
+    assertEqual(song.artist, record.artist, '歌手');
+    assertEqual(song.language, record.language, '語種');
+    assertEqual(true, record.correct, '對錯');
+    assertEqual(3, record.seconds, '秒數');
+    assertEqual(875, record.gained, '三秒答對的分數');
+  });
+
+  // ------------------------------------------------------------ 闖關模式
+
+  group('闖關模式');
+
+  test('從第一關開始，門檻四千', function () {
+    var it = newGame('stage');
+
+    assertEqual(1, it.game.stage);
+
+    var view = it.game.nextQuestion();
+    assertEqual('第 1 關', view.stageLabel);
+    assertEqual(4000, view.scoreToClear);
+    assertEqual(1, view.stage);
+  });
+
+  test('第一關只出華語，還沒解鎖的語種不會跑出來', function () {
+    var it = newGame('stage', fullBank(40));
+
+    perfectRound(it.game, it.clock);
+
+    assertEqual(Rules.QUESTIONS_PER_ROUND, it.game.records.length);
+    it.game.records.forEach(function (record) {
+      assertEqual('mandarin', record.language, '第一關出現了未解鎖的語種');
+    });
+  });
+
+  test('分數不夠就 stageFailed，而且不再出題', function () {
+    var it = newGame('stage');
+
+    for (var i = 0; i < Rules.QUESTIONS_PER_ROUND; i++) {
+      it.game.nextQuestion();
+      it.clock.advance(1);
+      it.game.answer(null); // 全部放空
+    }
+
+    assertEqual(window.Game.Status.STAGE_FAILED, it.game.status);
+    assertEqual(0, it.game.roundScore);
+    assertEqual(null, it.game.nextQuestion(), '失敗之後還出題');
+  });
+
+  test('剛好踩在門檻上算過關', function () {
+    // 前四題秒答（每題 1000）＝ 4000，其餘全錯 → 正好等於第一關門檻。
+    var it = newGame('stage');
+
+    var last = playRound(it.game, it.clock, 4, 0);
+
+    assertEqual(4000, last.roundScore);
+    assertEqual(window.Game.Status.STAGE_CLEARED, last.status);
+  });
+
+  test('只差一分就沒過關', function () {
+    // 門檻是硬的：3999 不過，沒有「差一點就讓你過」。
+    var it = newGame('stage');
+
+    var last = playRound(it.game, it.clock, 3, 1);
+
+    assertEqual(3999, last.roundScore);
+    assertEqual(window.Game.Status.STAGE_FAILED, last.status);
+  });
+
+  test('過關就進下一關，題數與該關分數重新起算', function () {
+    var it = newGame('stage');
+
+    perfectRound(it.game, it.clock);
+
+    // 過關的那一刻就已經在第二關了，不必等到下一題才生效。
+    assertEqual(window.Game.Status.STAGE_CLEARED, it.game.status);
+    assertEqual(2, it.game.stage, '過關當下的關卡');
+    assertEqual(0, it.game.roundScore, '該關分數要歸零');
+    assertEqual(Rules.PERFECT_SCORE, it.game.totalScore, '累積分數不該被歸零');
+
+    var view = it.game.nextQuestion();
+    assertEqual('第 2 關', view.stageLabel);
+    assertEqual(1, view.number, '新關卡從第一題開始');
+    assertEqual(5000, view.scoreToClear);
+  });
+
+  test('過關的回報講的是剛打完的那一關', function () {
+    // 畫面要寫「第 1 關過關！」，所以回報必須是舊關卡編號與那一關的分數，
+    // 即使狀態機內部已經推進到第二關。
+    var it = newGame('stage');
+
+    var last = null;
+    for (var i = 0; i < Rules.QUESTIONS_PER_ROUND; i++) {
+      it.game.nextQuestion();
+      last = answerCorrectly(it.game);
+    }
+
+    assertEqual(window.Game.Status.STAGE_CLEARED, last.status);
+    assertEqual(1, last.stage, '回報的關卡');
+    assertEqual(4000, last.scoreToClear, '回報的門檻');
+    assertEqual(Rules.PERFECT_SCORE, last.roundScore, '回報的該關分數');
+    assertEqual(2, it.game.stage, '狀態機本身已經在第二關');
+  });
+
+  test('六關全破整場結束，累積六萬分', function () {
+    var it = newGame('stage', fullBank(40));
+
+    for (var stage = 1; stage <= Rules.STAGE_COUNT; stage++) {
+      assertEqual(stage, it.game.stage, '第 ' + stage + ' 關開打前的關卡編號');
+      perfectRound(it.game, it.clock);
+    }
+
+    assertEqual(window.Game.Status.FINISHED, it.game.status);
+    assertEqual(Rules.STAGE_COUNT, it.game.stage, '全破之後不該再往上加');
+    assertEqual(Rules.PERFECT_SCORE * Rules.STAGE_COUNT, it.game.totalScore);
+    assertEqual(Rules.QUESTIONS_PER_ROUND * Rules.STAGE_COUNT, it.game.records.length);
+  });
+
+  test('第二關保證至少出一題台語', function () {
+    // 第二關解鎖台語，那一關就不能整關都是華語，否則解鎖等於沒發生。
+    // 這是「保證」而不是「大概會」，所以每顆種子都要成立。
+    for (var seed = 0; seed < 10; seed++) {
+      var clock = makeClock();
+      var game = new window.Game('stage', fullBank(40), {
+        now: clock.now,
+        rng: makeRng(seed),
+      });
+
+      perfectRound(game, clock); // 第一關
+      perfectRound(game, clock); // 第二關
+
+      var stageTwo = languagesOf(game.records.slice(Rules.QUESTIONS_PER_ROUND));
+
+      assertEqual(Rules.QUESTIONS_PER_ROUND, stageTwo.length, '種子 ' + seed + ' 第二關的題數');
+      assertTrue(stageTwo.indexOf('taiwanese') !== -1, '種子 ' + seed + ' 第二關一題台語都沒出');
+    }
+
+    // 華語四百首、台語只有一首：隨機抽幾乎抽不到台語，
+    // 所以這一段真正測到的是「保證出現」的機制本身，而不是運氣。
+    var lopsided = bankOf([['mandarin', 400], ['taiwanese', 1]], 0);
+    var clock2 = makeClock();
+    var game2 = new window.Game('stage', lopsided, { now: clock2.now, rng: makeRng(1) });
+
+    perfectRound(game2, clock2);
+    perfectRound(game2, clock2);
+
+    var languages = languagesOf(game2.records.slice(Rules.QUESTIONS_PER_ROUND));
+    assertTrue(languages.indexOf('taiwanese') !== -1, '台語再稀有也必須被硬塞進第二關');
+  });
+
+  test('整場不會重複出同一首歌', function () {
+    var it = newGame('stage', fullBank(40));
+
+    for (var stage = 1; stage <= 3; stage++) perfectRound(it.game, it.clock);
+
+    var seen = {};
+    it.game.records.forEach(function (record) {
+      var key = record.title + '|' + record.artist;
+      assertTrue(!seen[key], '同一首歌出了第二次：' + key);
+      seen[key] = true;
+    });
+  });
+
+  // ------------------------------------------------------------------ 渲染
+
+  var passed = results.filter(function (entry) { return entry.ok; }).length;
+  var line = 'RESULT ' + (passed === results.length ? 'PASS' : 'FAIL') +
+             ' ' + passed + '/' + results.length;
+
+  document.title = line;
+  var heading = document.getElementById('result');
+  heading.textContent = line;
+  heading.className = passed === results.length ? 'pass' : 'fail';
+
+  var report = document.getElementById('report');
+  var groups = [];
+  results.forEach(function (entry) {
+    if (groups.indexOf(entry.group) === -1) groups.push(entry.group);
+  });
+
+  groups.forEach(function (name) {
+    var title = document.createElement('h2');
+    title.textContent = name;
+    report.appendChild(title);
+
+    var list = document.createElement('ul');
+    results.filter(function (entry) { return entry.group === name; })
+      .forEach(function (entry) {
+        var item = document.createElement('li');
+        item.className = entry.ok ? 'pass' : 'fail';
+        item.textContent = entry.name;
+        if (!entry.ok) {
+          var why = document.createElement('span');
+          why.className = 'why';
+          why.textContent = entry.why;
+          item.appendChild(why);
+        }
+        list.appendChild(item);
+      });
+    report.appendChild(list);
+  });
+})();
+</script>
+
+</body>
+</html>
