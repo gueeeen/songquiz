@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>猜歌王 · 多人房間</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="room.css">
+</head>
+<body>
+<main id="app" class="room">
+
+  <!-- 連線狀態一直看得見。多人功能壞掉的時候，第一個要知道的就是「線有沒有通」。 -->
+  <p class="net" id="net-status">準備中…</p>
+  <p class="net-notice" id="net-notice" hidden></p>
+
+  <!-- 大廳：建房或加入 -->
+  <section class="screen" id="screen-lobby">
+    <header class="brand">
+      <h1>猜歌王<span>多人房</span></h1>
+      <p class="tagline">同一題、同樣的九個選項，先答對的人拿一分。最後用搶到的題數排名。</p>
+    </header>
+
+    <div class="field">
+      <label class="lab" for="nick">暱稱</label>
+      <input type="text" id="nick" maxlength="12" placeholder="別人會看到這個名字" autocomplete="off">
+    </div>
+
+    <p class="lobby-error" id="lobby-error" hidden></p>
+
+    <div class="two-up">
+      <!-- 加入放前面：一場裡只有一個房主，其他人全都是走這一欄。 -->
+      <section class="card">
+        <h2>加入房間</h2>
+        <div class="field">
+          <label class="lab" for="join-code">房號</label>
+          <input type="text" id="join-code" class="code-input" maxlength="4"
+                 placeholder="ABCD" autocomplete="off" spellcheck="false"
+                 inputmode="text" autocapitalize="characters">
+        </div>
+        <button type="button" class="primary big" id="btn-join">加入</button>
+      </section>
+
+      <section class="card">
+        <h2>開一間新的</h2>
+
+        <!-- 語種與題數的清單由 room.js 依 Rules 與題庫產生，寫死在 HTML 裡會和規則層分岔。 -->
+        <fieldset class="field">
+          <legend>語種<i>至少選一個，數字是題庫裡的首數</i></legend>
+          <div class="chips" id="lang-chips"></div>
+        </fieldset>
+
+        <fieldset class="field">
+          <legend>題數<i>闖關是「每關題數」，競速與積分是「整場題數」</i></legend>
+          <div class="chips" id="count-chips"></div>
+        </fieldset>
+
+        <fieldset class="field">
+          <legend>出題方式<i>房間的分數一律是「搶到幾題」，這裡挑的是題目怎麼出</i></legend>
+          <div class="modes" id="modes">
+            <button type="button" class="mode" data-mode="speed" aria-pressed="true">
+              <strong>競速出題</strong>
+              <span>一場打完，題目從你勾的語種裡隨機出。最單純，適合第一次玩。</span>
+            </button>
+            <button type="button" class="mode" data-mode="combo" aria-pressed="false">
+              <strong>積分出題</strong>
+              <span>出題方式和競速一樣。差別只在單人版的計分規則，房間不用它。</span>
+            </button>
+            <button type="button" class="mode" data-mode="stage" aria-pressed="false">
+              <strong>闖關出題</strong>
+              <span>一關解鎖一個新語種，最後一關全部混合，題數會是「關數 × 每關題數」。想玩久一點選這個。</span>
+            </button>
+          </div>
+        </fieldset>
+
+        <p class="setup-summary" id="setup-summary"></p>
+        <p class="setup-warning" id="setup-warning" hidden></p>
+        <button type="button" class="primary big" id="btn-create">建立房間</button>
+      </section>
+    </div>
+
+    <p class="bank" id="bank-line">題庫載入中…</p>
+    <p class="credit">回<a href="index.html">單人版</a>。音源為 Apple Music 官方 30 秒試聽。</p>
+  </section>
+
+  <!-- 等待室 -->
+  <section class="screen" id="screen-waiting" hidden>
+    <p class="code-label">房號</p>
+    <p class="code-big" id="room-code">----</p>
+    <p class="room-settings" id="room-settings"></p>
+
+    <h2>在房裡的人 <small id="player-count">0 人</small></h2>
+    <ul class="players" id="player-list"></ul>
+
+    <p class="waiting-hint" id="waiting-hint"></p>
+    <div class="row">
+      <button type="button" class="primary big" id="btn-start-round">開始</button>
+      <button type="button" class="ghost" id="btn-leave">離開房間</button>
+    </div>
+  </section>
+
+  <!-- 遊戲中 -->
+  <section class="screen" id="screen-play" hidden>
+    <div class="hud">
+      <span class="progress" id="q-progress">第 1 / 10 題</span>
+      <span class="mode-line" id="q-mode"></span>
+    </div>
+
+    <div class="timer">
+      <div class="timer-bar" id="timer-bar"></div>
+    </div>
+    <span class="timer-text" id="timer-text">12.0</span>
+
+    <p class="hint" id="play-hint">正在播放…最快答對的人拿一分</p>
+
+    <div class="choices" id="choices"></div>
+
+    <div class="verdict" id="verdict" hidden>
+      <strong id="verdict-title"></strong>
+      <span id="verdict-answer"></span>
+      <button type="button" class="primary" id="btn-next-q" hidden>下一題</button>
+    </div>
+
+    <h2 class="board-title">目前比分<small>先答對的人拿一分・房主裁判</small></h2>
+    <ol class="board" id="board"></ol>
+  </section>
+
+  <!-- 結算 -->
+  <section class="screen" id="screen-result" hidden>
+    <h2 id="result-title">結算</h2>
+    <p class="result-note" id="result-note"></p>
+    <ol class="standings" id="standings"></ol>
+    <div class="row">
+      <button type="button" class="primary" id="btn-again-room" hidden>再來一場</button>
+      <button type="button" class="ghost" id="btn-exit">離開房間</button>
+    </div>
+  </section>
+
+</main>
+
+<audio id="player" preload="auto" crossorigin="anonymous"></audio>
+
+<!-- 載入順序：規則 → 出題 → 遊戲 → 題庫 → 即時層設定 → 即時層 → 房間畫面。
+     前四個就是單人版用的同一份檔案，一行都沒有改。
+     realtime-config.js 要排在 realtime.js 之前，因為後者一被呼叫就要讀 window.REALTIME_CONFIG。
+     Supabase 的 UMD bundle 不寫在這裡：有設定才由 realtime.js 動態載入，
+     不然「只想同機測試」的人要白付那 218 KB。
+     全部都是傳統 script（不是 module），這樣從 file:// 雙擊開也能跑。 -->
+<script src="js/rules.js"></script>
+<script src="js/questions.js"></script>
+<script src="js/game.js"></script>
+<script src="data/bank.js"></script>
+<script src="realtime-config.js"></script>
+<script src="js/realtime.js"></script>
+<script src="js/room.js"></script>
+</body>
+</html>
