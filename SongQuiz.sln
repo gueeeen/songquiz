@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{D9222F88
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SongQuiz.BankBuilder.Tests", "tests\SongQuiz.BankBuilder.Tests\SongQuiz.BankBuilder.Tests.csproj", "{E5A38367-C910-4BE1-BA45-C43A189611A8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SongQuiz.LanServer", "tools\SongQuiz.LanServer\SongQuiz.LanServer.csproj", "{952410EC-AF65-4829-80E1-B9E9B98ABB00}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,9 +30,14 @@ Global
 		{E5A38367-C910-4BE1-BA45-C43A189611A8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E5A38367-C910-4BE1-BA45-C43A189611A8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E5A38367-C910-4BE1-BA45-C43A189611A8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{952410EC-AF65-4829-80E1-B9E9B98ABB00}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{952410EC-AF65-4829-80E1-B9E9B98ABB00}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{952410EC-AF65-4829-80E1-B9E9B98ABB00}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{952410EC-AF65-4829-80E1-B9E9B98ABB00}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{642A003D-F889-4A8A-B68E-4963890EE63A} = {609FDFDE-83BA-4A89-9CB6-51FECDE7601B}
 		{E5A38367-C910-4BE1-BA45-C43A189611A8} = {D9222F88-8FB7-44E3-A92D-28F759896257}
+		{952410EC-AF65-4829-80E1-B9E9B98ABB00} = {609FDFDE-83BA-4A89-9CB6-51FECDE7601B}
 	EndGlobalSection
 EndGlobal
