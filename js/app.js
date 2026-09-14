@@ -47,6 +47,8 @@
     advanceTimer: null,
     /** 結算頁正在播放的那顆重聽鈕。 */
     playing: null,
+    /** 這一局的排行榜狀態（本機名次、線上前幾名、有沒有上榜過）。 */
+    board: null,
   };
 
   /** 開場挑的設定。開一場遊戲就是把這三個值交給 Game。 */
@@ -578,8 +580,167 @@
         (game.mode === 'combo' ? '，最長連對 ' + longestStreak(game.records) + ' 題' : '');
 
     showBest(game);
+    showBoards(game);
     renderReview(game.records);
   }
+
+  // ---- 排行榜 ----
+
+  /** 這一局的成績，兩份榜共用同一個形狀。 */
+  function entryOf(game) {
+    return {
+      mode: game.mode,
+      questionCount: game.questionCount,
+      languages: game.languages,
+      score: game.totalScore,
+      stage: game.mode === 'stage' ? game.stage : null,
+      correct: game.records.filter(function (r) { return r.correct; }).length,
+      total: game.records.length,
+    };
+  }
+
+  function boardTabs() {
+    return qa('.board-tab');
+  }
+
+  function showBoards(game) {
+    var entry = entryOf(game);
+
+    // 本機榜是「打完就自動記」：那是自己跟自己比，不需要誰同意。
+    // 線上榜要按「上榜」才送，因為要留名字給別人看。
+    var local = window.Leaderboard.addLocal(entry);
+
+    state.board = { entry: entry, local: local, online: null, submitted: false };
+
+    el('board-submit').hidden = true;
+    el('board-nick').value = recall('songquiz.nickname', '');
+
+    var tabs = boardTabs();
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].disabled = tabs[i].dataset.board === 'online' && !window.Leaderboard.available();
+    }
+
+    selectBoard('local');
+  }
+
+  function selectBoard(which) {
+    var tabs = boardTabs();
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].setAttribute('aria-pressed', tabs[i].dataset.board === which ? 'true' : 'false');
+    }
+
+    if (which === 'local') return renderLocalBoard();
+    return renderOnlineBoard();
+  }
+
+  function renderLocalBoard() {
+    var board = state.board;
+    el('board-submit').hidden = true;
+
+    el('board-note').textContent = '這台裝置・' + describeSetting(board.entry) +
+      '　這一局排第 ' + board.local.rank + '（共 ' + board.local.total + ' 局）';
+
+    renderRows(board.local.rows.map(function (row, i) {
+      return {
+        rank: i + 1,
+        name: row.at,
+        score: row.score,
+        note: row.correct + '/' + row.total + ' 題',
+        me: row.score === board.entry.score,
+      };
+    }), '這台裝置還沒有紀錄。');
+  }
+
+  function renderOnlineBoard() {
+    var board = state.board;
+
+    if (!window.Leaderboard.available()) {
+      el('board-submit').hidden = true;
+      el('board-note').textContent = '線上榜還沒設定（realtime-config.js 沒有填 Supabase）。';
+      return renderRows([], '');
+    }
+
+    el('board-submit').hidden = board.submitted;
+    el('board-note').textContent = '線上・' + describeSetting(board.entry) + '　載入中…';
+
+    window.Leaderboard.top(board.entry).then(function (rows) {
+      board.online = rows;
+      el('board-note').textContent = '線上・' + describeSetting(board.entry) +
+        (board.submitted ? '　你的成績已經上榜' : '　留個暱稱就能上榜');
+
+      renderRows(rows.map(function (row, i) {
+        return {
+          rank: i + 1,
+          name: row.nickname,
+          score: row.score,
+          note: row.correct + '/' + row.total + ' 題',
+          me: false,
+        };
+      }), '這組設定還沒有人上榜——你會是第一個。');
+    }).catch(function (err) {
+      el('board-note').textContent = '線上榜讀不到：' + err.message;
+      renderRows([], '');
+    });
+  }
+
+  function describeSetting(entry) {
+    return modeName(entry.mode) + ' ' + entry.questionCount + ' 題・' +
+      entry.languages.map(Rules.nameOf).join('／');
+  }
+
+  function renderRows(rows, emptyText) {
+    var list = el('board-list');
+    list.replaceChildren();
+
+    if (rows.length === 0) {
+      if (emptyText) {
+        var empty = document.createElement('li');
+        empty.className = 'board-empty';
+        empty.textContent = emptyText;
+        list.append(empty);
+      }
+      return;
+    }
+
+    rows.forEach(function (row) {
+      var item = document.createElement('li');
+      if (row.me) item.className = 'me';
+
+      var rank = document.createElement('b');
+      rank.textContent = row.rank;
+      var name = document.createElement('span');
+      name.textContent = row.name;
+      var score = document.createElement('i');
+      score.textContent = num(row.score) + '　' + row.note;
+
+      item.append(rank, name, score);
+      list.append(item);
+    });
+  }
+
+  for (var b = 0; b < boardTabs().length; b++) {
+    boardTabs()[b].addEventListener('click', function () {
+      selectBoard(this.dataset.board);
+    });
+  }
+
+  el('btn-submit-score').addEventListener('click', function () {
+    var nickname = el('board-nick').value.trim();
+    if (!nickname) return el('board-nick').focus();
+
+    var button = this;
+    button.disabled = true;
+    remember('songquiz.nickname', nickname);
+
+    window.Leaderboard.submit(state.board.entry, nickname).then(function () {
+      state.board.submitted = true;
+      el('board-submit').hidden = true;
+      renderOnlineBoard();
+    }).catch(function (err) {
+      button.disabled = false;
+      el('board-note').textContent = '上榜失敗：' + err.message;
+    });
+  });
 
   /** 最長連對要從紀錄倒推：game.streak 只留著結束那一刻的值。 */
   function longestStreak(records) {
