@@ -113,7 +113,8 @@ web/                  這就是網站本體
   js/app.js           唯一碰 DOM 與音訊的檔案
   data/bank.js        題庫（window.SONG_BANK）
   tests.html          規則測試，打開就跑
-  room.html           多人房間（獨立頁面，單人版一個檔都沒改）
+  room.html           轉址到 index.html#room（舊網址還在流傳）
+  js/shell.js         單人／多人的切換（同一頁，不跳頁）
   js/realtime.js      即時層：同機／區域網路／Supabase 三個 adapter 共用一組介面
   js/room.js          房間邏輯：名冊、出題同步、搶答仲裁、排行榜
 tools/
