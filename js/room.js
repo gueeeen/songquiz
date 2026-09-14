@@ -20,6 +20,9 @@
   /** 揭曉正解之後停多久再出下一題。短到不無聊，長到看得完「誰搶到」。 */
   var REVEAL_MS = 3500;
 
+  /** 一間房最多幾個人（含房主）。 */
+  var MAX_PLAYERS = 6;
+
   /**
    * 客人送出 hello 之後等多久還沒收到名冊，就當這個房號不存在。
    * 一個來回的訊息其實一兩百毫秒就到，但房主那一頁可能在手機上被系統降速
@@ -927,7 +930,17 @@
           return;
         }
 
-        if (!state.players.some(function (p) { return p.id === message.from; })) {
+        // 人數上限。九個選項要在手機上被掃過一遍才按得下去，人再多就會變成
+        // 「誰網路快」而不是「誰先聽出來」；而且六個人的名字才排得進一行。
+        var known = state.players.some(function (p) { return p.id === message.from; });
+        if (!known && state.players.length >= MAX_PLAYERS) {
+          state.adapter.send('roster', {
+            hostId: state.hostId, players: state.players, settings: state.settings, phase: 'full',
+          });
+          return;
+        }
+
+        if (!known) {
           state.players.push({ id: message.from, name: String(payload.name || '無名').slice(0, 12) });
         }
         renderPlayers();
@@ -941,6 +954,12 @@
         if (payload.phase === 'playing') {
           leaveRoom();
           return lobbyError('房號 ' + state.roomCode + ' 這一場已經開打了，等他們打完再進來。');
+        }
+
+        if (payload.phase === 'full') {
+          leaveRoom();
+          return lobbyError('房號 ' + state.roomCode + ' 已經滿了（最多 ' + MAX_PLAYERS +
+            ' 人）。請他們開第二間房，或等這一場打完。');
         }
 
         state.hostId = payload.hostId;
