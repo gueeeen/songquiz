@@ -1,7 +1,7 @@
 // 即時層。房間邏輯（room.js）只認得下面這一組介面，
-// 不認得 Supabase、也不認得 BroadcastChannel——換一家服務只要多寫一個 adapter。
+// 不認得 Supabase、不認得 BroadcastChannel、也不認得區域網路中繼——多一條路就多寫一個 adapter。
 //
-// 介面（兩個 adapter 完全共用）：
+// 介面（三個 adapter 完全共用）：
 //
 //   adapter.selfId              這個節點的身分（房間用它認人）
 //   adapter.label               給人看的通道名稱，畫面要說清楚現在走的是哪一條線
@@ -297,22 +297,220 @@
     this._client = null;
   };
 
+  // ---- 區域網路中繼 ----
+  // 第三條路，也是最省事的一條：用主辦人自己那台電腦當中繼
+  // （tools\SongQuiz.LanServer，雙擊「區域網路開房.cmd」啟動）。
+  //
+  // 為什麼要有它：Supabase 那條路要註冊帳號、抄金鑰、還得把網站放到 https 上。
+  // 但真實情境是「朋友在同一個場地、同一個 Wi-Fi」——那根本不需要外部服務。
+  // 這條路零帳號、零設定、零費用，而且不必連外網。
+  //
+  // **不寫死任何 IP。** 這一頁本來就是從那台伺服器載來的，所以伺服器位址
+  // 就是網址本身（location.host）。這也正是這條路不需要設定檔的原因：
+  // 要設定什麼，瀏覽器早就知道了。
+
+  /** 探測中繼的等待上限。同一個 Wi-Fi 的一趟來回是幾毫秒，兩秒沒回就是沒有。 */
+  var PROBE_TIMEOUT_MS = 2000;
+
+  /** 探測結果：null ＝ 還沒問到答案、true／false ＝ 問過了。 */
+  var relayAvailable = null;
+
+  /** 探測只做一次，結果給所有呼叫端共用。 */
+  var relayProbe = null;
+
+  function pageIsHosted() {
+    var scheme = window.location.protocol;
+    return scheme === 'http:' || scheme === 'https:';
+  }
+
+  /**
+   * 這一頁的來源有沒有中繼？
+   *
+   * 為什麼不能只看「網頁是不是從 http(s) 載來的」：放在 GitHub Pages 上的同一份檔案
+   * 也是 https，但那邊只有靜態檔，沒有 /ws。所以要真的問一句。
+   *
+   * 為什麼是打 /api/ping 而不是直接開 WebSocket 再退讓：握手失敗要等到 TCP 逾時，
+   * 那可能是好幾秒的白畫面；而且「WebSocket 連不上」和「這裡根本不是我們的伺服器」
+   * 分不出來，後者不該在畫面上顯示成連線錯誤。
+   *
+   * @returns {Promise<boolean>} 一定 resolve，不會 reject——探測失敗就是「沒有」。
+   */
+  function probeRelay() {
+    if (relayProbe) return relayProbe;
+
+    // file:// 雙擊開的話連問都不必問：沒有來源可以問。
+    if (!pageIsHosted() || typeof window.fetch !== 'function' || typeof window.WebSocket !== 'function') {
+      relayAvailable = false;
+      relayProbe = Promise.resolve(false);
+      return relayProbe;
+    }
+
+    relayProbe = new Promise(function (resolve) {
+      var settled = false;
+
+      function settle(value) {
+        if (settled) return;
+        settled = true;
+        relayAvailable = value;
+        resolve(value);
+      }
+
+      // fetch 沒有內建逾時，自己補一個。沒有的話，遇到一個「收下連線但不回話」的
+      // 中介（公司的 proxy、某些飯店 Wi-Fi），這一頁會卡在探測上不動。
+      var timer = window.setTimeout(function () {
+        settle(false);
+      }, PROBE_TIMEOUT_MS);
+
+      // 相對路徑：網站可能被放在子目錄底下（GitHub Pages 的 repo 頁面就是）。
+      window.fetch('api/ping', { cache: 'no-store' }).then(function (response) {
+        return response.ok ? response.json() : null;
+      }).then(function (body) {
+        window.clearTimeout(timer);
+        // 只認自己的招牌，不看狀態碼。很多靜態空間找不到檔案時會回 200 加一頁 HTML
+        // （SPA 的回退規則），光看 response.ok 會把那種空間誤判成中繼。
+        settle(!!(body && body.service === 'songquiz-lan' && body.relay === true));
+      }, function () {
+        window.clearTimeout(timer);
+        settle(false);
+      });
+    });
+
+    return relayProbe;
+  }
+
+  /**
+   * 中繼的 WebSocket 位址。
+   * 從當前網址推出來——不是設定、不是猜的：這一頁就是那台伺服器送來的。
+   * 路徑保留目錄部分（網站可能在子目錄），https 的頁面要用 wss（不然會被當混合內容擋掉）。
+   */
+  function lanSocketUrl(roomCode) {
+    var scheme = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    var directory = window.location.pathname.replace(/[^/]*$/, '');
+    return scheme + window.location.host + directory + 'ws?room=' + encodeURIComponent(roomCode);
+  }
+
+  function LanAdapter() {
+    BaseAdapter.call(this);
+    this.label = '區域網路中繼（' + window.location.host + '）';
+    this.crossDevice = true;
+    this._socket = null;
+  }
+
+  LanAdapter.prototype = Object.create(BaseAdapter.prototype);
+  LanAdapter.prototype.constructor = LanAdapter;
+
+  LanAdapter.prototype._open = function (roomCode) {
+    var self = this;
+
+    return probeRelay().then(function (ok) {
+      if (!ok) {
+        throw new Error('這個網址沒有中繼。要跨裝置玩的話，請從「區域網路開房.cmd」' +
+          '啟動的那個網址開這一頁。');
+      }
+
+      return new Promise(function (resolve, reject) {
+        var socket = new window.WebSocket(lanSocketUrl(roomCode));
+        var settled = false;
+
+        self._socket = socket;
+
+        socket.onopen = function () {
+          settled = true;
+          resolve();
+        };
+
+        socket.onmessage = function (event) {
+          var envelope = null;
+
+          try {
+            envelope = JSON.parse(event.data);
+          } catch (e) {
+            // 剖不出來的就丟掉。中繼是原封不動轉送的，所以壞封包只可能來自
+            // 版本不合的對方——猜他的意思比丟掉更糟。
+            return;
+          }
+
+          self._receive(envelope);
+        };
+
+        socket.onerror = function () {
+          if (settled) return;
+          settled = true;
+          reject(new Error('連不上這台電腦的中繼（伺服器那個視窗還開著嗎？）'));
+        };
+
+        socket.onclose = function (event) {
+          if (!settled) {
+            settled = true;
+            return reject(new Error('中繼把連線關掉了（代碼 ' + event.code + '）。'));
+          }
+
+          // 連上之後才掉線的話 reject 已經來不及了——照介面契約用 status 通報畫面。
+          // （自己呼叫 close() 的情況走不到這裡：_close 會先把 onclose 拆掉。）
+          if (self.status === 'open') {
+            self._setStatus('error', '和中繼斷線了（伺服器那個視窗是不是關掉了？）');
+          }
+        };
+      });
+    });
+  };
+
+  LanAdapter.prototype._sendRaw = function (envelope) {
+    if (!this._socket || this._socket.readyState !== window.WebSocket.OPEN) return;
+    this._socket.send(JSON.stringify(envelope));
+  };
+
+  LanAdapter.prototype._close = function () {
+    if (!this._socket) return;
+
+    var socket = this._socket;
+    this._socket = null;
+
+    // 先拆掉 onclose 再關：自己主動關的不是「斷線」，不該在畫面上報成錯誤。
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onerror = null;
+    socket.onclose = null;
+    socket.close();
+  };
+
   // ---- 挑一個 adapter ----
 
   /**
-   * 依 realtime-config.js 決定走哪一條線，並且一定回得出東西來。
+   * 挑一條線，並且一定回得出東西來。優先順序：
+   *
+   *   1. 網址的 ?rt=… ——測試後門，最大。要能指定走哪一條，不受環境與設定檔影響。
+   *   2. 這一頁是從 http(s) 載來的、而且那台伺服器有中繼 → LanAdapter。
+   *      排在設定檔前面是因為這條路**不需要任何設定**：網址就是伺服器位址。
+   *      既然人已經從那台伺服器把這一頁打開了，他要的顯然就是那台伺服器。
+   *   3. realtime-config.js 設了 supabase 且金鑰齊全 → SupabaseAdapter。
+   *   4. 其餘（file:// 雙擊開、或什麼都沒設）→ BroadcastChannel。
    *
    * 「金鑰還沒填」是預期中的狀態，不是錯誤：這時候退回 BroadcastChannel，
    * 讓人至少能在同一台電腦上玩完一場，同時把 notice 交給畫面去說明白。
    * 白畫面或丟例外是最糟的處理方式——玩的人不知道自己該去設定什麼。
    *
-   * @param {string} [force] 'broadcast'｜'supabase'，用來蓋掉設定檔（測試工具用）
+   * **畫面上沒有「選一條線」的開關，這是刻意的。** 區域網路這條路的全部價值
+   * 就在於不必設定；多一個下拉選單就等於把設定又還給使用者了。
+   *
+   * @param {string} [force] 'broadcast'｜'supabase'｜'lan'，用來蓋掉自動判斷（測試工具用）
    * @returns {{adapter: Object, notice: string}}
    */
   function pick(force) {
     var config = window.REALTIME_CONFIG || {};
-    var provider = force || config.provider || 'none';
     var notice = '';
+
+    if (force === 'lan') return { adapter: new LanAdapter(), notice: '' };
+    if (force !== 'broadcast' && force !== 'supabase') force = null;
+
+    // relayAvailable 還是 null 表示探測還沒回來。探測在這個檔載入時就發動了，
+    // 而走到這裡最快也要等人打完暱稱按下按鈕，所以實務上不會是 null；
+    // 真的碰上了也不會出事：LanAdapter._open 會先等探測，沒有中繼就據實回報連不上。
+    if (!force && relayAvailable !== false && pageIsHosted()) {
+      return { adapter: new LanAdapter(), notice: '' };
+    }
+
+    var provider = force || config.provider || 'none';
 
     if (provider === 'supabase') {
       if (config.url && config.anonKey) {
@@ -321,8 +519,11 @@
       notice = '多人連線還沒設定：realtime-config.js 的 provider 是 supabase，' +
         '但 url／anonKey 是空的。現在退回同一台電腦的測試通道。';
     } else if (provider !== 'broadcast') {
-      notice = '多人連線還沒設定（realtime-config.js 的 provider 還是 none），' +
-        '現在只能在同一台電腦的多個分頁之間玩。跨裝置的設定步驟看「多人房間.md」。';
+      // 先講區域網路那一條：它不必註冊、不必抄金鑰，而且朋友多半就在旁邊。
+      notice = '現在只能在同一台電腦的多個分頁之間玩。要讓朋友用自己的手機加入，' +
+        '最快的做法是在這台電腦上雙擊「區域網路開房.cmd」，再用它印出來的網址開這一頁' +
+        '（不需要任何帳號）。跨網路（不同場地）才需要設定 realtime-config.js，' +
+        '步驟看「多人房間.md」。';
     }
 
     if (!BroadcastChannelAdapter.available()) {
@@ -336,6 +537,11 @@
     return { adapter: new BroadcastChannelAdapter(), notice: notice };
   }
 
+  // 探測要趁早發動：pick() 是同步的（room.js 一載入就呼叫），
+  // 而「這個來源有沒有中繼」只能用非同步的方式問。現在就問，
+  // 等到有人真的按下「建立房間」時答案早就回來了。
+  probeRelay();
+
   window.Realtime = {
     PROTOCOL: PROTOCOL,
     SUPABASE_UMD: SUPABASE_UMD,
@@ -344,6 +550,9 @@
     normalizeRoomCode: normalizeRoomCode,
     BroadcastChannelAdapter: BroadcastChannelAdapter,
     SupabaseAdapter: SupabaseAdapter,
+    LanAdapter: LanAdapter,
+    /** 中繼探測的結果，給測試與診斷用。一定 resolve。 */
+    relayReady: probeRelay,
     pick: pick,
   };
 })();
