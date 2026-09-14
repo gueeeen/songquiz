@@ -503,10 +503,16 @@
     if (force === 'lan') return { adapter: new LanAdapter(), notice: '' };
     if (force !== 'broadcast' && force !== 'supabase') force = null;
 
-    // relayAvailable 還是 null 表示探測還沒回來。探測在這個檔載入時就發動了，
-    // 而走到這裡最快也要等人打完暱稱按下按鈕，所以實務上不會是 null；
-    // 真的碰上了也不會出事：LanAdapter._open 會先等探測，沒有中繼就據實回報連不上。
-    if (!force && relayAvailable !== false && pageIsHosted()) {
+    // 只有「探測確定回答有中繼」才走區域網路，不能因為「還沒回答」就先當成有。
+    //
+    // 這一條踩過：頁面一載入就 pick() 一次來顯示線路名稱，那時探測還在飛，
+    // 寫成 relayAvailable !== false 的話，GitHub Pages 上會顯示「區域網路中繼
+    // （xxx.github.io）」——騙人，而且若有人在探測回來前就按下建房，
+    // LanAdapter._open 會據實丟出「這個網址沒有中繼」，而不是改走 Supabase。
+    //
+    // 代價是探測回來之前的那一瞬間會先顯示別條線的名稱。呼叫端要的話可以用
+    // Realtime.relayReady() 等探測結束再問一次（room.js 就是這樣更新那行字的）。
+    if (!force && relayAvailable === true) {
       return { adapter: new LanAdapter(), notice: '' };
     }
 

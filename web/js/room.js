@@ -175,16 +175,25 @@
     return match ? match[1] : null;
   }
 
-  var picked = Realtime.pick(forcedProvider());
-  setNotice(picked.notice);
+  function showPicked(picked) {
+    setNotice(picked.notice);
 
-  if (!picked.adapter) {
-    setNet('多人房間無法使用', 'bad');
-    el('btn-create').disabled = true;
-    el('btn-join').disabled = true;
-  } else {
-    setNet(picked.adapter.label + '：未連線', '');
+    if (!picked.adapter) {
+      setNet('多人房間無法使用', 'bad');
+      el('btn-create').disabled = true;
+      el('btn-join').disabled = true;
+    } else {
+      setNet(picked.adapter.label + '：未連線', '');
+    }
   }
+
+  showPicked(Realtime.pick(forcedProvider()));
+
+  // 載入的當下「這個網址有沒有中繼」還在探測中，所以上面那行字是暫時的。
+  // 探測回來之後再問一次——不然在區域網路開的房會一直顯示成別條線。
+  Realtime.relayReady().then(function () {
+    showPicked(Realtime.pick(forcedProvider()));
+  });
 
   /** 每次進房都要一個乾淨的 adapter（上一間房的 channel 不能留著）。 */
   function freshAdapter() {
