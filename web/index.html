@@ -16,6 +16,19 @@
       <p class="tagline">九個選項，十二秒，你只會聽到三十秒裡的一段。</p>
     </header>
 
+    <!-- 一進來先決定「幾個人玩」，因為它決定了底下的設定有沒有意義：
+         多人房間的語種／題數是房主在房裡挑的，不是在這一頁。 -->
+    <nav class="who">
+      <span class="who-pick" aria-current="page">
+        <strong>一個人玩</strong>
+        <span>自己練歌、挑戰最佳成績</span>
+      </span>
+      <a class="who-pick" href="room.html">
+        <strong>和朋友一起</strong>
+        <span>開房搶答，最多 6 人</span>
+      </a>
+    </nav>
+
     <div class="volume">
       <label for="volume">音量 <output id="volume-out">80%</output></label>
       <input type="range" id="volume" min="0" max="100" value="80">
@@ -63,10 +76,6 @@
     <div class="start-row">
       <button type="button" class="primary big" id="btn-start">開始</button>
     </div>
-
-    <!-- 多人是獨立的一頁：單人玩的人不該為了多人功能付出載入成本
-         （房間頁要載即時服務的 SDK，這一頁完全不需要）。 -->
-    <p class="to-room"><a href="room.html">或和朋友開房間搶答 →</a></p>
 
     <p class="bank" id="bank-line">題庫載入中…</p>
     <!-- 出處要在玩的人看得到的地方，不是只寫在 README 裡。 -->
