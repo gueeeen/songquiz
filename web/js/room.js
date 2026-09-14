@@ -1,6 +1,8 @@
 // 多人房間：房主開一間、朋友輸房號進來、先答對的人拿一分，最後用題數排名。
 //
-// 這一頁是獨立的（不從 index.html 走），因為單人玩的人不該為多人功能付出載入成本。
+// 和單人版住在同一頁（index.html），由 shell.js 切換誰露臉。
+// 兩邊的 DOM 完全分開：房間這一半的 id 都有 r- 前綴，class 選取也限定在 #room-app 裡，
+// 否則兩邊的 .choice、.mode 會互相抓到對方的節點。
 // 它只借用單人版的三個純邏輯層（rules／questions／game），一行都沒有改到它們。
 //
 // 兩件事值得先講清楚，看下面的程式才不會覺得奇怪：
@@ -30,8 +32,24 @@
    */
   var JOIN_TIMEOUT_MS = 8000;
 
+  /**
+   * 房間和單人版住在同一頁，所以兩邊的 id 不能撞。
+   * 房間那一半的 id 在 HTML 裡一律加了 r- 前綴，這裡自動補上——
+   * 這樣 room.js 裡的每一處都還是寫原本那個名字，看得懂也不必逐行改。
+   */
   function el(id) {
-    return document.getElementById(id);
+    return document.getElementById('r-' + id);
+  }
+
+  /** 房間的容器。class 選取一律限定在這裡面，不然會抓到單人版的選項。 */
+  var root = document.getElementById('room-app');
+
+  function q(selector) {
+    return root.querySelector(selector);
+  }
+
+  function qa(selector) {
+    return root.querySelectorAll(selector);
   }
 
   function num(value) {
@@ -178,7 +196,15 @@
     return match ? match[1] : null;
   }
 
-  function showPicked(picked) {
+  /**
+   * 目前選到的線路。離開房間、以及「建房鈕能不能按」都要讀它，
+   * 所以它必須是一個活著的變數，不能只是 showPicked 的參數
+   * （探測回來後會重新 pick 一次，那時這裡也要跟著換）。
+   */
+  var picked = { adapter: null, notice: '' };
+
+  function showPicked(next) {
+    picked = next;
     setNotice(picked.notice);
 
     if (!picked.adapter) {
@@ -260,7 +286,7 @@
     });
   }
 
-  var modeButtons = document.querySelectorAll('.mode');
+  var modeButtons = qa('.mode');
 
   for (var m = 0; m < modeButtons.length; m++) {
     modeButtons[m].addEventListener('click', function () {
@@ -609,7 +635,7 @@
   }
 
   function lockChoices() {
-    var buttons = document.querySelectorAll('.choice');
+    var buttons = qa('.choice');
     for (var i = 0; i < buttons.length; i++) buttons[i].disabled = true;
   }
 
@@ -628,7 +654,7 @@
 
     var correct = choiceId === state.answerId;
 
-    var pickedButton = document.querySelector('.choice[data-id="' + choiceId + '"]');
+    var pickedButton = q('.choice[data-id="' + choiceId + '"]');
     if (pickedButton) pickedButton.classList.add(correct ? 'mine' : 'wrong');
 
     if (correct) {
@@ -727,7 +753,7 @@
     // 這是讓每台機器的 Game 走在同一步的另一半（另一半是同一顆種子）。
     state.game.answer(state.answerId);
 
-    var correctButton = document.querySelector('.choice[data-id="' + state.answerId + '"]');
+    var correctButton = q('.choice[data-id="' + state.answerId + '"]');
     if (correctButton) correctButton.classList.add('correct');
 
     var box = el('verdict');
@@ -1035,4 +1061,18 @@
   }
 
   show('lobby');
+
+  /**
+   * 切到單人那一邊時要呼叫。
+   *
+   * 這裡是真的「離開房間」，不是只把畫面藏起來：連線要關、要跟房裡的人說一聲。
+   * 留著一條半死的連線最糟——房主那邊的名冊上還有你，等你搶答，
+   * 但你人已經在單人模式裡了。
+   */
+  window.RoomShell = {
+    stop: function () {
+      if (state.role) leaveRoom();
+      else show('lobby');
+    },
+  };
 })();

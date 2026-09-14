@@ -13,6 +13,17 @@
     return document.getElementById(id);
   }
 
+  /** 單人版的容器。class 選取一律限定在這裡面，不然會抓到多人房間的選項。 */
+  var root = document.getElementById('solo-app');
+
+  function q(selector) {
+    return root.querySelector(selector);
+  }
+
+  function qa(selector) {
+    return root.querySelectorAll(selector);
+  }
+
   var screens = {
     home: el('screen-home'),
     play: el('screen-play'),
@@ -209,7 +220,7 @@
     });
   }
 
-  var modeButtons = document.querySelectorAll('.mode');
+  var modeButtons = qa('.mode');
 
   for (var m = 0; m < modeButtons.length; m++) {
     modeButtons[m].addEventListener('click', function () {
@@ -427,7 +438,7 @@
   function startTimer(seconds) {
     var bar = el('timer-bar');
     var text = el('timer-text');
-    var timer = document.querySelector('.timer');
+    var timer = q('.timer');
     timer.classList.remove('urgent');
 
     state.deadline = performance.now() + seconds * 1000;
@@ -453,16 +464,15 @@
     stopTimer();
     player.pause();
 
-    var buttons = document.querySelectorAll('.choice');
+    var buttons = qa('.choice');
     for (var i = 0; i < buttons.length; i++) buttons[i].disabled = true;
 
     var outcome = state.game.answer(choiceId);
 
-    document.querySelector('.choice[data-id="' + outcome.correctChoiceId + '"]')
-      .classList.add('correct');
+    q('.choice[data-id="' + outcome.correctChoiceId + '"]').classList.add('correct');
 
     // 逾時的時候沒有「玩家選的那顆」可以標紅。
-    var picked = document.querySelector('.choice[data-id="' + choiceId + '"]');
+    var picked = q('.choice[data-id="' + choiceId + '"]');
     if (!outcome.correct && picked) picked.classList.add('wrong');
 
     showVerdict(outcome);
@@ -690,4 +700,16 @@
     player.pause();
     show('home');
   });
+
+  /**
+   * 切到多人那一邊時要呼叫。單人這半邊被藏起來不等於停下來——
+   * 計時器還在跑、音樂還在放、一秒後還會自動跳下一題，
+   * 那些都會在使用者已經在看房間畫面的時候繼續發生。
+   */
+  window.SoloShell = {
+    stop: function () {
+      clearLastRound();
+      show('home');
+    },
+  };
 })();
