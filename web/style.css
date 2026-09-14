@@ -307,3 +307,30 @@ button { font: inherit; font-family: inherit; }
 .to-room { text-align: center; margin: 14px 0 0; font-size: .85rem; }
 .to-room a { color: var(--accent-2); text-decoration: none; }
 .to-room a:hover { text-decoration: underline; }
+
+/* ---- 一個人玩／和朋友一起 ---- */
+/* 放在最上面，因為它決定了底下的設定有沒有意義：多人的語種與題數是房主在房裡挑的。 */
+.who { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+
+.who-pick {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--ink-dim);
+  text-decoration: none;
+  font-size: .85rem;
+}
+.who-pick strong { color: var(--ink); font-size: .95rem; }
+.who-pick span { font-size: .74rem; line-height: 1.5; }
+
+/* 目前所在的那一邊要看得出來，否則兩顆長得一樣就不知道自己在哪一頁。 */
+.who-pick[aria-current="page"] {
+  border-color: var(--accent);
+  background: rgba(255, 77, 136, .12);
+}
+.who-pick[aria-current="page"] strong { color: var(--accent); }
+a.who-pick:hover { border-color: var(--accent-2); }
+a.who-pick:hover strong { color: var(--accent-2); }

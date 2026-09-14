@@ -32,6 +32,8 @@
     deadline: 0,
     /** 防連點：一題只能送一次答案，也防「時間到」和最後一下點擊撞在一起。 */
     answering: false,
+    /** 自動跳下一題的 handle。手動按「下一題」時要取消它，免得跳兩次。 */
+    advanceTimer: null,
     /** 結算頁正在播放的那顆重聽鈕。 */
     playing: null,
   };
@@ -318,6 +320,8 @@
   el('btn-start').addEventListener('click', startGame);
 
   function startGame() {
+    clearLastRound();
+
     state.game = new window.Game({
       mode: setup.mode,
       bank: bank,
@@ -328,6 +332,30 @@
     el('hud-score').textContent = '0';
     show('play');
     nextQuestion();
+  }
+
+  /**
+   * 把上一局留在畫面上的東西全部洗掉。
+   *
+   * 逐題回顧那一串會留到下一局結束才被重畫，中間如果有人回首頁再進來，
+   * 就會看到上一局的歌還躺在下面——那些歌和這一局一點關係都沒有。
+   * 音訊也要停：上一局結算頁按過「聽」而沒停，它會一路播進新的一局。
+   */
+  function clearLastRound() {
+    stopTimer();
+    clearTimeout(state.advanceTimer);
+    state.advanceTimer = null;
+
+    player.pause();
+    clearPlayingMark();
+
+    el('review').replaceChildren();
+    el('verdict').hidden = true;
+    el('verdict-title').textContent = '';
+    el('verdict-answer').textContent = '';
+    el('result-best').textContent = '';
+    el('result-note').textContent = '';
+    el('hud-target').textContent = '';
   }
 
   // ---- 出題 ----
@@ -468,19 +496,44 @@
       title.textContent = '第 ' + outcome.stage + ' 關過關！';
       answer.textContent = '這一關 ' + num(outcome.roundScore) +
         ' 分（門檻 ' + num(outcome.scoreToClear) + '）';
-      next.textContent = '前往第 ' + (outcome.stage + 1) + ' 關';
-      next.onclick = nextQuestion;
+      // 過關是一個值得停下來看的時刻，不自動跳。
+      setNext('前往第 ' + (outcome.stage + 1) + ' 關', nextQuestion, false);
       return;
     }
 
     if (outcome.status === 'stageFailed' || outcome.status === 'finished') {
-      next.textContent = '看結算';
-      next.onclick = showResult;
+      setNext('看結算', showResult, false);
       return;
     }
 
-    next.textContent = '下一題';
-    next.onclick = nextQuestion;
+    setNext('下一題', nextQuestion, true);
+  }
+
+  /** 答完之後，畫面停留多久才自動跳下一題。 */
+  var REVEAL_MS = 1000;
+
+  /**
+   * 設定「下一題」那顆鈕，並決定要不要自動跳。
+   *
+   * 一個人玩的時候，每一題都要手動按一下才會前進——節奏被打斷，
+   * 而且答錯之後還要按一下才能繼續，像是在罰站。所以答完就露一秒正解再自動跳，
+   * 一秒足夠看清楚「剛剛那首是什麼」，又不會讓人等。
+   * 鈕留著：想快一點的人可以直接按，按下去就取消自動跳，不會跳兩次。
+   */
+  function setNext(label, action, auto) {
+    var next = el('btn-next');
+
+    clearTimeout(state.advanceTimer);
+    state.advanceTimer = null;
+
+    next.textContent = label;
+    next.onclick = function () {
+      clearTimeout(state.advanceTimer);
+      state.advanceTimer = null;
+      action();
+    };
+
+    if (auto) state.advanceTimer = setTimeout(next.onclick, REVEAL_MS);
   }
 
   // ---- 結算 ----
@@ -630,6 +683,9 @@
   el('btn-again').addEventListener('click', startGame);
 
   el('btn-home').addEventListener('click', function () {
+    // 自動跳下一題的計時器一定要收掉，否則回到首頁之後它還是會把人拉進遊戲畫面。
+    clearTimeout(state.advanceTimer);
+    state.advanceTimer = null;
     stopTimer();
     player.pause();
     show('home');
