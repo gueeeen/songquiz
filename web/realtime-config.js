@@ -13,4 +13,11 @@
 // CLIs, source code」——它拿得到的東西，完全由伺服器端的 RLS 與 Realtime
 // 設定決定。真正不能外流的是 secret key（sb_secret_… / service_role），
 // 那一把永遠不要出現在這個資料夾裡的任何檔案。
-window.REALTIME_CONFIG = { provider: 'none', url: '', anonKey: '' };
+//
+// 要換掉這一把：Supabase 後台 Project Settings → API Keys 可以撤銷後重發，
+// 改完這一行就生效，不必動任何程式。
+window.REALTIME_CONFIG = {
+  provider: 'supabase',
+  url: 'https://lzvxmpcvzhlgagoosclk.supabase.co',
+  anonKey: 'sb_publishable_kbj3NwBxDuWwMCEZXKoP3A_pYvxHJ_1',
+};
