@@ -1,0 +1,46 @@
+MIT License
+
+Copyright (c) 2026 SongQuiz contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+這份授權只涵蓋本專案的原始碼，不涵蓋以下兩件事：
+
+一、歌曲。
+    本專案播放的是 Apple Music 官方的 30 秒試聽，由 Apple 的伺服器直接串流；
+    本專案不下載、不轉存、不再散布任何音訊，web/data/bank.js 裡只有歌名、
+    演出者與 Apple 的試聽網址。所有歌曲的著作權屬於原權利人。
+    本專案與 Apple Inc. 無任何關係，亦未經其背書。
+
+二、玩法的原始構想。
+    九選一、每題十二秒、語種逐關解鎖這套玩法，參考自台大流行音樂創作社的
+    「金曲猜歌王」https://github.com/ntupm18th/ntupm-songguesser （MIT）。
+    本專案為獨立實作，未取用其程式碼、題庫或素材。
+
+This license covers the source code only. It does not cover the songs: audio is
+streamed directly from Apple's servers as official Apple Music 30-second
+previews; this project never downloads, stores, proxies or redistributes any
+audio, and all songs remain the property of their respective rights holders.
+This project is not affiliated with or endorsed by Apple Inc.
+
+The game design (nine choices, twelve seconds, languages unlocking stage by
+stage) is inspired by NTUPM's "ntupm-songguesser" (MIT). This is an independent
+implementation; no code, song bank or assets were taken from it.

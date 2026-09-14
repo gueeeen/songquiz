@@ -24,6 +24,13 @@
 沒有伺服器、沒有安裝步驟、沒有打包工具。整個 `web\` 資料夾丟到任何靜態空間
 （GitHub Pages 之類）也能直接跑。
 
+**和朋友在同一個 Wi-Fi 搶答**：雙擊 **`區域網路開房.cmd`**，它會印出這台電腦的
+區域網路網址（像 `http://192.168.0.17:5000/room.html`）——叫朋友用手機瀏覽器打開它，
+一個人建房、把四位房號念出來，其他人輸入房號就進來了。
+**不用註冊、不用金鑰、不用改任何設定**（網頁就是這台電腦送出去的，
+所以它自己就知道中繼在哪裡）。第一次跑要在 Windows 防火牆提示按「允許存取」。
+朋友不在同一個場地才需要另外設定 Supabase，步驟見 `多人房間.md`。
+
 個人最佳成績記在瀏覽器的 localStorage 裡，按「模式＋題數＋語種組合」各記一筆
 （闖關另外記最遠關卡）——5 題的積分和 20 題的闖關不是同一件事，混在一起比沒有意義。
 換瀏覽器或清掉網站資料就會歸零——這是刻意的，沒有伺服器就沒有跨裝置的成績。
@@ -65,15 +72,32 @@ msedge --headless=new --disable-gpu --virtual-time-budget=5000 --dump-dom "file:
 
 ---
 
-## 音源與授權
+## 出處與授權
 
-播放的是 **Apple Music 官方 30 秒試聽**，由 Apple 的伺服器直接串到瀏覽器。
-本專案不下載、不轉存、不代理任何音訊，題庫裡存的只是網址。
+### 音源：Apple Music 官方 30 秒試聽
 
-程式碼是自己寫的。玩法（九選一、十二秒、語種逐關解鎖、題庫用 `.js` 而不是 `.json`）
-參考了台大流行音樂創作社的
-[ntupm-songguesser](https://github.com/ntupm18th/ntupm-songguesser)（MIT），
-沒有取用它的程式碼或題庫。
+播放的每一段都是 **Apple Music 官方的 30 秒試聽**，透過 Apple 公開的
+[iTunes Search API](https://performance-partners.apple.com/search-api) 取得網址，
+播放時**由 Apple 的伺服器直接串流到玩家的瀏覽器**。
+
+- 本專案**不下載、不轉存、不代理、不快取**任何音訊；`web/data/bank.js` 裡存的
+  只有歌名、演出者與 Apple 的試聽網址。
+- **所有歌曲的著作權屬於原權利人**（詞曲作者、表演者、唱片公司）。
+- 本專案與 Apple Inc. 沒有任何關係，也未經其背書。Apple、Apple Music、iTunes
+  是 Apple Inc. 的商標。
+
+### 玩法：參考台大流行音樂創作社
+
+玩法（九選一、每題十二秒、語種逐關解鎖、題庫做成 `.js` 而不是 `.json`）參考了
+**台大流行音樂創作社（NTUPM）** 的「金曲猜歌王」
+[ntupm-songguesser](https://github.com/ntupm18th/ntupm-songguesser)（MIT 授權）。
+
+**本專案的程式碼是獨立實作的**：沒有取用它的任何程式碼、題庫、誘餌清單或素材。
+向他們把這個玩法做出來並且開源致謝。
+
+### 本專案的程式碼
+
+MIT，見 [LICENSE](LICENSE)。**授權只涵蓋本專案的原始碼，不涵蓋歌曲。**
 
 ---
 
@@ -89,11 +113,16 @@ web/                  這就是網站本體
   js/app.js           唯一碰 DOM 與音訊的檔案
   data/bank.js        題庫（window.SONG_BANK）
   tests.html          規則測試，打開就跑
+  room.html           多人房間（獨立頁面，單人版一個檔都沒改）
+  js/realtime.js      即時層：同機／區域網路／Supabase 三個 adapter 共用一組介面
+  js/room.js          房間邏輯：名冊、出題同步、搶答仲裁、排行榜
 tools/
   SongQuiz.BankBuilder/   C# 離線工具：產生 data/bank.js
+  SongQuiz.LanServer/     C# 區域網路伺服器：靜態檔 ＋ WebSocket 中繼，不懂遊戲
 tests/
   SongQuiz.BankBuilder.Tests/
 架構.md               為什麼是靜態站、答案在瀏覽器裡的取捨
+多人房間.md           三條連線路徑、房間協定、怎麼驗
 代辦清單.md           做到哪、下一步做什麼
 ```
 

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+    <!-- 這支工具不對外發佈成 NuGet，也不給別的專案參考，
+         所以不需要 appsettings.json、不需要 launchSettings.json。
+         組態全部寫在 Program.cs 裡：少一個檔就少一個「跑起來和我想的不一樣」的來源。 -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+</Project>
