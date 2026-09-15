@@ -61,7 +61,7 @@
 
 **遊戲規則**（68 項）：打開 `web\tests.html`，最上面會顯示 `RESULT PASS 68/68`。
 
-**版面**（43 項）：打開 `web\layout-tests.html`。它把 `index.html` 分別用 390px 和
+**版面**（45 項）：打開 `web\layout-tests.html`。它把 `index.html` 分別用 390px 和
 1200px 的寬度載進兩個 iframe，量實際排出來的尺寸——開始鈕有沒有釘在底部、出處會不會
 被它蓋住、九宮格在桌機上是不是還像格子、日夜兩種主題的對比夠不夠（連「卡片對頁面」
 和「邊框對卡片」都量，只量文字會漏掉「字很清楚但整頁糊成一片」那種壞法）。
@@ -142,7 +142,7 @@ web/                  這就是網站本體
   js/realtime.js      即時層：同機／區域網路／Supabase 三個 adapter 共用一組介面
   js/room.js          房間邏輯：名冊、出題同步、搶答仲裁、排行榜
   js/feedback.js      意見箱：只送出，不讀回（那張表沒有開讀取權限）
-  js/feedbackui.js    意見箱的畫面：結算頁那排星星 ＋ 獨立的詳細表單
+  js/feedbackui.js    意見箱的畫面：左下角的信箱打開的那顆彈窗
 tools/
   SongQuiz.BankBuilder/   C# 離線工具：產生 data/bank.js
   SongQuiz.LanServer/     C# 區域網路伺服器：靜態檔 ＋ WebSocket 中繼，不懂遊戲

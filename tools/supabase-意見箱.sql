@@ -12,31 +12,20 @@ create table if not exists public.feedback (
   id            uuid primary key default gen_random_uuid(),
   created_at    timestamptz not null default now(),
 
-  -- 星等。這是「一句話評價」那一版唯一必填的東西。
+  -- 星等。意見箱裡唯一必填的東西。
   stars         int not null check (stars between 1 and 5),
 
   -- 一句話。可以不留。
   note          text check (char_length(note) <= 500),
 
-  -- 底下都是詳細回饋表單才會有的，快速評分那一版留空。
-  -- 各自 1～5，沒填就是 null——「沒回答」和「給 3 分」不是同一件事，
-  -- 用 0 當「沒填」會讓平均值算起來全部偏低。
-  fun           int check (fun between 1 and 5),        -- 玩法好不好玩
-  songs         int check (songs between 1 and 5),      -- 選歌與題目
-  looks         int check (looks between 1 and 5),      -- 畫面與美術
-  sound         int check (sound between 1 and 5),      -- 音樂與音質
-  multiplayer   int check (multiplayer between 1 and 5),-- 多人房好不好用
-
-  -- 「最想看到什麼」的複選，存成逗號分隔的字串。
-  -- 存成陣列欄位會比較漂亮，但那要多一個型別，而這張表一天寫不到幾次。
-  wants         text check (char_length(wants) <= 200),
-
-  -- 詳細表單的自由文字。
-  detail        text check (char_length(detail) <= 2000),
-
   -- 出問題的時候要知道是什麼環境。不放 IP、不放任何可以認出個人的東西。
   device        text check (char_length(device) <= 200)
 );
+
+-- 遊戲裡只問「幾顆星」和「一句話」——那是剛打完的人願意花的力氣。
+-- 分項滿意度那種細的問題走站外的表單（網址填在 web/realtime-config.js 的
+-- FEEDBACK_FORM_URL），那份表單自己有自己的儲存，不寫進這張表。
+
 
 alter table public.feedback enable row level security;
 

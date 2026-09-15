@@ -177,7 +177,7 @@
     check('分數是一個數字', /^\d+$/.test(score), '分數是「' + score + '」');
 
     check('結算頁有排行榜', !!d.querySelector('#result-board .board-list'), '找不到排行榜');
-    check('結算頁有意見箱', d.querySelectorAll('#rate-stars .star').length === 5, '找不到那五顆星');
+    check('結算頁有意見箱的入口', !!el('btn-rate-open'), '找不到那一行「留個意見」');
     check('每一列都看得到歌名和歌手',
       review.length > 0 && review[0].querySelector('.song b') && review[0].querySelector('.song i'),
       '回顧的第一列缺了歌名或歌手');
@@ -193,8 +193,9 @@
       '進度是「' + el('hud-progress').textContent + '」');
     check('「再來一場」清掉上一場的回顧', d.querySelectorAll('#review li').length === 0,
       '回顧還留著 ' + d.querySelectorAll('#review li').length + ' 列');
-    check('「再來一場」重置意見箱的星等',
-      d.querySelectorAll('#rate-stars .star.on').length === 0, '上一場的評分還亮著');
+    check('「再來一場」的時候意見箱是關著的',
+      el('feedback').hidden, '意見箱的彈窗沒有關');
+
 
     // 設定面板的「回到主畫面」要能中途離開，而且不會把人拉回遊戲裡
     // （自動跳下一題的計時器沒收乾淨的話就會）。

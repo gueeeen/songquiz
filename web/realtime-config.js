@@ -21,3 +21,12 @@ window.REALTIME_CONFIG = {
   url: 'https://lzvxmpcvzhlgagoosclk.supabase.co',
   anonKey: 'sb_publishable_kbj3NwBxDuWwMCEZXKoP3A_pYvxHJ_1',
 };
+
+// 完整回饋表單的網址（Google 表單、Typeform、什麼都可以）。
+//
+// 遊戲裡的意見箱只問「幾顆星」和「一句話」——那是剛打完的人願意花的力氣。
+// 想問細項（滿意度分項、想看到什麼功能…）就做一份表單，把網址填在這裡，
+// 意見箱下面才會出現通往它的連結。
+//
+// 留空字串的話那個連結就不會出現：一個點下去是空白頁的連結，比沒有連結更糟。
+window.FEEDBACK_FORM_URL = '';
