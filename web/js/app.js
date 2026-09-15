@@ -49,6 +49,8 @@
     playing: null,
     /** 這一局的排行榜狀態（本機名次、線上前幾名、有沒有上榜過）。 */
     board: null,
+    /** 試聽的停止計時器。有值就代表正在試聽。 */
+    testTimer: null,
   };
 
   /** 開場挑的設定。開一場遊戲就是把這三個值交給 Game。 */
@@ -158,13 +160,12 @@
     });
     if (setup.languages.length === 0) setup.languages = availableLanguages.slice();
 
-    var count = Number(recall('songquiz.setup.count', Rules.QUESTIONS_PER_ROUND));
-    setup.questionCount = Rules.QUESTION_COUNT_CHOICES.indexOf(count) === -1
-      ? Rules.QUESTIONS_PER_ROUND
-      : count;
-
     var mode = String(recall('songquiz.setup.mode', 'stage'));
     setup.mode = ['stage', 'speed', 'combo'].indexOf(mode) === -1 ? 'stage' : mode;
+
+    // 題數清單是依模式而定的（積分模式開到 80），所以要先知道模式才能驗題數。
+    var count = Number(recall('songquiz.setup.count', Rules.QUESTIONS_PER_ROUND));
+    setup.questionCount = Rules.nearestCountFor(setup.mode, count);
   }
 
   function saveSetup() {
@@ -214,7 +215,7 @@
     var box = el('count-chips');
     box.replaceChildren();
 
-    Rules.QUESTION_COUNT_CHOICES.forEach(function (count) {
+    Rules.questionCountsFor(setup.mode).forEach(function (count) {
       box.append(chip(count + ' 題', count === setup.questionCount, function () {
         setup.questionCount = count;
         refreshSetup();
@@ -227,13 +228,18 @@
   for (var m = 0; m < modeButtons.length; m++) {
     modeButtons[m].addEventListener('click', function () {
       setup.mode = this.dataset.mode;
+      // 換模式可能換掉整份題數清單（積分是 10～80，其他是 5～20），
+      // 所以要把目前的題數挪到新清單裡最接近的那一個，不能留一個不存在的值。
+      setup.questionCount = Rules.nearestCountFor(setup.mode, setup.questionCount);
       refreshSetup();
     });
   }
 
   /** 每個模式按鈕下面那行小字：這個設定在這個模式底下的實際後果。 */
   function modeNote(mode) {
-    var count = setup.questionCount;
+    // 每個模式各自的題數清單不同，所以預覽要用「這個模式真的能挑到的那個題數」，
+    // 否則在闖關模式下會看到積分那格寫「5 題」，而積分根本沒有 5 題這個選項。
+    var count = Rules.nearestCountFor(mode, setup.questionCount);
 
     if (mode === 'stage') {
       var stages = Rules.stagesFor(setup.languages, count, mode);
@@ -318,16 +324,36 @@
 
   if (!bankReady) el('btn-test').disabled = true;
 
+  /**
+   * 試聽放多久。原本三秒，但三秒不夠調音量——手伸到音量旋鈕它就停了，
+   * 得一直重按。十秒足夠一邊聽一邊把音量調到對的位置。
+   */
+  var TEST_MS = 10000;
+
   el('btn-test').addEventListener('click', function () {
+    var button = this;
+
+    // 播到一半再按一次就是停下來：試聽十秒，總得有辦法提早結束。
+    if (state.testTimer) return stopTest();
+
     var track = bank.tracks[Math.floor(Math.random() * bank.tracks.length)];
     playPreview(track.previewUrl).catch(function () {
       el('bank-line').textContent = '播不出來——檢查一下網路連線。';
+      stopTest();
     });
-    // 三秒夠判斷現場音響的音量，又不會先把一整段放給旁邊的人聽。
-    setTimeout(function () {
-      player.pause();
-    }, 3000);
+
+    button.textContent = '停止試聽';
+    state.testTimer = setTimeout(stopTest, TEST_MS);
   });
+
+  function stopTest() {
+    clearTimeout(state.testTimer);
+    state.testTimer = null;
+    player.pause();
+    el('btn-test').textContent = '試聽 10 秒';
+  }
+
+  el('btn-test').textContent = '試聽 10 秒';
 
   // ---- 開一場 ----
   el('btn-start').addEventListener('click', startGame);
@@ -599,216 +625,36 @@
     };
   }
 
-  function boardTabs() {
-    return qa('.board-tab');
-  }
+  // 面板本身在 boardui.js：同一個元件放兩個地方（首頁與結算頁），
+  // 各自有自己的篩選條件——首頁想看「積分・華語」的同時，
+  // 結算頁那個還停在剛打完的模式，兩邊互不影響才符合直覺。
+  var homeBoard = window.BoardUI.create(el('home-board'), {
+    filter: { mode: setup.mode },
+  });
+
+  var resultBoard = window.BoardUI.create(el('result-board'), {
+    withSubmit: true,
+    filter: { mode: setup.mode },
+    onNickname: function (nickname) {
+      remember('songquiz.nickname', nickname);
+    },
+  });
+
+  // 首頁那份榜只在展開時才查：收起來的時候沒人在看，不必打網路。
+  el('home-board-fold').addEventListener('toggle', function () {
+    if (this.open) homeBoard.focusMode(setup.mode);
+  });
 
   function showBoards(game) {
     var entry = entryOf(game);
 
-    // 本機榜是「打完就自動記」：那是自己跟自己比，不需要誰同意。
-    // 線上榜要按「上榜」才送，因為要留名字給別人看。
-    var local = window.Leaderboard.addLocal(entry);
+    // 本機是自動記的（自己跟自己比，不需要誰同意）；
+    // 線上要按面板裡那顆「上傳到線上榜」才送。這兩件事刻意分開，
+    // 面板上也寫明了，因為同一顆按鈕同時做兩件事會讓人不知道自己送出了什麼。
+    window.Leaderboard.addLocal(entry);
 
-    state.board = { entry: entry, local: local, online: null, submitted: false };
-
-    el('board-submit').hidden = true;
-    el('board-nick').value = recall('songquiz.nickname', '');
-
-    var tabs = boardTabs();
-    for (var i = 0; i < tabs.length; i++) {
-      tabs[i].disabled = tabs[i].dataset.board === 'online' && !window.Leaderboard.available();
-    }
-
-    // 預設看「這個模式全部」：每換一個題數或語種就是一張新的空榜，
-    // 看起來會像這個模式沒有排行榜。
-    selectBoard('local', window.Leaderboard.SCOPES.MODE);
+    resultBoard.showRun(entry, recall('songquiz.nickname', ''));
   }
-
-  function boardScopes() {
-    return qa('.board-scope');
-  }
-
-  function selectBoard(which, scope) {
-    var board = state.board;
-    board.source = which || board.source || 'local';
-    board.scope = scope || board.scope || window.Leaderboard.SCOPES.MODE;
-
-    var tabs = boardTabs();
-    for (var i = 0; i < tabs.length; i++) {
-      tabs[i].setAttribute('aria-pressed', tabs[i].dataset.board === board.source ? 'true' : 'false');
-    }
-
-    var scopes = boardScopes();
-    for (var s = 0; s < scopes.length; s++) {
-      scopes[s].setAttribute('aria-pressed', scopes[s].dataset.scope === board.scope ? 'true' : 'false');
-    }
-
-    if (board.source === 'local') return renderLocalBoard();
-    return renderOnlineBoard();
-  }
-
-  function byMode() {
-    return state.board.scope === window.Leaderboard.SCOPES.MODE;
-  }
-
-  /** 排行榜那一行標題：講清楚「現在這一份榜是誰跟誰在比」。 */
-  function boardHeading(source) {
-    var entry = state.board.entry;
-    return source + '・' + (byMode()
-      ? modeName(entry.mode) + '（不分題數與語種，照每題平均分排）'
-      : describeSetting(entry));
-  }
-
-  function renderLocalBoard() {
-    var board = state.board;
-    el('board-submit').hidden = true;
-
-    if (byMode()) {
-      var rows = window.Leaderboard.localByMode(board.entry.mode);
-
-      el('board-note').textContent = boardHeading('這台裝置') +
-        '　共 ' + rows.length + ' 筆';
-
-      return renderRows(rows.map(function (row, i) {
-        return {
-          rank: i + 1,
-          name: row.at,
-          score: Math.round(window.Leaderboard.perQuestion(row)),
-          unit: ' 分／題',
-          note: row.questionCount + ' 題・' + row.languages.map(Rules.nameOf).join('／'),
-          me: sameRun(row),
-        };
-      }), '這台裝置還沒有紀錄。');
-    }
-
-    el('board-note').textContent = boardHeading('這台裝置') +
-      '　這一局排第 ' + board.local.rank + '（共 ' + board.local.total + ' 局）';
-
-    renderRows(board.local.rows.map(function (row, i) {
-      return {
-        rank: i + 1,
-        name: row.at,
-        score: row.score,
-        note: row.correct + '/' + row.total + ' 題',
-        me: row.score === board.entry.score,
-      };
-    }), '這台裝置還沒有紀錄。');
-  }
-
-  /** 這一列是不是剛剛打完的那一局。分數與題數都對上才算，免得誤標別的場次。 */
-  function sameRun(row) {
-    var entry = state.board.entry;
-    return row.score === entry.score &&
-      (row.questionCount || row.total) === entry.total;
-  }
-
-  function renderOnlineBoard() {
-    var board = state.board;
-
-    if (!window.Leaderboard.available()) {
-      el('board-submit').hidden = true;
-      el('board-note').textContent = '線上榜還沒設定（realtime-config.js 沒有填 Supabase）。';
-      return renderRows([], '');
-    }
-
-    el('board-submit').hidden = board.submitted;
-    el('board-note').textContent = boardHeading('線上') + '　載入中…';
-
-    var scope = board.scope;
-
-    window.Leaderboard.top(board.entry, scope).then(function (rows) {
-      // 切太快的話舊的請求可能晚到，蓋掉新的那一份。
-      if (board.scope !== scope || board.source !== 'online') return;
-
-      board.online = rows;
-      el('board-note').textContent = boardHeading('線上') +
-        (board.submitted ? '　你的成績已經上榜' : '　留個暱稱就能上榜');
-
-      renderRows(rows.map(function (row, i) {
-        return {
-          rank: i + 1,
-          name: row.nickname,
-          score: byMode() ? Math.round(window.Leaderboard.perQuestion(row)) : row.score,
-          unit: byMode() ? ' 分／題' : '',
-          note: byMode()
-            ? row.question_count + ' 題・' + String(row.languages || '').split('-').map(Rules.nameOf).join('／')
-            : row.correct + '/' + row.total + ' 題',
-          me: false,
-        };
-      }), byMode()
-        ? '這個模式還沒有人上榜——你會是第一個。'
-        : '這組設定還沒有人上榜——你會是第一個。');
-    }).catch(function (err) {
-      el('board-note').textContent = '線上榜讀不到：' + err.message;
-      renderRows([], '');
-    });
-  }
-
-  function describeSetting(entry) {
-    return modeName(entry.mode) + ' ' + entry.questionCount + ' 題・' +
-      entry.languages.map(Rules.nameOf).join('／');
-  }
-
-  function renderRows(rows, emptyText) {
-    var list = el('board-list');
-    list.replaceChildren();
-
-    if (rows.length === 0) {
-      if (emptyText) {
-        var empty = document.createElement('li');
-        empty.className = 'board-empty';
-        empty.textContent = emptyText;
-        list.append(empty);
-      }
-      return;
-    }
-
-    rows.forEach(function (row) {
-      var item = document.createElement('li');
-      if (row.me) item.className = 'me';
-
-      var rank = document.createElement('b');
-      rank.textContent = row.rank;
-      var name = document.createElement('span');
-      name.textContent = row.name;
-      var score = document.createElement('i');
-      score.textContent = num(row.score) + (row.unit || '') + '　' + row.note;
-
-      item.append(rank, name, score);
-      list.append(item);
-    });
-  }
-
-  for (var b = 0; b < boardTabs().length; b++) {
-    boardTabs()[b].addEventListener('click', function () {
-      selectBoard(this.dataset.board, null);
-    });
-  }
-
-  for (var sc = 0; sc < boardScopes().length; sc++) {
-    boardScopes()[sc].addEventListener('click', function () {
-      selectBoard(null, this.dataset.scope);
-    });
-  }
-
-  el('btn-submit-score').addEventListener('click', function () {
-    var nickname = el('board-nick').value.trim();
-    if (!nickname) return el('board-nick').focus();
-
-    var button = this;
-    button.disabled = true;
-    remember('songquiz.nickname', nickname);
-
-    window.Leaderboard.submit(state.board.entry, nickname).then(function () {
-      state.board.submitted = true;
-      el('board-submit').hidden = true;
-      renderOnlineBoard();
-    }).catch(function (err) {
-      button.disabled = false;
-      el('board-note').textContent = '上榜失敗：' + err.message;
-    });
-  });
 
   /** 最長連對要從紀錄倒推：game.streak 只留著結束那一刻的值。 */
   function longestStreak(records) {
