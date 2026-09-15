@@ -138,6 +138,13 @@
         <button type="button" class="board-tab" data-board="online" aria-pressed="false">線上</button>
       </div>
 
+      <!-- 榜的兩種看法。預設看「這個模式全部」，否則每換一個題數或語種
+           就是一張新的空榜，看起來像沒有排行榜。 -->
+      <div class="board-tabs scopes">
+        <button type="button" class="board-scope" data-scope="mode" aria-pressed="true">這個模式全部</button>
+        <button type="button" class="board-scope" data-scope="setting" aria-pressed="false">這組設定</button>
+      </div>
+
       <p class="board-note" id="board-note"></p>
       <ol class="board-list" id="board-list"></ol>
 

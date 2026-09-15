@@ -395,3 +395,21 @@ a.who-pick:hover strong { color: var(--accent-2); }
   font-size: .85rem;
 }
 .board-submit .primary { padding: 10px 18px; }
+
+/* 榜的第二排切換（這個模式全部 ／ 這組設定）比第一排小一點：
+   它是「怎麼看」，不是「看哪一份」。 */
+.board-tabs.scopes { margin-top: -4px; }
+.board-scope {
+  flex: 1;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--ink-dim);
+  font-size: .74rem;
+  cursor: pointer;
+}
+.board-scope[aria-pressed="true"] {
+  color: var(--accent-2);
+  border-color: var(--accent-2);
+}
