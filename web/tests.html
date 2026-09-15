@@ -1067,6 +1067,33 @@
     assertEqual(Rules.perfectScoreFor('combo', 20), it.game.totalScore);
   });
 
+  test('房間的三種計分方式各算各的', function () {
+    // 搶答：一題就是一分，快慢不影響（誰先搶到是房主那邊決定的，不在這個函式裡）。
+    assertEqual(1, Rules.roomScoreFor('steal', true, 0.5, 1));
+    assertEqual(1, Rules.roomScoreFor('steal', true, 11.9, 1));
+    assertEqual(0, Rules.roomScoreFor('steal', false, 0.5, 1));
+    assertEqual(0, Rules.roomScoreFor('steal', true, 12, 1), '逾時就是沒答到');
+
+    // 競速：答對的都有分，越快越高（和單人的競速同一條公式）。
+    assertEqual(1000, Rules.roomScoreFor('speed', true, 0, 1));
+    assertEqual(750, Rules.roomScoreFor('speed', true, 6, 1));
+    assertEqual(0, Rules.roomScoreFor('speed', false, 0, 1));
+
+    // 積分：答對的都有分，連對有倍率，不看速度。
+    assertEqual(500, Rules.roomScoreFor('combo', true, 0, 1));
+    assertEqual(1500, Rules.roomScoreFor('combo', true, 11, 3));
+    assertEqual(2500, Rules.roomScoreFor('combo', true, 1, 9), '倍率封頂在五');
+    assertEqual(Rules.roomScoreFor('combo', true, 1, 3),
+      Rules.roomScoreFor('combo', true, 11, 3), '積分不看速度');
+  });
+
+  test('房間比分的單位：搶答是題，其他是分', function () {
+    // 單位講錯的話，畫面會出現「12 題」其實是 12 分這種事。
+    assertEqual(' 題', Rules.roomScoreUnit('steal'));
+    assertEqual(' 分', Rules.roomScoreUnit('speed'));
+    assertEqual(' 分', Rules.roomScoreUnit('combo'));
+  });
+
   test('積分模式的題數清單開到八十，其他模式沒有', function () {
     // 積分是「連對能連多久」，本質上是一條可以一直往下猜的路，所以開到 80。
     assertEqual(80, Rules.questionCountsFor('combo').slice(-1)[0]);

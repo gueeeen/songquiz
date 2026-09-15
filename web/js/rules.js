@@ -112,6 +112,63 @@
     return Math.min(Math.max(streak, 1), COMBO_MAX_MULTIPLIER);
   }
 
+  /**
+   * 多人房間的計分方式。
+   *
+   * 這和「出題方式」是兩件事：出題決定題目怎麼挑，計分決定分數怎麼算。
+   * 原本房間只有一種寫死的計分（先答對的拿一分），那讓單人的三個模式
+   * 在房間裡看起來像「選了沒差別」。
+   */
+  var ROOM_SCORINGS = [
+    {
+      key: 'steal',
+      label: '搶答',
+      note: '先答對的人拿 1 分，其他人這題沒分。最緊張，適合人多。',
+    },
+    {
+      key: 'speed',
+      label: '競速',
+      note: '答對的人都有分，答得越快分越高。不必跟別人搶，跟自己的手速搶。',
+    },
+    {
+      key: 'combo',
+      label: '積分',
+      note: '答對的人都有分，連續答對有倍率（最高 ×5）。連莊斷掉就從頭算。',
+    },
+  ];
+
+  /**
+   * 房間裡這一題得幾分。
+   *
+   * @param {'steal'|'speed'|'combo'} scoring 計分方式
+   * @param {boolean} correct 答對了嗎
+   * @param {number} elapsedSeconds **這個玩家自己**的作答秒數
+   * @param {number} streak 算進這一題之後，這個玩家的連對數
+   *
+   * 為什麼用玩家自己的秒數，而不是房主收到訊息的時間：
+   * 房主是唯一有全序的節點，但它的訊息不用走網路。用「房主收到的時間」給分的話，
+   * 房主每一題都天生佔便宜——「先搶到的拿一分」只有在兩人幾乎同時按時才受影響，
+   * 但按秒數給分會讓每一題都默默獎勵網路快的人。
+   *
+   * 代價是玩家自報秒數可以造假。但房間連「答對了沒」都是客戶端自己判的
+   * （純靜態站的既有取捨，見 架構.md 第三節），多信一個秒數沒有讓信任模型變差，
+   * 卻換掉了系統性的延遲偏差。
+   */
+  function roomScoreFor(scoring, correct, elapsedSeconds, streak) {
+    if (!correct) return 0;
+
+    if (scoring === 'speed') return scoreFor(true, elapsedSeconds);
+    if (scoring === 'combo') return comboScoreFor(true, elapsedSeconds, streak);
+
+    // 搶答：分數就是「搶到幾題」，所以一題一分。
+    return elapsedSeconds >= QUESTION_SECONDS ? 0 : 1;
+  }
+
+  /** 搶答模式的分數是題數，其他兩種是分數——畫面要用不同的單位講。 */
+  function roomScoreUnit(scoring) {
+    return scoring === 'steal' ? ' 題' : ' 分';
+  }
+
   /** 這個模式單題最多拿幾分。用來把過關門檻換算成絕對分數。 */
   function maxQuestionScoreFor(mode) {
     if (mode === 'combo') return COMBO_BASE * COMBO_MAX_MULTIPLIER;
@@ -285,6 +342,9 @@
     COMBO_MAX_MULTIPLIER: COMBO_MAX_MULTIPLIER,
     CHOICE_COUNT: CHOICE_COUNT,
     PERFECT_SCORE: (BASE_SCORE + SPEED_BONUS) * QUESTIONS_PER_ROUND,
+    ROOM_SCORINGS: ROOM_SCORINGS,
+    roomScoreFor: roomScoreFor,
+    roomScoreUnit: roomScoreUnit,
     scoreFor: scoreFor,
     comboScoreFor: comboScoreFor,
     multiplierFor: multiplierFor,
