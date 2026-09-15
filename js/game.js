@@ -215,6 +215,8 @@
       scoreToClear: stage ? stage.scoreToClear : 0,
       seconds: Rules.QUESTION_SECONDS,
       previewUrl: question.answer.previewUrl,
+      /** 從試聽的哪裡開始放（0～1）。同一顆種子會得到同一個值，多人才會聽到同一段。 */
+      offset: question.offset,
       choices: question.choices,
       streak: this.streak,
       multiplier: this.multiplier,
