@@ -207,20 +207,20 @@
           <div class="chips" id="r-count-chips"></div>
         </fieldset>
 
+        <!-- 這裡只有兩個選項，因為房間裡只有兩種「題目怎麼出」的方式。
+             單人版的積分模式在房間裡沒有意義：房間的分數永遠是「搶到幾題」，
+             而積分的出題方式和競速一模一樣——留著它只會變成一個選了沒差別的鈕。 -->
         <fieldset class="field">
           <legend>出題方式<i>房間的分數一律是「搶到幾題」，這裡挑的是題目怎麼出</i></legend>
           <div class="modes" id="r-modes">
             <button type="button" class="mode" data-mode="speed" aria-pressed="true">
-              <strong>競速模式</strong>
-              <span>一場打完，題目從你勾的語種裡隨機出。最單純，適合第一次玩。</span>
-            </button>
-            <button type="button" class="mode" data-mode="combo" aria-pressed="false">
-              <strong>積分模式</strong>
-              <span>出題方式和競速一樣。差別只在單人版的計分規則，房間不用它。</span>
+              <strong>隨機出題</strong>
+              <span>題目從你勾的語種裡隨機出，一場打完。最單純，適合第一次玩。</span>
             </button>
             <button type="button" class="mode" data-mode="stage" aria-pressed="false">
-              <strong>闖關模式</strong>
-              <span>一關解鎖一個新語種，最後一關全部混合，題數會是「關數 × 每關題數」。想玩久一點選這個。</span>
+              <strong>逐關解鎖語種</strong>
+              <span>第一關只出一個語種，之後一關加一種，最後一關全部混合。
+                題數會是「關數 × 每關題數」，想玩久一點選這個。</span>
             </button>
           </div>
         </fieldset>
