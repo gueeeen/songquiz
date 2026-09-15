@@ -157,10 +157,42 @@
     clearRow.append(clearButton);
 
     renderCounts();
+
+    /**
+     * 條件那三排（模式、語種、題數）收在一顆鈕後面。
+     *
+     * 全部攤開是十四到十五顆鈕，而它們出現的時機是「剛打完一場」——
+     * 那個當下要看的是「我在榜上第幾」，不是先做一輪篩選。
+     * 收起來之後畫面上只剩一行字（note 會寫明現在看的是哪一份榜）加一顆鈕，
+     * 想比同樣設定的人再自己打開。
+     */
+    var filters = document.createElement('div');
+    filters.className = 'board-filters';
+    filters.hidden = true;
+    filters.append(modes, langs, counts);
+
+    var filterToggle = document.createElement('button');
+    filterToggle.type = 'button';
+    filterToggle.className = 'board-filter-toggle';
+    filterToggle.setAttribute('aria-expanded', 'false');
+    filterToggle.textContent = '篩選';
+    filterToggle.addEventListener('click', function () {
+      var open = filters.hidden;
+      filters.hidden = !open;
+      filterToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+
+    // note 就是收起來時的摘要，所以和那顆鈕放同一行。
+    var head = row('board-head');
+    head.append(note, filterToggle);
+
+    // 來源（這台裝置／線上）不收：它不是篩選，是「在看哪一份榜」，
+    // 那是最上層的問題，收起來會讓人以為只有一份。
     if (!onlineOnly) host.append(sources);
-    host.append(modes, langs, counts, note, list);
+    host.append(head, filters, list);
     // 清空鈕只管本機，所以只線上的那一份根本不放它。
     if (!onlineOnly) host.append(clearRow);
+
 
 
     // ---- 上傳到線上榜（只有結算頁）----

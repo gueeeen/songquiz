@@ -935,3 +935,30 @@ button { font: inherit; font-family: inherit; }
   #app { max-width: 1120px; }
   #app { padding-left: 32px; padding-right: 32px; }
 }
+
+/* ---- 排行榜的篩選條件 ---- */
+/* 條件那三排（模式、語種、題數）是十四到十五顆鈕，而它們出現的時機是
+   「剛打完一場」——那個當下要看的是自己在榜上第幾，不是先做一輪篩選。
+   收起來之後只剩一行摘要加一顆鈕。 */
+.board-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.board-head .board-note { flex: 1; margin: 0; min-width: 0; }
+
+.board-filter-toggle {
+  flex: none;
+  padding: 6px 13px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--ink-dim);
+  font-size: .74rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.board-filter-toggle:hover { color: var(--ink); border-color: var(--accent); }
+.board-filter-toggle[aria-expanded="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--sel-soft);
+}
+
+.board-filters { margin-bottom: 8px; }
