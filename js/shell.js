@@ -27,6 +27,11 @@
     panes.room.hidden = mode !== 'room';
     current = mode;
 
+    // 那條釘在底部的開始鈕只存在於單人首頁。離開單人的時候 SoloShell.stop()
+    // 會把單人這半帶回首頁，所以「在單人」就等於「首頁」；多人這半沒有它。
+    document.body.classList.toggle('has-dock', mode === 'solo');
+
+
     // 兩邊的切換鈕都要跟著標，否則切過去之後看不出自己在哪一邊。
     var picks = document.querySelectorAll('.who-pick[data-who]');
     for (var i = 0; i < picks.length; i++) {

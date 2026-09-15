@@ -182,6 +182,11 @@ body::before {
   padding: 24px 16px 48px;
 }
 
+/* 只有首頁有那條釘在底部的開始鈕，所以只有首頁要留位置給它。
+   這個 class 由 app.js 的 show() 與 shell.js 一起維護——用 :has() 會少幾行，
+   但那是這個站唯一會需要新一點瀏覽器的地方，不值得。 */
+body.has-dock #app { padding-bottom: 164px; }
+
 .screen { animation: rise .25s ease both; }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
 
@@ -216,7 +221,17 @@ body::before {
 
 .bank, .credit { color: var(--ink-dim); font-size: .78rem; text-align: center; }
 .bank { margin-top: 22px; }
-.credit { margin-top: 6px; opacity: .7; }
+
+/* 出處是整頁的頁尾：一份，在版面最下方，每個畫面都看得到。
+   它在 #solo-app 與 #room-app 之外，所以切換哪一半都不會動到它。 */
+.credit {
+  margin: 28px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  opacity: .7;
+  line-height: 1.8;
+}
+
 
 /* ---- HUD ---- */
 .hud {
@@ -607,8 +622,9 @@ button { font: inherit; font-family: inherit; }
 
 #screen-home { position: relative; }
 
-/* 留給釘在底部的 .dock，否則出處那一段會被蓋住。 */
-.home-scroll { padding-bottom: 148px; }
+/* 讓位給釘在底部的 .dock 的是 #app（見下面的 body.has-dock），不是這裡——
+   頁尾在 .home-scroll 外面，位置留在這裡的話它還是會被蓋住。 */
+.home-scroll { padding-bottom: 4px; }
 
 .topbar {
   display: flex; justify-content: space-between; align-items: center;
