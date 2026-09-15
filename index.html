@@ -8,8 +8,8 @@
      不加版本號的話，改完要等十分鐘（或使用者自己強制重新整理）才看得到新版——
      實際踩過：修好的 CSS 已經上線，但畫面還是舊的。
      發佈前把這個號碼加一，發佈流程寫在 代辦清單.md。 -->
-<link rel="stylesheet" href="style.css?v=6">
-<link rel="stylesheet" href="room.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="room.css?v=7">
 <!-- 主題要在第一次繪製之前就定下來。
      交給 shell.js（在 </body> 前）會先閃一下夜間版才變成日間版，
      那一下在白色房間裡特別刺眼。所以這一小段刻意內嵌在 head 裡。 -->
@@ -49,7 +49,7 @@
 
         <!-- 一個人／和朋友：從兩塊大卡片縮成頂上的切換。
              它一次進站只按一次，不該佔掉第一屏最貴的位置。 -->
-        <nav class="seg who">
+        <nav class="seg">
           <button type="button" class="who-pick" data-who="solo" aria-current="page">一個人</button>
           <button type="button" class="who-pick" data-who="room">和朋友</button>
         </nav>
@@ -182,46 +182,49 @@
   <p class="net" id="r-net-status">準備中…</p>
   <p class="net-notice" id="r-net-notice" hidden></p>
 
-  <!-- 大廳：建房或加入 -->
+  <!-- 大廳：加入別人的房，或自己開一間 -->
+  <!-- 一欄到底，不左右分欄。
+       「加入」是一個動作（打四個字、按一下），「開一間新的」是一張設定表，
+       兩者高度差了好幾倍——並排就一定會在矮的那一欄底下空出一大塊。
+       它們也不是同一層級的對等選項，並排會讓人以為兩邊一樣重。 -->
   <section class="screen" id="r-screen-lobby">
-    <header class="brand">
-      <h1>猜歌王<span>多人房</span></h1>
+    <!-- 和單人那半用同一個頂排：同一個切換在兩邊長得不一樣，
+         會讓人以為自己跑到別的地方了。 -->
+    <header class="topbar">
+      <h1 class="wordmark">猜歌<span>王</span></h1>
+      <nav class="seg">
+        <button type="button" class="who-pick" data-who="solo">一個人</button>
+        <button type="button" class="who-pick" data-who="room" aria-current="page">和朋友</button>
+      </nav>
     </header>
 
-    <nav class="who">
-      <button type="button" class="who-pick" data-who="solo">
-        <strong>一個人玩</strong>
-        <span>自己練歌、挑戰最佳成績</span>
-      </button>
-      <button type="button" class="who-pick" data-who="room" aria-current="page">
-        <strong>和朋友一起</strong>
-        <span>開房搶答，最多 6 人</span>
-      </button>
-    </nav>
-
-    <div class="field">
-      <label class="lab" for="r-nick">暱稱</label>
+    <!-- 暱稱兩條路都要用，所以放在分岔之前。 -->
+    <div class="you">
+      <label for="r-nick">暱稱</label>
       <input type="text" id="r-nick" maxlength="12" placeholder="別人會看到這個名字" autocomplete="off">
     </div>
 
     <p class="lobby-error" id="r-lobby-error" hidden></p>
 
-    <div class="two-up">
-      <!-- 加入放前面：一場裡只有一個房主，其他人全都是走這一欄。 -->
-      <section class="card">
-        <h2>加入房間</h2>
-        <div class="field">
-          <label class="lab" for="r-join-code">房號</label>
-          <input type="text" id="r-join-code" class="code-input" maxlength="4"
-                 placeholder="ABCD" autocomplete="off" spellcheck="false"
-                 inputmode="text" autocapitalize="characters">
-        </div>
-        <button type="button" class="primary big" id="r-btn-join">加入</button>
-      </section>
+    <!-- 加入放前面：一場裡只有一個房主，其他人全都是走這一條。 -->
+    <section class="card join">
+      <h2>加入朋友的房間</h2>
+      <div class="join-line">
+        <input type="text" id="r-join-code" class="code-input" maxlength="4"
+               aria-label="房號" placeholder="ABCD" autocomplete="off" spellcheck="false"
+               inputmode="text" autocapitalize="characters">
+        <button type="button" class="primary" id="r-btn-join">加入</button>
+      </div>
+    </section>
 
-      <section class="card">
-        <h2>開一間新的</h2>
+    <div class="or"><span>或者</span></div>
 
+    <section class="card">
+      <h2>開一間新的</h2>
+
+      <!-- 四個設定各自都很矮，所以在寬螢幕上排成 2×2——
+           這裡的並排是對稱的，因為四塊高度差不多。 -->
+      <div class="create-grid">
         <!-- 語種與題數的清單由 room.js 依 Rules 與題庫產生，寫死在 HTML 裡會和規則層分岔。 -->
         <fieldset class="field">
           <legend>語種<i>至少選一個，數字是題庫裡的首數</i></legend>
@@ -241,7 +244,6 @@
           <div class="explain-box" id="r-scorings-help" hidden></div>
         </fieldset>
 
-
         <fieldset class="field">
           <legend>出題方式<button type="button" class="explain" aria-expanded="false" aria-controls="r-modes-help" aria-label="出題方式怎麼挑">?</button></legend>
           <div class="modes compact" id="r-modes">
@@ -258,14 +260,13 @@
             <p><b>隨機出題</b>題目從你勾的語種裡隨機出，一場打完。最單純，適合第一次玩。</p>
             <p><b>逐關解鎖語種</b>第一關只出一個語種，之後一關加一種，最後一關全部混合。題數會是「關數 × 每關題數」，想玩久一點選這個。</p>
           </div>
-
         </fieldset>
+      </div>
 
-        <p class="setup-summary" id="r-setup-summary"></p>
-        <p class="setup-warning" id="r-setup-warning" hidden></p>
-        <button type="button" class="primary big" id="r-btn-create">建立房間</button>
-      </section>
-    </div>
+      <p class="setup-summary" id="r-setup-summary"></p>
+      <p class="setup-warning" id="r-setup-warning" hidden></p>
+      <button type="button" class="primary big" id="r-btn-create">建立房間</button>
+    </section>
 
     <p class="bank" id="r-bank-line">題庫載入中…</p>
     <p class="credit">
@@ -379,16 +380,16 @@
      不然「只想一個人玩」的人要白付那 218 KB。
      shell.js 最後，因為它要呼叫前面兩邊掛出來的停止函式。
      全部都是傳統 script（不是 module），這樣從 file:// 雙擊開也能玩。 -->
-<script src="js/rules.js?v=6"></script>
-<script src="js/questions.js?v=6"></script>
-<script src="js/game.js?v=6"></script>
-<script src="data/bank.js?v=6"></script>
-<script src="realtime-config.js?v=6"></script>
-<script src="js/realtime.js?v=6"></script>
-<script src="js/leaderboard.js?v=6"></script>
-<script src="js/boardui.js?v=6"></script>
-<script src="js/app.js?v=6"></script>
-<script src="js/room.js?v=6"></script>
-<script src="js/shell.js?v=6"></script>
+<script src="js/rules.js?v=7"></script>
+<script src="js/questions.js?v=7"></script>
+<script src="js/game.js?v=7"></script>
+<script src="data/bank.js?v=7"></script>
+<script src="realtime-config.js?v=7"></script>
+<script src="js/realtime.js?v=7"></script>
+<script src="js/leaderboard.js?v=7"></script>
+<script src="js/boardui.js?v=7"></script>
+<script src="js/app.js?v=7"></script>
+<script src="js/room.js?v=7"></script>
+<script src="js/shell.js?v=7"></script>
 </body>
 </html>

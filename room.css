@@ -2,7 +2,6 @@
    全部沿用 style.css，這個檔只補房間才有的東西：
    連線狀態列、房號、名冊、比分板。 */
 
-#app.room { max-width: 760px; }
 
 /* ---- 連線狀態 ---- */
 /* 多人功能壞掉的時候，第一個要回答的問題是「線有沒有通」。
@@ -17,17 +16,17 @@
   font-size: .78rem;
   text-align: center;
 }
-.net.ok { border-color: rgba(61, 220, 151, .5); color: var(--good); }
-.net.bad { border-color: rgba(255, 92, 124, .6); color: var(--bad); }
+.net.ok { border-color: var(--good-line); color: var(--good); }
+.net.bad { border-color: var(--bad-line); color: var(--bad); }
 
 .net-notice {
   margin: 0 0 16px;
   padding: 10px 14px;
-  border: 1px solid rgba(255, 200, 80, .45);
+  border: 1px solid var(--warn-line);
   border-left-width: 4px;
   border-radius: 10px;
-  background: rgba(255, 200, 80, .08);
-  color: #ffd98a;
+  background: var(--warn-soft);
+  color: var(--warn);
   font-size: .82rem;
   line-height: 1.7;
 }
@@ -38,7 +37,7 @@
 .room input[type=text] {
   width: 100%;
   padding: 12px 14px;
-  background: #100d1b;
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 10px;
   color: var(--ink);
@@ -59,15 +58,46 @@
   margin: 12px 0;
   padding: 10px 14px;
   border-radius: 10px;
-  background: rgba(255, 92, 124, .12);
-  border: 1px solid rgba(255, 92, 124, .45);
-  color: #ffb3c2;
+  background: var(--bad-soft);
+  border: 1px solid var(--bad-line);
+  color: var(--bad-ink);
   font-size: .85rem;
   line-height: 1.7;
 }
 
-.two-up { display: grid; gap: 16px; margin-top: 18px; }
-@media (min-width: 640px) { .two-up { grid-template-columns: 1fr 1.25fr; align-items: start; } }
+/* 暱稱：兩條路都要用，所以在分岔之前，而且只佔一行。 */
+.you { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.you label { color: var(--ink-dim); font-size: .82rem; white-space: nowrap; }
+.you input { flex: 1; min-width: 0; }
+
+/* 「加入」和「開一間新的」上下排，不左右分欄。
+   一個是單一動作、一個是設定表，高度差好幾倍——並排就一定會在矮的那邊
+   底下空出一大塊；而且它們不是對等的選項，並排會讓人以為兩邊一樣重。 */
+.or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+  color: var(--ink-dim);
+  font-size: .78rem;
+}
+.or::before, .or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* 開房的四個設定各自都很矮，寬螢幕排成 2×2。
+   這裡的並排是對稱的，因為四塊高度差不多——上面那個並排不是。 */
+.create-grid { display: grid; gap: 12px; }
+@media (min-width: 640px) {
+  /* 不加 align-items: start：讓同一列的兩塊拉齊高度。
+     各自縮到內容高度的話，語種（五顆會換行）旁邊的題數就會矮一截，
+     那正是看起來不對稱的地方。 */
+  .create-grid { grid-template-columns: 1fr 1fr; }
+}
+
 
 .card {
   padding: 18px;
@@ -77,6 +107,22 @@
 }
 .card h2 { margin: 0 0 14px; font-size: 1.05rem; }
 .card .primary.big { width: 100%; }
+
+/* 加入房間刻意做小。一場裡只有一個人在開房，其他人全走這一欄，
+   而他們要做的只有「打四個字、按加入」——這件事不值得一張跟開房一樣大的卡。 */
+.card.join { padding: 14px 16px; }
+.card.join h2 { margin: 0 0 10px; font-size: .95rem; }
+.join-line { display: flex; gap: 8px; }
+.join-line .code-input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  font-size: 1.35rem !important;
+  letter-spacing: .28em;
+  text-indent: .28em;
+}
+.join-line .primary { padding: 0 22px; min-height: 46px; white-space: nowrap; }
+
 
 /* ---- 等待室 ---- */
 .code-label { margin: 24px 0 0; text-align: center; color: var(--ink-dim); font-size: .8rem; }
@@ -88,7 +134,7 @@
   letter-spacing: .18em;
   color: var(--accent-2);
   font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  text-shadow: 0 0 30px rgba(94, 224, 255, .35);
+  text-shadow: 0 0 30px var(--glow);
 }
 .room-settings { margin: 0 0 24px; text-align: center; color: var(--ink-dim); font-size: .85rem; }
 
@@ -117,7 +163,7 @@
 .hint.bad { color: var(--bad); }
 
 /* 自己按的那一顆要看得出來，不然被搶走的時候會分不清「我按了嗎」。 */
-.choice.mine { border-color: var(--accent-2); box-shadow: 0 0 0 2px rgba(94, 224, 255, .3) inset; }
+.choice.mine { border-color: var(--accent-2); box-shadow: 0 0 0 2px var(--mine-glow) inset; }
 
 /* 被搶走要和自己答錯分開：一個是「來不及」，一個是「答錯」，感受完全不同。 */
 .verdict.taken { border-color: var(--accent-2); }
