@@ -1,0 +1,143 @@
+/* 完整回饋表單專用。顏色、卡片、膠囊、星星都沿用 style.css 那一套，
+   這裡只補這一頁自己的東西——版面（單欄、寬度受限）和進度條。 */
+
+/* 進度條釘在最上面。長表單最容易發生的事是填到一半放棄，
+   而放棄的人多半不是不想填，是不知道還有多長。 */
+.form-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  height: 4px;
+  background: var(--line);
+}
+.form-progress-bar {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width .2s ease;
+}
+
+.form-page { padding-top: 28px; }
+
+/* 一行文字超過這個寬度就開始難讀了，所以桌機也不把它攤滿。 */
+@media (min-width: 900px) {
+  #app.form-page { max-width: 760px; }
+}
+
+.topbar .back {
+  text-decoration: none;
+  padding: 9px 16px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  font-size: .85rem;
+}
+.topbar .back:hover { color: var(--ink); border-color: var(--accent); }
+
+.form-intro {
+  color: var(--ink-dim);
+  font-size: .82rem;
+  line-height: 1.9;
+  margin: 0 0 18px;
+}
+.form-intro strong { color: var(--ink); }
+
+.form-card { margin-bottom: 16px; }
+.form-card h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  color: var(--accent);
+}
+
+.form-field { padding: 14px 0; border-top: 1px solid var(--line); }
+.form-card h2 + .form-field { border-top: none; }
+
+.form-lab {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--ink);
+  font-size: .9rem;
+}
+.form-lab i {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink-dim);
+  font-style: normal;
+  font-size: .76rem;
+  line-height: 1.6;
+}
+
+/* 大項的星等靠左，和底下的細項對齊；細項那些是「標籤 ＋ 星星」一列。 */
+.form-stars .stars { justify-content: flex-start; }
+
+.form-field textarea {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: .88rem;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+/* 勾了才展開的細項。縮排一格，看得出它是上面那一排的結果。 */
+.form-revealed {
+  margin-top: 12px;
+  padding: 10px 12px 4px;
+  border-left: 2px solid var(--accent);
+  background: var(--row);
+  border-radius: 0 10px 10px 0;
+}
+.form-hint { margin: 0 0 8px; color: var(--ink-dim); font-size: .78rem; }
+
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-radius: 8px;
+}
+.form-row-lab { font-size: .85rem; min-width: 0; }
+.form-row .stars { flex: none; }
+.form-row .star { min-width: 34px; min-height: 40px; font-size: 1.3rem; }
+
+/* 沒填的必填項。送出的時候標起來，而不是只說「有東西沒填」——
+   在一份這麼長的表單裡，讓人自己找是最沒禮貌的做法。 */
+.missing {
+  outline: 2px solid var(--bad);
+  outline-offset: 6px;
+  border-radius: 8px;
+}
+.missing .form-lab, .missing .form-row-lab { color: var(--bad); }
+
+.form-actions {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  margin: 22px 0 10px;
+}
+.form-actions .primary.big { width: 100%; max-width: 360px; padding: 15px; }
+.form-actions .ghost { font-size: .78rem; padding: 8px 14px; }
+
+.form-state {
+  text-align: center;
+  font-size: .82rem;
+  color: var(--ink-dim);
+  margin: 12px 0;
+  line-height: 1.8;
+}
+.form-state:empty { margin: 0; }
+.form-state.ok { color: var(--good); }
+.form-state.bad { color: var(--bad); }
+
+/* 這一頁沒有那條釘在底部的開始鈕，出處就照一般的頁尾走。 */
+.form-page .credit { margin-top: 24px; }
