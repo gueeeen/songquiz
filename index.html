@@ -83,6 +83,13 @@
       <button type="button" class="primary big" id="btn-start">開始</button>
     </div>
 
+    <!-- 首頁的排行榜。預設收起來：多數人一進來是要玩，不是要看榜；
+         但它要在「頁首就找得到」，不必先打一場才看得到榜。 -->
+    <details class="board-fold" id="home-board-fold">
+      <summary>排行榜</summary>
+      <section id="home-board"></section>
+    </details>
+
     <p class="bank" id="bank-line">題庫載入中…</p>
     <!-- 出處要在玩的人看得到的地方，不是只寫在 README 裡。 -->
     <p class="credit">
@@ -130,29 +137,8 @@
     <p class="result-note" id="result-note"></p>
     <p class="result-best" id="result-best"></p>
 
-    <!-- 排行榜。本機榜一定看得到；線上榜要留暱稱才上得去，
-         所以「上榜」是一個動作，不是自動發生的事。 -->
-    <section class="board-box">
-      <div class="board-tabs">
-        <button type="button" class="board-tab" data-board="local" aria-pressed="true">這台裝置</button>
-        <button type="button" class="board-tab" data-board="online" aria-pressed="false">線上</button>
-      </div>
-
-      <!-- 榜的兩種看法。預設看「這個模式全部」，否則每換一個題數或語種
-           就是一張新的空榜，看起來像沒有排行榜。 -->
-      <div class="board-tabs scopes">
-        <button type="button" class="board-scope" data-scope="mode" aria-pressed="true">這個模式全部</button>
-        <button type="button" class="board-scope" data-scope="setting" aria-pressed="false">這組設定</button>
-      </div>
-
-      <p class="board-note" id="board-note"></p>
-      <ol class="board-list" id="board-list"></ol>
-
-      <div class="board-submit" id="board-submit" hidden>
-        <input type="text" id="board-nick" maxlength="12" placeholder="暱稱（別人會看到）" autocomplete="off">
-        <button type="button" class="primary" id="btn-submit-score">上榜</button>
-      </div>
-    </section>
+    <!-- 排行榜面板由 boardui.js 產生（同一個面板首頁也有一個）。 -->
+    <section id="result-board"></section>
 
     <ol class="review" id="review"></ol>
     <div class="result-actions">
@@ -330,6 +316,7 @@
 <script src="realtime-config.js"></script>
 <script src="js/realtime.js"></script>
 <script src="js/leaderboard.js"></script>
+<script src="js/boardui.js"></script>
 <script src="js/app.js"></script>
 <script src="js/room.js"></script>
 <script src="js/shell.js"></script>
