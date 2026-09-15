@@ -609,8 +609,35 @@
 
     // 每個人在自己的裝置上放自己的音檔。放不出來（無頭瀏覽器、自動播放被擋）
     // 不能讓整場停住，所以只是換一句提示。
+    //
+    // 起點（view.offset）是出題時用那顆共享的種子算出來的，所以每個人都會
+    // 聽到同一段——這件事在房間裡是硬需求：兩個人聽到不同片段就不是同一題了。
+    // seek 要等 metadata，那時已離開使用者手勢，所以先靜音、play() 照常在手勢裡發動，
+    // seek 之後才解除靜音（細節與單人版的 playPreview 一樣）。
+    var seeked = false;
+
     player.src = view.previewUrl;
-    player.currentTime = 0;
+    player.muted = !!view.offset;
+
+    function seek() {
+      if (seeked) return;
+      seeked = true;
+
+      if (view.offset) {
+        var span = Math.max(0, (player.duration || 30) - Rules.QUESTION_SECONDS - 0.5);
+        try {
+          player.currentTime = view.offset * span;
+        } catch (e) {
+          // 不給 seek 就從頭放，總比沒聲音好。
+        }
+      }
+
+      player.muted = false;
+    }
+
+    player.addEventListener('loadedmetadata', seek, { once: true });
+    setTimeout(seek, 1200);
+
     var playing = player.play();
     if (playing && playing.catch) {
       playing.catch(function () {
