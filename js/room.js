@@ -278,7 +278,8 @@
     var box = el('count-chips');
     box.replaceChildren();
 
-    Rules.QUESTION_COUNT_CHOICES.forEach(function (count) {
+    // 題數清單跟著出題方式走（積分那一種開到 80）。
+    Rules.questionCountsFor(setup.mode).forEach(function (count) {
       box.append(chip(count + ' 題', count === setup.questionCount, function () {
         setup.questionCount = count;
         refreshSetup();
@@ -291,6 +292,8 @@
   for (var m = 0; m < modeButtons.length; m++) {
     modeButtons[m].addEventListener('click', function () {
       setup.mode = this.dataset.mode;
+      // 換出題方式可能換掉整份題數清單，要把題數挪到新清單裡最接近的那個。
+      setup.questionCount = Rules.nearestCountFor(setup.mode, setup.questionCount);
       refreshSetup();
     });
   }

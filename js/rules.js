@@ -28,6 +28,33 @@
 
   var QUESTION_COUNT_CHOICES = [5, 10, 15, 20];
 
+  /**
+   * 積分模式的題數選項。
+   *
+   * 它和另外兩個模式不同：闖關與競速是「一場有明確的長度」，
+   * 而積分是「連對能連多久」——那本質上是一條可以一直往下猜的路，
+   * 所以題數開到 80。80 是題庫撐得住的上限（單語種最少 72 首），
+   * 再多就會出現「湊不出題」而不是「玩到累」。
+   */
+  var COMBO_COUNT_CHOICES = [10, 20, 40, 60, 80];
+
+  /** 這個模式可以挑哪些題數。 */
+  function questionCountsFor(mode) {
+    return mode === 'combo' ? COMBO_COUNT_CHOICES : QUESTION_COUNT_CHOICES;
+  }
+
+  /** 題數不在這個模式的清單裡時，挑一個最接近的——不要默默給一個離很遠的值。 */
+  function nearestCountFor(mode, count) {
+    var choices = questionCountsFor(mode);
+    if (choices.indexOf(count) !== -1) return count;
+
+    // 一樣近的時候往大的靠（15 在 10 和 20 之間，取 20）：
+    // 題數變多只是玩久一點，變少是把人原本想玩的量砍掉，後者比較討人厭。
+    return choices.reduce(function (best, option) {
+      return Math.abs(option - count) <= Math.abs(best - count) ? option : best;
+    }, choices[0]);
+  }
+
   /** 答對的保底分。答對就算只剩一瞬間也拿得到。 */
   var BASE_SCORE = 500;
 
@@ -249,6 +276,9 @@
     QUESTION_SECONDS: QUESTION_SECONDS,
     QUESTIONS_PER_ROUND: QUESTIONS_PER_ROUND,
     QUESTION_COUNT_CHOICES: QUESTION_COUNT_CHOICES,
+    COMBO_COUNT_CHOICES: COMBO_COUNT_CHOICES,
+    questionCountsFor: questionCountsFor,
+    nearestCountFor: nearestCountFor,
     BASE_SCORE: BASE_SCORE,
     SPEED_BONUS: SPEED_BONUS,
     COMBO_BASE: COMBO_BASE,

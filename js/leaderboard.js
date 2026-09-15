@@ -1,67 +1,53 @@
-// 排行榜。兩份榜同時存在，因為它們回答的是兩個不同的問題：
+// 排行榜的資料層。兩個來源、一組共用的篩選條件。
 //
-//   本機榜：「我自己有沒有進步？」——存在這台裝置的 localStorage，離線也在。
-//   線上榜：「跟別人比呢？」——存在 Supabase，所有人同一份。
+//   這台裝置：localStorage。打完一局自動記，離線也在，不會送出去給任何人。
+//   線上：Supabase。**只有按下「上傳到線上榜」才會送**，因為那個暱稱別人會看到。
 //
-// 兩份都按「模式＋題數＋語種」分開排。5 題的積分和 20 題的闖關不是同一件事，
-// 混在一起排名沒有意義。
+// 這兩件事刻意分得很開：本機是自動的（自己跟自己比，不需要誰同意），
+// 線上是一個明確的動作。同一顆按鈕不該同時做這兩件事。
 //
-// 誠實話：分數是玩家的瀏覽器算出來再送上去的，改 JavaScript 就能送一個假分數。
+// 誠實話：分數是玩家的瀏覽器算出來再送上來的，改 JavaScript 就能送一個假分數。
 // 要真的防作弊，判分必須搬回伺服器（見 架構.md 第三節）。
 // 這個榜是給朋友之間玩的，不是競賽計分系統。
 
 (function () {
   'use strict';
 
-  /** 本機榜每一組設定留幾筆。留太多沒人看，留太少看不出進步。 */
+  /** 本機每一組設定留幾局。留太多沒人看，留太少看不出進步。 */
   var LOCAL_KEEP = 10;
 
-  /** 線上榜一次顯示幾筆。 */
-  var ONLINE_TOP = 10;
+  /** 榜上顯示幾列。 */
+  var TOP = 10;
 
-  /** 「這個模式全部」那個榜，一次從伺服器掃幾列回來自己重排。 */
-  var MODE_SCAN = 300;
+  /** 「不分題數」的榜，一次從伺服器掃幾列回來自己重排。 */
+  var SCAN = 300;
 
   var config = window.REALTIME_CONFIG || {};
 
-  /**
-   * 線上榜借用多人房間那組 Supabase 設定——同一個專案、同一把公開金鑰。
-   * 沒設定就只有本機榜，遊戲其他部分完全不受影響。
-   */
+  /** 線上榜借用多人房間那組 Supabase 設定——同一個專案、同一把公開金鑰。 */
   function online() {
     return config.provider === 'supabase' && config.url && config.anonKey;
-  }
-
-  /** 一組設定的識別字串。兩份榜共用同一個定義，才不會各排各的。 */
-  function keyOf(entry) {
-    return [entry.mode, entry.questionCount, entry.languages.join('-')].join('.');
   }
 
   /**
    * 每題平均分。
    *
-   * 「這個模式全部」那個榜必須用它排，不能用總分：20 題的總分天生是 5 題的四倍，
+   * 「不分題數」的榜必須用它排，不能用總分：20 題的總分天生是 5 題的四倍，
    * 照總分排的話前十名永遠是 20 題場，玩 5 題的人一輩子上不了榜。
-   * 除以題數之後，兩種場次才在同一個尺度上。
    */
   function perQuestion(row) {
-    var total = row.total || row.questionCount || 1;
-    return row.score / total;
+    return row.score / (row.total || row.questionCount || 1);
   }
 
-  /** 榜的兩種看法。 */
-  var SCOPES = { SETTING: 'setting', MODE: 'mode' };
+  // ---- 本機 ----
 
-  // ---- 本機榜 ----
-
-  function localKey(entry) {
-    return 'songquiz.board.' + keyOf(entry);
+  function localKey(mode, questionCount, languages) {
+    return 'songquiz.board.' + mode + '.' + questionCount + '.' + languages.join('-');
   }
 
-  function readLocal(entry) {
+  function readRaw(key) {
     try {
-      var raw = localStorage.getItem(localKey(entry));
-      var rows = raw ? JSON.parse(raw) : [];
+      var rows = JSON.parse(localStorage.getItem(key) || '[]');
       return Array.isArray(rows) ? rows : [];
     } catch (e) {
       // 壞掉的資料就當沒有。為了一份排行榜讓整個結算頁掛掉不值得。
@@ -69,20 +55,13 @@
     }
   }
 
-  function writeLocal(entry, rows) {
-    try {
-      localStorage.setItem(localKey(entry), JSON.stringify(rows));
-    } catch (e) {
-      // 記不住就算了
-    }
-  }
-
   /**
-   * 把這一局記進本機榜，回傳這一局在榜上的名次（1-based）與整份榜。
-   * 名次是「這一局排第幾」，不是「最好的那一局排第幾」——玩家想知道的是前者。
+   * 把這一局記進本機榜。**這是自動的**，不問任何人。
+   * 回傳這一局在「同組設定」裡排第幾——玩家想知道的是這一局，不是最好的那一局。
    */
   function addLocal(entry) {
-    var rows = readLocal(entry);
+    var key = localKey(entry.mode, entry.questionCount, entry.languages);
+    var rows = readRaw(key);
 
     rows.push({
       score: entry.score,
@@ -96,19 +75,63 @@
       return b.score - a.score;
     });
 
-    // 先算名次再砍長度：被擠出榜外的那一局也該知道自己是第幾名。
     var rank = rows.indexOf(rows.filter(function (row) {
       return row.score === entry.score;
     })[0]) + 1;
 
-    writeLocal(entry, rows.slice(0, LOCAL_KEEP));
+    try {
+      localStorage.setItem(key, JSON.stringify(rows.slice(0, LOCAL_KEEP)));
+    } catch (e) {
+      // 記不住就算了
+    }
 
-    return { rank: rank, rows: rows.slice(0, LOCAL_KEEP), total: rows.length };
+    return { rank: rank, of: rows.length };
   }
 
-  // ---- 線上榜 ----
-  // 直接打 Supabase 的 REST（PostgREST），不載 SDK：一次 insert、一次 select，
-  // 為了這兩個請求去載 218 KB 的 SDK 不值得。
+  /**
+   * 掃本機的紀錄。
+   *
+   * 直接掃 localStorage 的 key，不另外維護索引：索引會和真實資料不同步，
+   * 而這裡最多幾十個 key，掃一遍是毫秒級的事。
+   */
+  function queryLocal(filter) {
+    var rows = [];
+    var prefix = 'songquiz.board.' + filter.mode + '.';
+
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var key = localStorage.key(i);
+        if (key.indexOf(prefix) !== 0) continue;
+
+        // key 的形狀：songquiz.board.<模式>.<題數>.<語種-語種…>
+        var parts = key.split('.');
+        var count = Number(parts[3]);
+        var languages = (parts[4] || '').split('-');
+
+        if (filter.questionCount && count !== filter.questionCount) continue;
+        if (filter.language && languages.indexOf(filter.language) === -1) continue;
+
+        readRaw(key).forEach(function (row) {
+          rows.push({
+            name: row.at,
+            score: row.score,
+            correct: row.correct,
+            total: row.total,
+            questionCount: count,
+            languages: languages,
+          });
+        });
+      }
+    } catch (e) {
+      return [];
+    }
+
+    return rank(rows, filter);
+  }
+
+  // ---- 線上 ----
+  // 直接打 Supabase 的 REST（PostgREST），不載 SDK：
+  // 為了一次 insert 與一次 select 去載 218 KB 不值得。
 
   function rest(path, options) {
     options = options || {};
@@ -140,13 +163,7 @@
     });
   }
 
-  function filterFor(entry) {
-    return 'mode=eq.' + encodeURIComponent(entry.mode) +
-      '&question_count=eq.' + entry.questionCount +
-      '&languages=eq.' + encodeURIComponent(entry.languages.join('-'));
-  }
-
-  /** 送出一筆成績。回傳 Promise，失敗會 reject，呼叫端自己決定要不要講。 */
+  /** 送一筆到線上榜。只有使用者按下按鈕才會走到這裡。 */
   function submit(entry, nickname) {
     if (!online()) return Promise.reject(new Error('線上榜沒有設定'));
 
@@ -166,82 +183,65 @@
     });
   }
 
-  /**
-   * 抓線上榜的前幾名。
-   *
-   * scope 是 'setting'（只比同一組設定，照總分排）或 'mode'
-   * （同一個模式不分題數語種，照每題平均分排）。
-   */
-  function top(entry, scope) {
+  function queryOnline(filter) {
     if (!online()) return Promise.reject(new Error('線上榜沒有設定'));
 
-    var columns = 'select=nickname,score,stage,correct,total,question_count,languages,created_at';
+    var path = 'scores?select=nickname,score,stage,correct,total,question_count,languages' +
+      '&mode=eq.' + encodeURIComponent(filter.mode);
 
-    if (scope !== SCOPES.MODE) {
-      return rest('scores?' + columns + '&' + filterFor(entry) +
-        '&order=score.desc&limit=' + ONLINE_TOP);
-    }
+    if (filter.questionCount) path += '&question_count=eq.' + filter.questionCount;
 
-    // 「每題平均分」不是資料表裡的欄位，所以沒辦法叫資料庫排。
-    // 抓這個模式分數最高的一批回來自己算——在這個遊戲的資料量下，
-    // 一次幾百列是幾十 KB，比為了排序去加一個 generated column 划算得多。
-    // 代價：如果某個模式累積超過 MODE_SCAN 列，極端的「低分但高平均」可能被漏掉。
-    return rest('scores?' + columns + '&mode=eq.' + encodeURIComponent(entry.mode) +
-      '&order=score.desc&limit=' + MODE_SCAN).then(function (rows) {
-      return rows.sort(function (a, b) {
-        return perQuestion(b) - perQuestion(a);
-      }).slice(0, ONLINE_TOP);
+    // 語種是存成「mandarin-western」這種字串，所以「有包含這個語種的場次」
+    // 用模糊比對。存成陣列欄位會比較漂亮，但那要改表，而這個查詢一天跑不到幾次。
+    if (filter.language) path += '&languages=like.*' + encodeURIComponent(filter.language) + '*';
+
+    // 不分題數的時候要照每題平均分排，而那不是資料表的欄位，叫不動資料庫排——
+    // 抓一批回來自己算。超過 SCAN 列之後，極端的「低分但高平均」可能被漏掉。
+    path += '&order=score.desc&limit=' + (filter.questionCount ? TOP : SCAN);
+
+    return rest(path).then(function (rows) {
+      return rank((rows || []).map(function (row) {
+        return {
+          name: row.nickname,
+          score: row.score,
+          correct: row.correct,
+          total: row.total,
+          questionCount: row.question_count,
+          languages: String(row.languages || '').split('-'),
+        };
+      }), filter);
     });
   }
 
-  /**
-   * 本機榜的「這個模式全部」：把這台裝置上同一個模式、所有題數與語種的紀錄
-   * 掃出來，照每題平均分排。
-   *
-   * 掃 localStorage 的 key 而不是另外維護一份索引：索引會和真實資料不同步，
-   * 而這裡最多幾十個 key，掃一遍是毫秒級的事。
-   */
-  function localByMode(mode) {
-    var rows = [];
+  /** 照篩選條件決定怎麼排，並切到前 TOP 名。 */
+  function rank(rows, filter) {
+    var byAverage = !filter.questionCount;
 
-    try {
-      for (var i = 0; i < localStorage.length; i++) {
-        var key = localStorage.key(i);
-        if (key.indexOf('songquiz.board.' + mode + '.') !== 0) continue;
+    rows.sort(function (a, b) {
+      return byAverage ? perQuestion(b) - perQuestion(a) : b.score - a.score;
+    });
 
-        // key 的形狀是 songquiz.board.<模式>.<題數>.<語種-語種…>
-        var parts = key.split('.');
-        var count = Number(parts[3]);
-        var languages = (parts[4] || '').split('-');
+    return {
+      byAverage: byAverage,
+      rows: rows.slice(0, TOP).map(function (row, i) {
+        row.rank = i + 1;
+        row.average = Math.round(perQuestion(row));
+        return row;
+      }),
+    };
+  }
 
-        JSON.parse(localStorage.getItem(key) || '[]').forEach(function (row) {
-          rows.push({
-            score: row.score,
-            correct: row.correct,
-            total: row.total,
-            at: row.at,
-            questionCount: count,
-            languages: languages,
-          });
-        });
-      }
-    } catch (e) {
-      return [];
-    }
-
-    return rows.sort(function (a, b) {
-      return perQuestion(b) - perQuestion(a);
-    }).slice(0, LOCAL_KEEP);
+  /** 一次查詢的入口。source 是 'local' 或 'online'。 */
+  function query(source, filter) {
+    if (source === 'online') return queryOnline(filter);
+    return Promise.resolve(queryLocal(filter));
   }
 
   window.Leaderboard = {
-    SCOPES: SCOPES,
     available: online,
     addLocal: addLocal,
-    readLocal: readLocal,
-    localByMode: localByMode,
-    perQuestion: perQuestion,
     submit: submit,
-    top: top,
+    query: query,
+    perQuestion: perQuestion,
   };
 })();
