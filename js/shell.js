@@ -70,4 +70,101 @@
   });
 
   apply(window.location.hash === '#room' ? 'room' : 'solo');
+
+  // ------------------------------------------------------------ 設定面板
+  //
+  // 接線放在這裡而不是 app.js／room.js：面板上的「回到主畫面」與「離開房間」
+  // 要同時認得單人和多人這兩半，而這個檔是唯一認得的。
+  // 面板本身在 index.html，兩邊共用同一份——音量開兩個滑桿就要同步兩份狀態，
+  // 而那種東西一定會分岔。
+
+  var gear = document.getElementById('btn-settings');
+  var sheet = document.getElementById('settings');
+  var leaveButton = document.getElementById('btn-settings-leave');
+
+  function openSheet() {
+    // 多人只有真的在房裡才給「離開房間」；在大廳按它沒有意義。
+    leaveButton.hidden = !(current === 'room' && window.RoomShell && window.RoomShell.inRoom());
+    sheet.hidden = false;
+    gear.setAttribute('aria-expanded', 'true');
+    document.getElementById('btn-settings-close').focus();
+  }
+
+  function closeSheet() {
+    sheet.hidden = true;
+    gear.setAttribute('aria-expanded', 'false');
+    gear.focus();
+  }
+
+  gear.addEventListener('click', function () {
+    if (sheet.hidden) openSheet();
+    else closeSheet();
+  });
+
+  document.getElementById('btn-settings-close').addEventListener('click', closeSheet);
+
+  // 點背景關掉。判斷 target 是不是遮罩本身，否則點面板內部也會關。
+  sheet.addEventListener('click', function (event) {
+    if (event.target === sheet) closeSheet();
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && !sheet.hidden) closeSheet();
+  });
+
+  document.getElementById('btn-settings-home').addEventListener('click', function () {
+    // 「回到主畫面」＝結束手上這一局回到設定畫面。兩邊各自的 stop() 已經做完
+    // 該收的事（計時器、音訊、自動跳題），這裡只要挑對呼叫誰。
+    if (current === 'room' && window.RoomShell) window.RoomShell.stop();
+    else if (window.SoloShell) window.SoloShell.stop();
+    closeSheet();
+  });
+
+  leaveButton.addEventListener('click', function () {
+    if (window.RoomShell) window.RoomShell.leave();
+    closeSheet();
+  });
+
+  // ------------------------------------------------------------ 日間／夜間
+  //
+  // 三段：跟隨系統／日間／夜間。預設跟隨系統，因為多數人已經在作業系統上
+  // 表達過偏好了，再問一次是多餘的。選了就記住，換頁不會跑掉。
+
+  var THEME_KEY = 'songquiz.theme';
+  var themePick = document.getElementById('theme-pick');
+
+  function applyTheme(choice) {
+    if (choice !== 'light' && choice !== 'dark') choice = 'auto';
+
+    // auto 就把屬性拿掉，讓 CSS 裡的 prefers-color-scheme 自己決定。
+    if (choice === 'auto') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', choice);
+
+    var buttons = themePick.querySelectorAll('[data-theme]');
+    for (var i = 0; i < buttons.length; i++) {
+      if (buttons[i].dataset.theme === choice) buttons[i].setAttribute('aria-current', 'page');
+      else buttons[i].removeAttribute('aria-current');
+    }
+
+    try {
+      window.localStorage.setItem(THEME_KEY, choice);
+    } catch (error) {
+      // 無痕視窗會擋 localStorage。記不起來就算了，這一次的選擇仍然有效。
+    }
+  }
+
+  var themeButtons = themePick.querySelectorAll('[data-theme]');
+  for (var t = 0; t < themeButtons.length; t++) {
+    themeButtons[t].addEventListener('click', function () {
+      applyTheme(this.dataset.theme);
+    });
+  }
+
+  var saved = null;
+  try {
+    saved = window.localStorage.getItem(THEME_KEY);
+  } catch (error) {
+    saved = null;
+  }
+  applyTheme(saved || 'auto');
 })();

@@ -12,6 +12,18 @@
     return song.title + ' — ' + song.artist;
   }
 
+  /**
+   * 一個選項。label 仍然是那條「歌名 — 歌手」的字串，因為去重、比對答案、
+   * 測試都靠它；title 與 artist 是額外帶出來的，給畫面分成兩行用。
+   *
+   * 為什麼不讓畫面自己去拆 label：歌名裡本來就可能有破折號
+   * （題庫裡就有「Lose Yourself — Eminem」這種、也有歌名含「-」的），
+   * 在畫面層拆字串遲早會把某一首歌的名字剖成兩半。
+   */
+  function optionOf(song) {
+    return { label: labelOf(song), title: song.title, artist: song.artist };
+  }
+
   /** 原地洗牌（Fisher–Yates）。隨機源從外面傳進來，測試才能固定結果。 */
   function shuffle(items, rng) {
     for (var i = items.length - 1; i > 0; i--) {
@@ -51,13 +63,13 @@
     if (pool.length === 0) return null;
 
     var answer = pool[Math.floor(rng() * pool.length)];
-    var labels = this.wrongLabels(answer);
+    var options = this.wrongOptions(answer);
 
-    labels.push(labelOf(answer));
-    shuffle(labels, rng);
+    options.push(optionOf(answer));
+    shuffle(options, rng);
 
-    var choices = labels.map(function (label, i) {
-      return { id: i, label: label };
+    var choices = options.map(function (option, i) {
+      return { id: i, label: option.label, title: option.title, artist: option.artist };
     });
 
     var answerLabel = labelOf(answer);
@@ -88,7 +100,7 @@
    * 還是不足才放寬到其他語種——寧可干擾力差一點，
    * 也不要選項數量忽多忽少（那本身就是線索）。
    */
-  QuestionMaker.prototype.wrongLabels = function (answer) {
+  QuestionMaker.prototype.wrongOptions = function (answer) {
     var rng = this.rng;
     var wanted = window.Rules.CHOICE_COUNT - 1;
     var taken = {};
@@ -96,14 +108,15 @@
 
     taken[labelOf(answer)] = true;
 
+    // 去重仍然以 label 為準：同一首歌在題庫與誘餌裡各有一份是常態。
     function fill(candidates) {
       shuffle(candidates, rng);
       for (var i = 0; i < candidates.length; i++) {
         if (wrong.length === wanted) return;
-        var label = candidates[i];
-        if (!taken[label]) {
-          taken[label] = true;
-          wrong.push(label);
+        var option = candidates[i];
+        if (!taken[option.label]) {
+          taken[option.label] = true;
+          wrong.push(option);
         }
       }
     }
@@ -113,21 +126,22 @@
 
     fill(tracks.filter(function (t) {
       return t.language === answer.language && t.id !== answer.id;
-    }).map(labelOf));
+    }).map(optionOf));
 
     fill(decoys.filter(function (d) {
       return d.language === answer.language;
-    }).map(labelOf));
+    }).map(optionOf));
 
     fill(tracks.filter(function (t) {
       return t.id !== answer.id;
-    }).map(labelOf));
+    }).map(optionOf));
 
-    fill(decoys.map(labelOf));
+    fill(decoys.map(optionOf));
 
     return wrong;
   };
 
   window.QuestionMaker = QuestionMaker;
   window.labelOf = labelOf;
+  window.optionOf = optionOf;
 })();

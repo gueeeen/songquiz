@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>版面測試</title>
+<style>
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #14161c;
+    color: #d8dbe4;
+    font: 15px/1.7 "Segoe UI", "Microsoft JhengHei", sans-serif;
+  }
+  h1 { margin: 0 0 4px; font-size: 22px; font-family: Consolas, monospace; }
+  h1.pass { color: #57d98a; }
+  h1.fail { color: #ff6b6b; }
+  p.hint { margin: 0 0 20px; color: #7c8494; font-size: 13px; }
+  h2 {
+    margin: 24px 0 8px; font-size: 14px; font-weight: normal;
+    color: #7c8494; border-bottom: 1px solid #262a33; padding-bottom: 4px;
+  }
+  ul { margin: 0; padding: 0; list-style: none; }
+  li { padding: 2px 0; }
+  li.pass::before { content: "通過　"; color: #57d98a; }
+  li.fail::before { content: "失敗　"; color: #ff6b6b; }
+  li.fail { color: #ff9d9d; }
+  li .why {
+    display: block; margin-left: 4em; color: #ffc9c9;
+    font-family: Consolas, monospace; font-size: 13px;
+  }
+  /* 被測的那一份頁面。用 iframe 是因為版面問題只有在真的排版之後才看得到，
+     而且寬度要能指定——同一份 HTML 在 390px 和 1200px 是兩種排法。 */
+  iframe { display: block; border: 0; margin: 20px 0 0; }
+</style>
+</head>
+<body>
+
+<h1 id="result">RESULT 尚未執行</h1>
+<p class="hint">
+  這一頁量的是「畫面上實際排出來的樣子」，不是玩法——玩法在 tests.html。
+  兩件事分開的理由：這一頁需要真的載入 index.html 並量尺寸，比較慢，而且
+  無頭瀏覽器要加 <code>--allow-file-access-from-files</code> 才讀得到 iframe 裡的文件。
+</p>
+<div id="report"></div>
+
+<iframe id="phone" src="index.html" width="390" height="844" title="手機寬度"></iframe>
+<iframe id="desktop" src="index.html" width="1200" height="880" title="桌機寬度"></iframe>
+
+<script>
+(function () {
+  'use strict';
+
+  var results = [];
+  var currentGroup = '其他';
+
+  function group(name) { currentGroup = name; }
+
+  function test(name, fn) {
+    var entry = { group: currentGroup, name: name, ok: true, why: '' };
+    try {
+      fn();
+    } catch (error) {
+      entry.ok = false;
+      entry.why = (error && error.message) ? error.message : String(error);
+    }
+    results.push(entry);
+  }
+
+  function assertTrue(value, note) {
+    if (!value) throw new Error((note || '斷言') + '：預期成立，實際不成立');
+  }
+
+  function assertEqual(expected, actual, note) {
+    if (expected !== actual) {
+      throw new Error((note ? note + '，' : '') + '預期「' + expected + '」，實際「' + actual + '」');
+    }
+  }
+
+  // ---------------------------------------------------------------- 取樣
+
+  /** 一個被測頁面的量測工具。 */
+  function view(id) {
+    var frame = document.getElementById(id);
+    var doc = frame.contentDocument;
+    var win = frame.contentWindow;
+
+    return {
+      doc: doc,
+      win: win,
+      one: function (selector) { return doc.querySelector(selector); },
+      style: function (selector, property) {
+        var node = doc.querySelector(selector);
+        if (!node) throw new Error('找不到元素：' + selector);
+        return win.getComputedStyle(node)[property];
+      },
+      /** 一律量實際排出來的方框，不看 CSS 宣告——宣告對、被別條蓋掉的情況才是真正的 bug。 */
+      box: function (selector) {
+        var node = doc.querySelector(selector);
+        if (!node) throw new Error('找不到元素：' + selector);
+        return node.getBoundingClientRect();
+      },
+    };
+  }
+
+  function run() {
+    var phone = view('phone');
+    var desktop = view('desktop');
+
+    // ------------------------------------------------------------ 手機
+
+    group('手機（390px）');
+
+    test('開始鈕釘在畫面底部，不必捲回去找', function () {
+      assertEqual('fixed', phone.style('.dock', 'position'), '.dock 的定位方式');
+      var dock = phone.box('.dock');
+      var gap = phone.win.innerHeight - dock.bottom;
+      assertTrue(Math.abs(gap) < 2, 'dock 底緣離視窗底部只差 ' + Math.round(gap) + 'px');
+    });
+
+    test('.dock 不會被 .screen 的進場動畫拖走', function () {
+      // position: fixed 只要祖先有 transform 就會改用那個祖先當定位基準。
+      // 進場動畫動的正是 transform，所以動畫必須掛在 .home-scroll（dock 的兄弟）上。
+      assertEqual('none', phone.style('#screen-home', 'animationName'), '#screen-home 不該有動畫');
+      assertTrue(phone.style('.home-scroll', 'animationName') !== 'none', '.home-scroll 應該有進場動畫');
+    });
+
+    test('捲到底的時候出處沒有被 dock 蓋住', function () {
+      phone.win.scrollTo(0, 999999);
+      var credit = phone.box('.credit');
+      var dock = phone.box('.dock');
+      assertTrue(credit.bottom <= dock.top,
+        '出處底緣 ' + Math.round(credit.bottom) + '，dock 頂緣 ' + Math.round(dock.top));
+      phone.win.scrollTo(0, 0);
+    });
+
+    test('語種與題數不橫向捲動，全部看得到', function () {
+      // 橫向捲動看起來省位置，但它把「還有幾個選項」藏起來了。
+      ['#lang-chips', '#count-chips'].forEach(function (selector) {
+        var rail = phone.one(selector);
+        assertTrue(rail.scrollWidth <= rail.clientWidth + 1,
+          selector + ' 捲得動（scrollWidth ' + rail.scrollWidth + ' / clientWidth ' + rail.clientWidth + '）');
+        assertEqual('wrap', phone.style(selector, 'flexWrap'), selector + ' 應該換行排開');
+      });
+    });
+
+    test('九個選項永遠是 3×3', function () {
+      // 不隨寬度改欄數：九宮格的位置本身就是記憶點，換裝置不該重新找。
+      //
+      // 這裡不能讀 gridTemplateColumns：遊戲畫面平常是 display: none，
+      // 那種狀態下讀到的是還沒解析的原始字串（"repeat(3, 1fr)"），
+      // 拿去 split 會得到兩段，看起來像兩欄。所以真的把九顆排出來，量它們的位置。
+      [['手機', phone], ['桌機', desktop]].forEach(function (pair) {
+        var name = pair[0];
+        var v = pair[1];
+        var play = v.one('#screen-play');
+        var box = v.one('#choices');
+        var wasHidden = play.hidden;
+
+        play.hidden = false;
+        box.replaceChildren();
+        for (var i = 0; i < 9; i++) {
+          var button = v.doc.createElement('button');
+          button.className = 'choice';
+          var title = v.doc.createElement('b');
+          title.textContent = '測試歌名' + i;
+          var artist = v.doc.createElement('i');
+          artist.textContent = '測試歌手';
+          button.append(title, artist);
+          box.append(button);
+        }
+
+        var columns = {};
+        var rows = {};
+        for (var j = 0; j < box.children.length; j++) {
+          var rect = box.children[j].getBoundingClientRect();
+          columns[Math.round(rect.left)] = true;
+          rows[Math.round(rect.top)] = true;
+        }
+
+        // 順便驗第七項：歌名要比歌手大，而且各佔一行。
+        var titleSize = parseFloat(v.win.getComputedStyle(box.children[0].querySelector('b')).fontSize);
+        var artistSize = parseFloat(v.win.getComputedStyle(box.children[0].querySelector('i')).fontSize);
+        var titleWeight = Number(v.win.getComputedStyle(box.children[0].querySelector('b')).fontWeight);
+        var titleRect = box.children[0].querySelector('b').getBoundingClientRect();
+        var artistRect = box.children[0].querySelector('i').getBoundingClientRect();
+
+        box.replaceChildren();
+        play.hidden = wasHidden;
+
+        assertEqual(3, Object.keys(columns).length, name + '的欄數');
+        assertEqual(3, Object.keys(rows).length, name + '的列數');
+        assertTrue(titleSize > artistSize,
+          name + '：歌名 ' + titleSize + 'px 沒有比歌手 ' + artistSize + 'px 大');
+        assertTrue(titleWeight >= 700, name + '：歌名沒有粗體（' + titleWeight + '）');
+        assertTrue(artistRect.top >= titleRect.bottom - 1, name + '：歌手沒有換行到歌名下面');
+      });
+    });
+
+
+
+    test('模式是三張並排的小卡，長說明收起來', function () {
+      var columns = phone.style('#screen-home .modes', 'gridTemplateColumns').split(' ');
+      assertEqual(3, columns.length, '模式的欄數');
+      assertEqual('none', phone.style('#screen-home .mode span', 'display'), '長說明在手機上的 display');
+      assertEqual('block', phone.style('#screen-home .mode-short', 'display'), '短句在手機上的 display');
+    });
+
+    test('每個可點的東西都摸得到（至少 40px 高）', function () {
+      var selectors = ['.seg .who-pick', '#lang-chips .chip', '#count-chips .chip', '#btn-start', '#btn-settings'];
+
+      selectors.forEach(function (selector) {
+        var height = phone.box(selector).height;
+        assertTrue(height >= 40, selector + ' 只有 ' + Math.round(height) + 'px 高');
+      });
+    });
+
+    // ------------------------------------------------------------ 顏色
+
+    group('設定面板');
+
+    test('齒輪在每個畫面都構得到，而且壓在開始鈕那條之上', function () {
+      assertEqual('fixed', phone.style('#btn-settings', 'position'), '齒輪的定位方式');
+      var gear = Number(phone.style('#btn-settings', 'zIndex'));
+      var dock = Number(phone.style('.dock', 'zIndex'));
+      assertTrue(gear > dock, '齒輪 z-index ' + gear + '，dock ' + dock);
+    });
+
+    test('面板預設關著，點齒輪才開', function () {
+      assertEqual('none', phone.style('#settings', 'display'), '一開始的 display');
+      phone.one('#btn-settings').click();
+      assertTrue(phone.style('#settings', 'display') !== 'none', '點了之後應該打開');
+      assertEqual('true', phone.one('#btn-settings').getAttribute('aria-expanded'), 'aria-expanded');
+    });
+
+    test('音量與試聽在面板裡，只有一份', function () {
+      assertEqual(1, phone.doc.querySelectorAll('#volume').length, '音量滑桿的數量');
+      assertTrue(phone.one('#settings').contains(phone.one('#volume')), '音量應該在面板裡');
+      assertTrue(phone.one('#settings').contains(phone.one('#btn-test')), '試聽應該在面板裡');
+    });
+
+    test('在單人這邊不給「離開房間」', function () {
+      assertTrue(phone.one('#btn-settings-leave').hidden, '單人不該看到離開房間');
+    });
+
+    test('切成日間版，底色真的變亮', function () {
+      function luminance(color) {
+        var nums = color.match(/\d+/g).map(Number);
+        return (nums[0] * 299 + nums[1] * 587 + nums[2] * 114) / 1000;
+      }
+      phone.one('#theme-pick [data-theme="dark"]').click();
+      var dark = luminance(phone.style('body', 'backgroundColor') === 'rgba(0, 0, 0, 0)'
+        ? phone.style('html', 'backgroundColor') : phone.style('body', 'backgroundColor'));
+      phone.one('#theme-pick [data-theme="light"]').click();
+      var light = luminance(phone.style('html', 'backgroundColor'));
+      assertTrue(light > dark + 100, '日間 ' + Math.round(light) + ' 對夜間 ' + Math.round(dark));
+    });
+
+    test('日間版的字仍然讀得到（不是把夜間版調亮而已）', function () {
+      // 主色 #f7b955 配白底只有 1.8:1，日間版一定要換一個更深的琥珀。
+      var css = phone.win.getComputedStyle(phone.doc.documentElement);
+      var accent = css.getPropertyValue('--accent').trim();
+      assertTrue(accent !== '#f7b955', '日間版的主色還是夜間那一個：' + accent);
+      phone.one('#theme-pick [data-theme="auto"]').click();
+      phone.one('#btn-settings-close').click();
+    });
+
+    group('顏色');
+
+
+    test('主要按鈕不是白字配琥珀金', function () {
+      // 白字配 #f7b955 只有 1.9:1。這一條會在有人「順手」把 color 改回 #fff 時擋下來。
+      var ink = phone.style('#btn-start', 'color');
+      assertTrue(ink !== 'rgb(255, 255, 255)', '開始鈕的字色是 ' + ink);
+    });
+
+    test('「被選中」和「答錯」不是同一個顏色', function () {
+      // 舊配色踩過：--accent #ff4d88 和 --bad #ff5c7c 幾乎同色，
+      // 選中的選項和答錯的選項長得一樣。
+      var root = phone.doc.documentElement;
+      var css = phone.win.getComputedStyle(root);
+      var accent = css.getPropertyValue('--accent').trim();
+      var bad = css.getPropertyValue('--bad').trim();
+      assertTrue(accent !== bad, '兩個都是 ' + accent);
+      assertTrue(hueGap(accent, bad) > 40,
+        '色相只差 ' + Math.round(hueGap(accent, bad)) + '°（' + accent + ' vs ' + bad + '）');
+    });
+
+    // ------------------------------------------------------------ 桌機
+
+    group('桌機（1200px）');
+
+    test('設定和排行榜並排，不是一條窄柱', function () {
+      var columns = desktop.style('.home-scroll', 'gridTemplateColumns').split(' ');
+      assertEqual(2, columns.length, '首頁的欄數');
+      var main = desktop.box('.home-main');
+      var side = desktop.box('.home-side');
+      assertTrue(side.left >= main.right, '右欄左緣 ' + Math.round(side.left) + ' 應該在左欄右緣 ' + Math.round(main.right) + ' 之後');
+    });
+
+    test('寬螢幕放得下完整說明，就不用那句短的', function () {
+      assertEqual('block', desktop.style('#screen-home .mode span', 'display'), '長說明在桌機上的 display');
+      assertEqual('none', desktop.style('#screen-home .mode-short', 'display'), '短句在桌機上的 display');
+    });
+
+    test('語種題數整排攤開，不必捲', function () {
+      var rail = desktop.one('#lang-chips');
+      assertTrue(rail.scrollWidth <= rail.clientWidth + 1, '桌機上不該捲');
+    });
+
+
+    // ------------------------------------------------------ 兩邊互不干擾
+
+    group('單人與多人共用的 class');
+
+    test('大廳的計分／出題只給標題，說明收在「?」後面', function () {
+      phone.one('.seg .who-pick[data-who="room"]').click();
+      // 點下去要真的換邊。事件沒掛上的時候 click() 不會報錯，只是什麼都沒發生。
+      assertTrue(phone.one('#solo-app').hidden, '點了「和朋友」之後單人那半還在');
+
+      var cards = phone.doc.querySelectorAll('#r-scorings .mode');
+      assertEqual(3, cards.length, '計分方式的顆數');
+      assertEqual(0, phone.doc.querySelectorAll('#r-scorings .mode span').length,
+        '計分的鈕裡不該還留著整段說明');
+
+      var help = phone.one('#r-scorings-help');
+      assertTrue(help.hidden, '說明一開始應該是收起來的');
+      assertTrue(help.children.length === 3, '三種計分方式都要有一段說明（實際 ' + help.children.length + '）');
+
+      var toggle = phone.one('[aria-controls="r-scorings-help"]');
+      toggle.click();
+      assertTrue(!help.hidden, '點了「?」應該展開');
+      assertEqual('true', toggle.getAttribute('aria-expanded'), 'aria-expanded');
+      toggle.click();
+      assertTrue(help.hidden, '再點一次應該收回去');
+    });
+
+
+    test('切到多人的時候，單人的 dock 要跟著消失', function () {
+      // dock 是 position: fixed，忘了跟著藏的話它會浮在多人畫面上。
+      var h = phone.box('.dock').height;
+      assertTrue(h === 0, 'dock 高 ' + Math.round(h) + '，solo hidden=' + phone.one('#solo-app').hidden + '，room hidden=' + phone.one('#room-app').hidden);
+      phone.one('.seg .who-pick[data-who="solo"]').click();
+    });
+
+    test('切回來之後，頂上的切換標的是單人', function () {
+      var current = phone.one('.seg .who-pick[aria-current="page"]');
+      assertEqual('solo', current.dataset.who, '目前標示的那一邊');
+    });
+
+    report();
+  }
+
+  /** 兩個十六進位色的色相差幾度。只用來判斷「會不會被看成同一個顏色」。 */
+  function hueGap(a, b) {
+    var gap = Math.abs(hueOf(a) - hueOf(b));
+    return gap > 180 ? 360 - gap : gap;
+  }
+
+  function hueOf(hex) {
+    var n = parseInt(hex.replace('#', ''), 16);
+    var r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    if (!d) return 0;
+    var h;
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    return h < 0 ? h + 360 : h;
+  }
+
+  // ---------------------------------------------------------------- 報告
+
+  function report() {
+    var passed = results.filter(function (entry) { return entry.ok; }).length;
+    var line = 'RESULT ' + (passed === results.length ? 'PASS' : 'FAIL') +
+               ' ' + passed + '/' + results.length;
+
+    document.title = line;
+    var heading = document.getElementById('result');
+    heading.textContent = line;
+    heading.className = passed === results.length ? 'pass' : 'fail';
+
+    var host = document.getElementById('report');
+    var groups = [];
+    results.forEach(function (entry) {
+      if (groups.indexOf(entry.group) === -1) groups.push(entry.group);
+    });
+
+    groups.forEach(function (name) {
+      var title = document.createElement('h2');
+      title.textContent = name;
+      host.appendChild(title);
+
+      var list = document.createElement('ul');
+      results.filter(function (entry) { return entry.group === name; })
+        .forEach(function (entry) {
+          var item = document.createElement('li');
+          item.className = entry.ok ? 'pass' : 'fail';
+          item.textContent = entry.name;
+          if (!entry.ok) {
+            var why = document.createElement('span');
+            why.className = 'why';
+            why.textContent = entry.why;
+            item.appendChild(why);
+          }
+          list.appendChild(item);
+        });
+      host.appendChild(list);
+    });
+  }
+
+  /**
+   * 等兩個 iframe 都把設定畫出來才開始量。
+   * 不能只等 load：語種那幾顆是 app.js 依題庫產生的，load 當下還是空的。
+   * 也不能無限等：讀不到就要把原因印出來，否則無頭跑起來只會看到一片空白。
+   */
+  var tries = 0;
+  var timer = setInterval(function () {
+    tries++;
+    var ready = false;
+    try {
+      ready = ['phone', 'desktop'].every(function (id) {
+        var doc = document.getElementById(id).contentDocument;
+        // readyState 一定要等到 complete：語種是 app.js 畫的，但切換鈕的事件是
+        // 排在它後面的 shell.js 掛的。只等語種出現，會有幾成機率在事件掛上之前
+        // 就開始點——點下去沒反應，測試看起來像版面壞了，其實是測試自己太早跑。
+        if (!doc || doc.readyState !== 'complete') return false;
+        var chips = doc.getElementById('lang-chips');
+        return !!(chips && chips.children.length > 0);
+      });
+    } catch (error) {
+      // file:// 的 iframe 預設是跨來源的。無頭要加 --allow-file-access-from-files。
+    }
+
+    if (ready) {
+      clearInterval(timer);
+      run();
+      return;
+    }
+
+    if (tries > 100) {
+      clearInterval(timer);
+      results.push({
+        group: '取樣',
+        name: '讀得到被測頁面',
+        ok: false,
+        why: '等不到 index.html 把語種畫出來。從 file:// 跑的話，無頭瀏覽器要加 --allow-file-access-from-files。',
+      });
+      report();
+    }
+  }, 50);
+})();
+</script>
+
+</body>
+</html>

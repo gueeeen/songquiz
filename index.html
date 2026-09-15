@@ -8,9 +8,25 @@
      不加版本號的話，改完要等十分鐘（或使用者自己強制重新整理）才看得到新版——
      實際踩過：修好的 CSS 已經上線，但畫面還是舊的。
      發佈前把這個號碼加一，發佈流程寫在 代辦清單.md。 -->
-<link rel="stylesheet" href="style.css?v=4">
-<link rel="stylesheet" href="room.css?v=4">
+<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="room.css?v=6">
+<!-- 主題要在第一次繪製之前就定下來。
+     交給 shell.js（在 </body> 前）會先閃一下夜間版才變成日間版，
+     那一下在白色房間裡特別刺眼。所以這一小段刻意內嵌在 head 裡。 -->
+<script>
+(function () {
+  try {
+    var choice = window.localStorage.getItem('songquiz.theme');
+    if (choice === 'light' || choice === 'dark') {
+      document.documentElement.setAttribute('data-theme', choice);
+    }
+  } catch (error) {
+    // 無痕視窗會擋 localStorage。讀不到就跟隨系統，不是錯。
+  }
+})();
+</script>
 </head>
+
 <body>
 <main id="app">
 
@@ -22,86 +38,93 @@
 <div id="solo-app">
 
   <!-- 開場 -->
-  <section class="screen" id="screen-home">
-    <header class="brand">
-      <h1>流行音樂<span>猜歌王</span></h1>
-    </header>
+  <!-- 版面刻意做成「一屏看得完」：捲動的內容在 .home-scroll，
+       摘要與開始鈕在 .dock，釘在螢幕底部不跟著捲——
+       設定改了要馬上看得到後果，而不是改完還要捲回去找開始鈕。 -->
+  <section class="screen home" id="screen-home">
 
-    <nav class="who">
-      <button type="button" class="who-pick" data-who="solo" aria-current="page">
-        <strong>一個人玩</strong>
-        <span>自己練歌、挑戰最佳成績</span>
-      </button>
-      <button type="button" class="who-pick" data-who="room">
-        <strong>和朋友一起</strong>
-        <span>開房搶答，最多 6 人</span>
-      </button>
-    </nav>
+    <div class="home-scroll">
+      <header class="topbar">
+        <h1 class="wordmark">猜歌<span>王</span></h1>
 
-    <div class="volume">
-      <label for="volume">音量 <output id="volume-out">80%</output></label>
-      <input type="range" id="volume" min="0" max="100" value="80">
-      <button type="button" class="ghost" id="btn-test">試聽</button>
-    </div>
+        <!-- 一個人／和朋友：從兩塊大卡片縮成頂上的切換。
+             它一次進站只按一次，不該佔掉第一屏最貴的位置。 -->
+        <nav class="seg who">
+          <button type="button" class="who-pick" data-who="solo" aria-current="page">一個人</button>
+          <button type="button" class="who-pick" data-who="room">和朋友</button>
+        </nav>
+      </header>
 
-    <!-- 設定區的內容（語種、題數）由 app.js 依題庫與 Rules 產生，
-         寫死在 HTML 裡會和規則層的清單分岔。 -->
-    <div class="setup">
-      <fieldset class="field">
-        <legend>語種<i>至少選一個，數字是題庫裡的首數</i></legend>
+      <div class="home-main">
+
+      <!-- 設定區的內容（語種、題數）由 app.js 依題庫與 Rules 產生，
+           寫死在 HTML 裡會和規則層的清單分岔。 -->
+      <div class="band">
+        <span class="band-lab">語種<i>至少選一個，數字是題庫裡的首數</i></span>
         <div class="chips" id="lang-chips"></div>
-      </fieldset>
+      </div>
 
-      <fieldset class="field">
-        <legend>題數<i>闖關是「每關題數」，競速與積分是「整場題數」</i></legend>
+      <div class="band">
+        <span class="band-lab">題數<i>闖關是「每關題數」</i></span>
         <div class="chips" id="count-chips"></div>
-      </fieldset>
+      </div>
 
-      <fieldset class="field">
-        <legend>模式</legend>
+
+      <div class="band">
+        <span class="band-lab">模式</span>
         <div class="modes" id="modes">
           <button type="button" class="mode" data-mode="stage" aria-pressed="false">
-            <strong>闖關模式</strong>
+            <strong>闖關</strong>
+            <i class="mode-short">逐關解鎖語種</i>
             <span>關卡依你勾的語種生成：一關解鎖一個新語種，最後一關全部混合。每關要拿到門檻分數才過。</span>
             <em data-note></em>
           </button>
           <button type="button" class="mode" data-mode="speed" aria-pressed="false">
-            <strong>競速模式</strong>
+            <strong>競速</strong>
+            <i class="mode-short">越快分越高</i>
             <span>一場打完，每題十二秒，答得越快分越高。</span>
             <em data-note></em>
           </button>
           <button type="button" class="mode" data-mode="combo" aria-pressed="false">
-            <strong>積分模式（連對加成）</strong>
+            <strong>積分</strong>
+            <i class="mode-short">連對有倍率</i>
             <span>答對就連莊，倍率一路往上最高 ×5，答錯歸零。不看速度，只看你能連幾題。</span>
             <em data-note></em>
           </button>
         </div>
-      </fieldset>
+      </div>
+
+
+      </div><!-- /.home-main -->
+
+      <div class="home-side">
+      <!-- 首頁的排行榜。預設收起來：多數人一進來是要玩，不是要看榜；
+           但它要在「頁首就找得到」，不必先打一場才看得到榜。 -->
+      <details class="board-fold" id="home-board-fold">
+        <summary>排行榜</summary>
+        <section id="home-board"></section>
+      </details>
+
+      <p class="bank" id="bank-line">題庫載入中…</p>
+      <!-- 出處要在玩的人看得到的地方，不是只寫在 README 裡。 -->
+      <p class="credit">
+        音源為 <strong>Apple Music 官方 30 秒試聽</strong>，由 Apple 的伺服器直接播放；
+        本站不下載、不轉存、不再散布任何音訊。歌曲版權屬原權利人所有。<br>
+        玩法（九選一、十二秒、語種逐關解鎖）參考
+        <a href="https://github.com/ntupm18th/ntupm-songguesser" target="_blank" rel="noopener">
+          台大流行音樂創作社的「金曲猜歌王」</a>；本站程式碼為獨立實作，未取用其程式碼或題庫。
+      </p>
+      </div><!-- /.home-side -->
     </div>
 
     <!-- 設定要在畫面上看得出後果：這一行是按下開始之前的最後確認。 -->
-    <p class="setup-summary" id="setup-summary"></p>
-    <p class="setup-warning" id="setup-warning" hidden></p>
-    <div class="start-row">
-      <button type="button" class="primary big" id="btn-start">開始</button>
+    <div class="dock">
+      <p class="setup-warning" id="setup-warning" hidden></p>
+      <p class="setup-summary" id="setup-summary"></p>
+      <div class="start-row">
+        <button type="button" class="primary big" id="btn-start">開始</button>
+      </div>
     </div>
-
-    <!-- 首頁的排行榜。預設收起來：多數人一進來是要玩，不是要看榜；
-         但它要在「頁首就找得到」，不必先打一場才看得到榜。 -->
-    <details class="board-fold" id="home-board-fold">
-      <summary>排行榜</summary>
-      <section id="home-board"></section>
-    </details>
-
-    <p class="bank" id="bank-line">題庫載入中…</p>
-    <!-- 出處要在玩的人看得到的地方，不是只寫在 README 裡。 -->
-    <p class="credit">
-      音源為 <strong>Apple Music 官方 30 秒試聽</strong>，由 Apple 的伺服器直接播放；
-      本站不下載、不轉存、不再散布任何音訊。歌曲版權屬原權利人所有。<br>
-      玩法（九選一、十二秒、語種逐關解鎖）參考
-      <a href="https://github.com/ntupm18th/ntupm-songguesser" target="_blank" rel="noopener">
-        台大流行音樂創作社的「金曲猜歌王」</a>；本站程式碼為獨立實作，未取用其程式碼或題庫。
-    </p>
   </section>
 
   <!-- 遊戲中 -->
@@ -213,23 +236,29 @@
         <!-- 計分方式的三顆鈕由 room.js 依 Rules.ROOM_SCORINGS 產生，
              寫死在 HTML 裡會和規則層分岔。 -->
         <fieldset class="field">
-          <legend>計分方式<i>分數怎麼算。和下面的「題目怎麼出」是兩件獨立的事</i></legend>
-          <div class="modes" id="r-scorings"></div>
+          <legend>計分方式<button type="button" class="explain" aria-expanded="false" aria-controls="r-scorings-help" aria-label="計分方式怎麼算">?</button></legend>
+          <div class="modes compact" id="r-scorings"></div>
+          <div class="explain-box" id="r-scorings-help" hidden></div>
         </fieldset>
 
+
         <fieldset class="field">
-          <legend>出題方式<i>題目怎麼挑。和上面的計分方式互不影響</i></legend>
-          <div class="modes" id="r-modes">
+          <legend>出題方式<button type="button" class="explain" aria-expanded="false" aria-controls="r-modes-help" aria-label="出題方式怎麼挑">?</button></legend>
+          <div class="modes compact" id="r-modes">
             <button type="button" class="mode" data-mode="speed" aria-pressed="true">
               <strong>隨機出題</strong>
-              <span>題目從你勾的語種裡隨機出，一場打完。最單純，適合第一次玩。</span>
             </button>
             <button type="button" class="mode" data-mode="stage" aria-pressed="false">
               <strong>逐關解鎖語種</strong>
-              <span>第一關只出一個語種，之後一關加一種，最後一關全部混合。
-                題數會是「關數 × 每關題數」，想玩久一點選這個。</span>
             </button>
           </div>
+          <!-- 說明收在這裡：房主大概只有第一次需要讀，讀完就知道自己要哪一種。
+               常態攤開的話，開房這一頁會長到要捲三次才看得到「建立房間」。 -->
+          <div class="explain-box" id="r-modes-help" hidden>
+            <p><b>隨機出題</b>題目從你勾的語種裡隨機出，一場打完。最單純，適合第一次玩。</p>
+            <p><b>逐關解鎖語種</b>第一關只出一個語種，之後一關加一種，最後一關全部混合。題數會是「關數 × 每關題數」，想玩久一點選這個。</p>
+          </div>
+
         </fieldset>
 
         <p class="setup-summary" id="r-setup-summary"></p>
@@ -304,6 +333,41 @@
 
 </main>
 
+<!-- 設定。固定在右上角，每個畫面都構得到——玩到一半想調音量或退出，
+     不該先把這一局打完。放在 #solo-app 與 #room-app 外面，兩邊共用同一份；
+     接線在 shell.js，因為只有它同時認得單人與多人這兩半。 -->
+<button type="button" id="btn-settings" class="gear" aria-label="設定" aria-expanded="false" aria-controls="settings">⚙</button>
+
+<div id="settings" class="sheet" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="sheet-head">
+      <h2 id="settings-title">設定</h2>
+      <button type="button" class="ghost" id="btn-settings-close">關閉</button>
+    </div>
+
+    <div class="sheet-row">
+      <label for="volume">音量 <output id="volume-out">80%</output></label>
+      <input type="range" id="volume" min="0" max="100" value="80">
+      <button type="button" class="ghost" id="btn-test">試聽</button>
+    </div>
+
+    <div class="sheet-row">
+      <span class="sheet-lab">外觀</span>
+      <div class="seg" id="theme-pick">
+        <button type="button" data-theme="auto" aria-current="page">跟隨系統</button>
+        <button type="button" data-theme="light">日間</button>
+        <button type="button" data-theme="dark">夜間</button>
+      </div>
+    </div>
+
+    <div class="sheet-actions">
+      <button type="button" class="ghost" id="btn-settings-home">回到主畫面</button>
+      <button type="button" class="ghost danger" id="btn-settings-leave" hidden>離開房間</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- 兩邊各自一個音訊元素。共用一個的話，切換模式時很難說清楚「現在這段是誰在放」，
      而且一邊暫停會影響另一邊的狀態。 -->
 <audio id="player" preload="auto" crossorigin="anonymous"></audio>
@@ -315,16 +379,16 @@
      不然「只想一個人玩」的人要白付那 218 KB。
      shell.js 最後，因為它要呼叫前面兩邊掛出來的停止函式。
      全部都是傳統 script（不是 module），這樣從 file:// 雙擊開也能玩。 -->
-<script src="js/rules.js?v=4"></script>
-<script src="js/questions.js?v=4"></script>
-<script src="js/game.js?v=4"></script>
-<script src="data/bank.js?v=4"></script>
-<script src="realtime-config.js?v=4"></script>
-<script src="js/realtime.js?v=4"></script>
-<script src="js/leaderboard.js?v=4"></script>
-<script src="js/boardui.js?v=4"></script>
-<script src="js/app.js?v=4"></script>
-<script src="js/room.js?v=4"></script>
-<script src="js/shell.js?v=4"></script>
+<script src="js/rules.js?v=6"></script>
+<script src="js/questions.js?v=6"></script>
+<script src="js/game.js?v=6"></script>
+<script src="data/bank.js?v=6"></script>
+<script src="realtime-config.js?v=6"></script>
+<script src="js/realtime.js?v=6"></script>
+<script src="js/leaderboard.js?v=6"></script>
+<script src="js/boardui.js?v=6"></script>
+<script src="js/app.js?v=6"></script>
+<script src="js/room.js?v=6"></script>
+<script src="js/shell.js?v=6"></script>
 </body>
 </html>
