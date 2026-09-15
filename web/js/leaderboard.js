@@ -41,6 +41,25 @@
 
   // ---- 本機 ----
 
+  /**
+   * 本機榜上那一行的時間。
+   *
+   * 兩個原因不用 toISOString().slice(0, 10)：
+   * 一、**那是 UTC**。台灣時間半夜十二點到早上八點玩的那幾局，會被記成前一天。
+   * 二、**只到「日」不夠**。同一天玩十局，榜上十行都寫同一個日期，
+   *     根本看不出哪一行是哪一局——而本機榜的用途就是「跟自己比」。
+   */
+  function stamp() {
+    var now = new Date();
+
+    function two(value) {
+      return (value < 10 ? '0' : '') + value;
+    }
+
+    return two(now.getMonth() + 1) + '/' + two(now.getDate()) +
+      ' ' + two(now.getHours()) + ':' + two(now.getMinutes());
+  }
+
   function localKey(mode, questionCount, languages) {
     return 'songquiz.board.' + mode + '.' + questionCount + '.' + languages.join('-');
   }
@@ -68,7 +87,7 @@
       stage: entry.stage,
       correct: entry.correct,
       total: entry.total,
-      at: new Date().toISOString().slice(0, 10),
+      at: stamp(),
     });
 
     rows.sort(function (a, b) {
