@@ -36,7 +36,12 @@
     return text.slice(0, limit);
   }
 
-  /** 1～5 以外一律當成沒填。「沒回答」和「給 3 分」不是同一件事。 */
+  /**
+   * 1～5 以外一律當成沒填。
+   *
+   * 「沒回答」和「給 3 分」不是同一件事：星星點同一顆可以取消回到 0，
+   * 那時候這筆根本不該送出（送出鈕會是停用的）。
+   */
   function scoreOrNull(value) {
     var score = Number(value);
     if (!score || score < 1 || score > 5) return null;
@@ -60,13 +65,6 @@
     var row = {
       stars: stars,
       note: textOrNull(input.note, 500),
-      fun: scoreOrNull(input.fun),
-      songs: scoreOrNull(input.songs),
-      looks: scoreOrNull(input.looks),
-      sound: scoreOrNull(input.sound),
-      multiplayer: scoreOrNull(input.multiplayer),
-      wants: textOrNull((input.wants || []).join(','), 200),
-      detail: textOrNull(input.detail, 2000),
       device: device(),
     };
 
