@@ -133,6 +133,48 @@
       phone.win.scrollTo(0, 0);
     });
 
+    test('排行榜的篩選條件收在一顆鈕後面', function () {
+      // 全部攤開是十四到十五顆鈕，而它們出現的時機是「剛打完一場」——
+      // 那個當下要看的是自己在榜上第幾，不是先做一輪篩選。
+      function visibleButtons(scope) {
+        var all = phone.doc.querySelectorAll(scope + ' button');
+        var count = 0;
+        for (var i = 0; i < all.length; i++) {
+          var rect = all[i].getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) count++;
+        }
+        return count;
+      }
+
+      var result = phone.one('#screen-result');
+      var wasHidden = result.hidden;
+      result.hidden = false;
+
+      var collapsed = visibleButtons('#result-board');
+      var toggle = phone.one('#result-board .board-filter-toggle');
+      assertTrue(!!toggle, '結算頁的榜沒有那顆篩選鈕');
+      assertTrue(collapsed <= 5, '收起來還看得到 ' + collapsed + ' 顆鈕');
+
+      toggle.click();
+      var expanded = visibleButtons('#result-board');
+      assertEqual('true', toggle.getAttribute('aria-expanded'), '展開後的 aria-expanded');
+      assertTrue(expanded >= collapsed + 10,
+        '展開後只多了 ' + (expanded - collapsed) + ' 顆鈕，條件沒有真的收在裡面');
+
+      toggle.click();
+      assertEqual(collapsed, visibleButtons('#result-board'), '再點一次要收回去');
+
+      result.hidden = wasHidden;
+    });
+
+    test('收起來的時候，那一行字要講得出現在看的是哪一份榜', function () {
+      // 條件藏起來但沒有摘要，等於不知道自己在看什麼——那比十七顆鈕更糟。
+      var note = phone.one('#home-board .board-note');
+      assertTrue(!!note, '找不到摘要那一行');
+      assertTrue(phone.one('#home-board .board-head').contains(note),
+        '摘要沒有跟篩選鈕放在同一行');
+    });
+
     test('出處只有一份，而且在整頁的最後', function () {
       // 兩邊各放一份的時候，兩段文字已經長得不一樣了。
       // 授權聲明有兩個版本比只有一個版本更糟：改了其中一份，另一份就是錯的。
