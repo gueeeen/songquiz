@@ -11,15 +11,30 @@
    * 語種。這個順序就是闖關模式的難度順序（華語最熟、日語最生），
    * 所以玩家勾選的語種一律照這個順序重排，不照他勾選的先後。
    */
+  /**
+   * 遊戲裡玩得到的語種。首頁的膠囊、闖關的關卡數、題庫容量檢查、誘餌挑選
+   * 全部是照這一份算出來的，所以加一個語種只要加在這裡。
+   *
+   * 要和題庫產生器的 Languages.InBank 一致（tools/SongQuiz.BankBuilder/Languages.cs）。
+   * 題庫裡有、這裡沒有的語種會被整個忽略——不會出題也不會當誘餌，
+   * 所以兩邊不同步的後果是「白下載」，不是壞掉。
+   */
   var LANGUAGES = ['mandarin', 'taiwanese', 'western', 'korean', 'japanese'];
 
+  /**
+   * 語種的中文名。這一份**故意比 LANGUAGES 長**：
+   * 粵語的排行榜管道、分類、名稱都已經備好，只差沒開放。
+   * 要開放就把 'cantonese' 加進上面那一行，並在 Languages.cs 取消那一行的註解。
+   */
   var LANGUAGE_NAMES = {
     mandarin: '華語',
     taiwanese: '台語',
     western: '西洋',
     korean: '韓語',
     japanese: '日語',
+    cantonese: '粵語',
   };
+
 
   var QUESTION_SECONDS = 12;
 

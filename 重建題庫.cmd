@@ -5,7 +5,8 @@ cd /d "%~dp0"
 
 echo.
 echo   要向 Apple 的公開 Search API 查歌，需要網路。
-echo   會循序送出大約 64 個請求、每次間隔 400 毫秒，大概一分鐘。
+echo   會先讀六份排行榜拿演出者，再循序查歌：大約 150～250 個請求、
+echo   每次間隔 800 毫秒，五到十分鐘。
 echo.
 
 dotnet build "SongQuiz.sln" -c Debug -v quiet --nologo

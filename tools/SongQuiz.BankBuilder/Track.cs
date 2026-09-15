@@ -5,6 +5,15 @@ namespace SongQuiz.BankBuilder;
 /// <summary>
 /// 歌曲的語種分類。闖關模式就是靠這個逐關擴充題庫範圍。
 /// </summary>
+/// <remarks>
+/// 這裡列出的是「分得出來的」語種，不等於「遊戲裡玩得到的」——
+/// 後者由 <see cref="Languages.InBank"/> 決定（見 Languages.cs）。
+///
+/// 兩者分開的理由：粵語有一條現成的排行榜管道，分類也很準，
+/// 但遊戲裡還沒有那個選項。如果把粵語歌當成華語收進來，
+/// 華語場就會冒出粵語歌——那是錯的。所以它要有自己的分類，
+/// 只是暫時不寫進題庫檔。
+/// </remarks>
 public enum Language
 {
     Mandarin,   // 華語
@@ -12,7 +21,9 @@ public enum Language
     Western,    // 西洋
     Korean,     // 韓語
     Japanese,   // 日語
+    Cantonese,  // 粵語——分得出來，但還沒開放（見 Languages.cs）
 }
+
 
 /// <summary>
 /// 一首歌。<paramref name="PreviewUrl"/> 指向 Apple Music 官方 30 秒試聽，

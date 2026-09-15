@@ -25,28 +25,44 @@ public sealed class ItunesClient(HttpClient http, string country, TimeSpan delay
                   + "&media=music&entity=song"
                   + $"&limit={limit}";
 
-        for (var attempt = 1; attempt <= 3; attempt++)
+        for (var attempt = 1; attempt <= 4; attempt++)
         {
             await WaitTurnAsync(token);
 
-            var response = await http.GetAsync(url, token);
-            if (response.IsSuccessStatusCode)
+            try
             {
-                var payload = await response.Content.ReadFromJsonAsync<ItunesResponse>(token);
-                return payload?.Results ?? [];
-            }
+                var response = await http.GetAsync(url, token);
+                if (response.IsSuccessStatusCode)
+                {
+                    var payload = await response.Content.ReadFromJsonAsync<ItunesResponse>(token);
+                    return payload?.Results ?? [];
+                }
 
-            if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.Forbidden)
+                if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.Forbidden)
+                {
+                    var backoff = TimeSpan.FromSeconds(5 * attempt);
+                    Console.WriteLine($"  · {response.StatusCode}，等 {backoff.TotalSeconds:0} 秒再試（第 {attempt} 次）");
+                    await Task.Delay(backoff, token);
+                    continue;
+                }
+
+                Console.WriteLine($"  · {artist}：{(int)response.StatusCode} {response.ReasonPhrase}，跳過");
+                return [];
+            }
+            catch (Exception error) when (error is HttpRequestException or TaskCanceledException or IOException)
             {
+                // 逾時、連線被切、DNS 抽風——這些**不是**程式的錯，而且一定會發生：
+                // 這支工具要連續打兩百多次請求、跑十幾分鐘。
+                //
+                // 原本這裡沒接，結果一次 20 秒逾時就讓整份題庫作廢
+                // （實測在第 42 次請求掛掉，前面四十幾次全白做）。
+                // 現在退讓重試，連續失敗才跳過這一位——少一位演出者，不是少一份題庫。
                 var backoff = TimeSpan.FromSeconds(5 * attempt);
-                Console.WriteLine($"  · {response.StatusCode}，等 {backoff.TotalSeconds:0} 秒再試（第 {attempt} 次）");
+                Console.WriteLine($"  · 連線出問題（{error.GetType().Name}），等 {backoff.TotalSeconds:0} 秒再試（第 {attempt} 次）");
                 await Task.Delay(backoff, token);
-                continue;
             }
-
-            Console.WriteLine($"  · {artist}：{(int)response.StatusCode} {response.ReasonPhrase}，跳過");
-            return [];
         }
+
 
         Console.WriteLine($"  · {artist}：連續失敗，跳過");
         return [];
