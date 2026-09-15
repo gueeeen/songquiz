@@ -529,6 +529,37 @@
     assertEqual(a.answer.id, b.answer.id, '答案不同');
     assertEqual(a.choices.map(function (c) { return c.label; }),
                 b.choices.map(function (c) { return c.label; }), '選項順序不同');
+    assertEqual(a.offset, b.offset, '從試聽的哪裡開始放也要一樣');
+  });
+
+  test('每一題都有一個 0～1 的播放起點', function () {
+    // 多人房間所有人必須聽到同一段，而他們唯一共享的是那顆種子——
+    // 所以起點一定要在出題時決定，不能在播放時才 Math.random()。
+    var bank = bankOf([['mandarin', 20]], 30);
+    var maker = new window.QuestionMaker(bank, makeRng(7));
+    var used = {};
+    var seen = [];
+
+    for (var i = 0; i < 8; i++) {
+      var question = maker.next(['mandarin'], used);
+      used[question.answer.id] = true;
+      assertTrue(typeof question.offset === 'number', '第 ' + (i + 1) + ' 題沒有起點');
+      assertTrue(question.offset >= 0 && question.offset < 1,
+        '起點要落在 0～1，實際 ' + question.offset);
+      seen.push(question.offset);
+    }
+
+    // 八題全都同一個值的話，那不是隨機，是寫死的。
+    assertTrue(seen.filter(function (v) { return v !== seen[0]; }).length > 0,
+      '每一題的起點都一樣，等於沒有隨機');
+  });
+
+  test('起點會跟著題目傳到畫面層', function () {
+    var it = newGame({ mode: 'speed', questionCount: 5 });
+    var view = it.game.nextQuestion();
+
+    assertTrue(typeof view.offset === 'number', 'view 沒有帶 offset，畫面就不知道要從哪裡放');
+    assertTrue(view.offset >= 0 && view.offset < 1);
   });
 
   // ------------------------------------------------------------ 競速模式

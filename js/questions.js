@@ -65,7 +65,22 @@
       return c.label === answerLabel;
     })[0].id;
 
-    return { answer: answer, choices: choices, answerId: answerId };
+    /**
+     * 這一題要從試聽的哪裡開始放（0～1 的比例，實際秒數由播放端換算）。
+     *
+     * 為什麼在這裡產生：它必須跟著「出題」一起被決定，才能用同一顆種子重現——
+     * 多人房間所有人要聽到同一段，而他們唯一共享的東西就是那顆種子。
+     * 如果在播放的時候才 Math.random()，每台機器會聽到不同的片段。
+     *
+     * 為什麼是比例不是秒數：出題層不知道音檔多長（Apple 的試聽多半是 30 秒，
+     * 但不保證），換算成秒數要等 metadata 載進來才知道，那是播放端的事。
+     */
+    return {
+      answer: answer,
+      choices: choices,
+      answerId: answerId,
+      offset: rng(),
+    };
   };
 
   /**

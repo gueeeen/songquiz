@@ -104,9 +104,49 @@
   applyVolume();
 
   // ---- 播放 ----
-  function playPreview(url) {
+  /**
+   * 放一段試聽。
+   *
+   * @param {string} url Apple 的 30 秒試聽
+   * @param {number} [offset] 從哪裡開始放（0～1 的比例）。不給就從頭。
+   *
+   * 為什麼要繞這麼一圈：
+   *
+   * 一、**seek 必須等 metadata。** 音檔還沒載到長度之前設 currentTime 會被忽略，
+   *     所以要等 loadedmetadata；但那時已經離開使用者手勢了，直接在那裡呼叫 play()
+   *     在 iOS 上可能被擋。所以 play() 仍然在手勢裡先發動，seek 稍後再補。
+   * 二、**先靜音。** 承上，play() 先跑、seek 後到，中間那零點幾秒會漏出歌的開頭——
+   *     而開頭正是最好認的地方。用 muted 而不是 volume：iOS 不讓程式改音量，
+   *     但 muted 是可以的。
+   */
+  function playPreview(url, offset) {
+    var seeked = false;
+
     player.src = url;
-    player.currentTime = 0;
+    player.muted = !!offset;
+
+    function seek() {
+      if (seeked) return;
+      seeked = true;
+
+      if (offset) {
+        // 留住整整十二秒：從結尾往回算，再多留半秒緩衝，免得剛好卡在檔尾。
+        var span = Math.max(0, (player.duration || 30) - Rules.QUESTION_SECONDS - 0.5);
+        try {
+          player.currentTime = offset * span;
+        } catch (e) {
+          // 這個瀏覽器不讓 seek 就算了，從頭放總比不放好。
+        }
+      }
+
+      player.muted = false;
+    }
+
+    player.addEventListener('loadedmetadata', seek, { once: true });
+
+    // metadata 遲遲不來的時候不能一直靜音——那會變成「畫面在跑但沒有聲音」。
+    setTimeout(seek, 1200);
+
     // 自動播放需要使用者手勢，而「試聽／開始／下一題」那一下就是手勢，所以這裡不會被擋。
     return player.play();
   }
@@ -416,7 +456,8 @@
     if (question.number === 1) el('hud-score').textContent = '0';
 
     renderChoices(question.choices);
-    playPreview(question.previewUrl).catch(function () {
+    // 每一題的起點由出題時決定（見 questions.js），所以同一首歌每次聽到的段落不同。
+    playPreview(question.previewUrl, question.offset).catch(function () {
       el('play-hint').textContent = '瀏覽器擋住了自動播放——點畫面任一處再試。';
     });
     startTimer(question.seconds);
