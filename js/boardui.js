@@ -140,12 +140,8 @@
       submitBox = row('board-submit');
       submitBox.hidden = true;
 
-      var hint = document.createElement('p');
-      hint.className = 'board-submit-hint';
-      // 使用者回報「上傳鍵好像同時上傳線上和本地」，所以這一行必須說清楚。
-      hint.textContent = '這一局已經記在這台裝置上了（自動的）。下面這個按鈕只做一件事：' +
-        '把成績＋暱稱上傳到線上榜，讓別人看得到。';
-
+      // 不再放說明文字：上傳欄只在「線上」這個分頁出現，鈕上也寫著「上傳到線上榜」，
+      // 這兩件事已經把「它只管線上」講完了，再加一段話只是佔位置。
       nickInput = document.createElement('input');
       nickInput.type = 'text';
       nickInput.maxLength = 12;
@@ -159,7 +155,7 @@
 
       var line = row('board-submit-line');
       line.append(nickInput, submitButton);
-      submitBox.append(hint, line);
+      submitBox.append(line);
       host.append(submitBox);
     }
 
