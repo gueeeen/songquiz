@@ -128,6 +128,13 @@
     return bankCounts[language];
   });
 
+  /**
+   * 題庫那一行**只在出事的時候**才說話。
+   *
+   * 原本它一直掛著「512 首（華語 160、台語 80…）＋ 765 個誘餌」——那是給做題庫的人
+   * 看的數字，對要玩的人沒有意義，還會讓人以為選項是從那幾百首裡挑的（其實是九選一）。
+   * 但這一行不能整個拿掉：題庫沒建、或音檔播不出來的時候，它是唯一會說話的地方。
+   */
   function describeBank() {
     var line = el('bank-line');
 
@@ -136,15 +143,7 @@
       return;
     }
 
-    var census = availableLanguages.map(function (language) {
-      return Rules.nameOf(language) + ' ' + bankCounts[language];
-    }).join('、');
-
-    // 順手寫出建立日期：Apple 的試聽網址會過期，題庫放久了要重建。
-    var built = bank.generatedAt ? '，' + bank.generatedAt.slice(0, 10) + ' 建立' : '';
-
-    line.textContent = '題庫：' + bank.tracks.length + ' 首（' + census + '）＋ ' +
-      bank.decoys.length + ' 個誘餌' + built;
+    line.textContent = '';
   }
 
   // ---- 設定區 ----
