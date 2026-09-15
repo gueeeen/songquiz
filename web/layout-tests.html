@@ -478,6 +478,70 @@
       assertTrue(side.left >= main.right, '右欄左緣 ' + Math.round(side.left) + ' 應該在左欄右緣 ' + Math.round(main.right) + ' 之後');
     });
 
+    test('桌機的九宮格要像格子，不是九條橫槓', function () {
+      // 攤到 1000px 寬的時候，每一格是 316×72——長寬比 4.4。
+      // 那個形狀既不像格子（位置記不起來），也不像可以按的東西。
+      var play = desktop.one('#screen-play');
+      var box = desktop.one('#choices');
+      var wasHidden = play.hidden;
+
+      play.hidden = false;
+      box.replaceChildren();
+      for (var i = 0; i < 9; i++) {
+        var button = desktop.doc.createElement('button');
+        button.className = 'choice';
+        var title = desktop.doc.createElement('b');
+        title.textContent = '不為誰而作的歌';
+        var artist = desktop.doc.createElement('i');
+        artist.textContent = '林俊傑';
+        button.append(title, artist);
+        box.append(button);
+      }
+
+      var rect = box.children[0].getBoundingClientRect();
+      box.replaceChildren();
+      play.hidden = wasHidden;
+
+      var ratio = rect.width / rect.height;
+      assertTrue(ratio <= 2.6,
+        '每一格是 ' + Math.round(rect.width) + '×' + Math.round(rect.height) +
+        '，長寬比 ' + ratio.toFixed(2));
+    });
+
+    test('桌機不是把手機版原封不動放大', function () {
+      // 桌機上每個字都還是手機級距的話，在大螢幕上就是「一份很小的文件」。
+      function size(view, selector) {
+        return parseFloat(view.style(selector, 'fontSize'));
+      }
+      var pairs = [
+        ['.wordmark', 1.4],
+        ['.band-lab', 1.1],
+        ['#lang-chips .chip', 1.1],
+      ];
+      pairs.forEach(function (pair) {
+        var small = size(phone, pair[0]);
+        var big = size(desktop, pair[0]);
+        assertTrue(big >= small * pair[1],
+          pair[0] + ' 桌機 ' + big + 'px 對手機 ' + small + 'px，沒有放大到 ' + pair[1] + ' 倍');
+      });
+    });
+
+    test('立體感：可以按的東西和容器都不是只有一條框線', function () {
+      // 只有框線的方塊看起來是平的，在淺底上尤其明顯——那就是「舊式網頁」的長相。
+      // .choice 平常不存在（遊戲畫面是空的，開打才生出來），所以臨時做一顆來量。
+      var temp = desktop.doc.createElement('button');
+      temp.className = 'choice';
+      desktop.one('#choices').append(temp);
+
+      ['.choice', '#screen-home .mode', '.board-fold'].forEach(function (selector) {
+        var shadow = desktop.style(selector, 'boxShadow');
+        assertTrue(shadow !== 'none' && shadow !== '', selector + ' 沒有陰影');
+      });
+
+      temp.remove();
+
+    });
+
     test('寬螢幕放得下完整說明，就不用那句短的', function () {
       assertEqual('block', desktop.style('#screen-home .mode span', 'display'), '長說明在桌機上的 display');
       assertEqual('none', desktop.style('#screen-home .mode-short', 'display'), '短句在桌機上的 display');
