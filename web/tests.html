@@ -1036,6 +1036,39 @@
     assertEqual(Rules.perfectScoreFor('combo', 20), it.game.totalScore);
   });
 
+  test('積分模式的題數清單開到八十，其他模式沒有', function () {
+    // 積分是「連對能連多久」，本質上是一條可以一直往下猜的路，所以開到 80。
+    assertEqual(80, Rules.questionCountsFor('combo').slice(-1)[0]);
+    assertEqual(20, Rules.questionCountsFor('speed').slice(-1)[0]);
+    assertEqual(20, Rules.questionCountsFor('stage').slice(-1)[0]);
+    assertTrue(Rules.questionCountsFor('combo').indexOf(5) === -1,
+      '積分模式不該出現 5 題——那條路的重點是連得久');
+  });
+
+  test('積分模式八十題真的打得完', function () {
+    // 題庫要撐得住：同一場不重複出歌，八十題就是八十首不同的歌。
+    var it = newGame({ mode: 'combo', questionCount: 80 });
+
+    for (var i = 0; i < 80; i++) {
+      var view = it.game.nextQuestion();
+      assertTrue(view !== null, '第 ' + (i + 1) + ' 題出不來');
+      assertEqual(80, view.total);
+      answerCorrectly(it.game);
+    }
+
+    assertEqual(window.Game.Status.FINISHED, it.game.status);
+    assertEqual(80, it.game.records.length);
+  });
+
+  test('換模式時題數會挪到新清單裡最接近的那一個', function () {
+    // 在闖關選了 5 題再切到積分，5 題在積分那邊不存在，不能留一個挑不到的值。
+    assertEqual(10, Rules.nearestCountFor('combo', 5));
+    assertEqual(20, Rules.nearestCountFor('combo', 15));
+    assertEqual(80, Rules.nearestCountFor('combo', 80));
+    assertEqual(20, Rules.nearestCountFor('speed', 80));
+    assertEqual(15, Rules.nearestCountFor('stage', 15));
+  });
+
   test('題數是每關的量，不是整場的量', function () {
     var it = newGame({ mode: 'stage', questionCount: 5 });
 

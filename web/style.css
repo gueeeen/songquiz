@@ -413,3 +413,57 @@ a.who-pick:hover strong { color: var(--accent-2); }
   color: var(--accent-2);
   border-color: var(--accent-2);
 }
+
+/* ---- 排行榜面板（boardui.js 產生，首頁與結算頁各一個）---- */
+.board-fold {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  margin-top: 16px;
+}
+.board-fold > summary {
+  padding: 12px 14px;
+  cursor: pointer;
+  font-size: .9rem;
+  color: var(--ink);
+}
+.board-fold[open] > summary { border-bottom: 1px solid var(--line); }
+
+.board-row { display: flex; gap: 6px; margin-bottom: 8px; }
+.board-row.wrap { flex-wrap: wrap; }
+.board-row .board-tab,
+.board-row .board-scope { flex: 1; }
+
+/* 條件那兩排（語種、題數）不撐滿：它們是可多可少的清單，
+   撐滿的話加一個語種所有按鈕就跟著變形。 */
+.board-filter {
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--ink-dim);
+  font-size: .74rem;
+  cursor: pointer;
+}
+.board-filter[aria-pressed="true"] { color: var(--accent-2); border-color: var(--accent-2); }
+
+.board-submit { display: block; margin-top: 10px; }
+.board-submit-hint {
+  color: var(--ink-dim);
+  font-size: .74rem;
+  line-height: 1.6;
+  margin: 0 0 8px;
+}
+.board-submit-line { display: flex; gap: 8px; }
+.board-submit-line input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: .85rem;
+}
+.board-submit-line .primary { padding: 10px 16px; white-space: nowrap; }
