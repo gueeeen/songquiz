@@ -94,4 +94,4 @@ msedge --headless=new --disable-gpu --allow-file-access-from-files ^
 ```
 
 三頁都會把 `RESULT PASS n/n` 畫進 DOM，所以 `--dump-dom` 抓得到。
-題庫產生器那半邊是 `dotnet test`（19 項）。
+題庫產生器那半邊是 `dotnet test`（22 項）。
