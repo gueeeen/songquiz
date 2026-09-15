@@ -1,6 +1,6 @@
 # QA 清單
 
-三套自動測試（`web/tests.html` 68 項、`web/layout-tests.html` 43 項、
+三套自動測試（`web/tests.html` 68 項、`web/layout-tests.html` 45 項、
 `web/playthrough.html` 14 項）全部是**無頭瀏覽器在這台 Windows 上**跑的。
 它們驗得到規則、版面、和「一整場走不走得完」，但有一整類東西驗不到：
 
@@ -53,9 +53,10 @@
 
 - [ ] 結算頁留暱稱上傳 → 重新整理後，線上榜看得到那一筆
 - [ ] 故意用同一個暱稱上傳兩次 → 榜上兩列後面**各有日期**分得開
-- [ ] 結算頁給幾顆星 + 一句話 → 送出 → 顯示「收到了」
-- [ ] 點「還有話想說」→ 詳細表單打得開，剛剛給的星等有帶過去
-- [ ] 到 Supabase 後台的 Table Editor，**看得到剛剛那兩筆意見**
+- [ ] 左下角的信箱按得到，而且**沒有被底下那條開始鈕擋住**
+- [ ] 信箱 → 給幾顆星 + 一句話 → 送出 → 顯示「收到了」
+- [ ] 結算頁那一行「留個意見」、設定裡的「意見回饋」，打開的是同一個彈窗
+- [ ] 到 Supabase 後台的 Table Editor，**看得到剛剛那筆意見**
 - [ ] 用另一台裝置試著讀 feedback 表（例如在瀏覽器網址列打 REST 的 select）
       → 應該**讀不到**（只給寫不給讀是刻意的）
 
@@ -82,7 +83,7 @@
 msedge --headless=new --disable-gpu --virtual-time-budget=5000 ^
        --dump-dom "file:///…/web/tests.html"
 
-:: 版面（43 項）
+:: 版面（45 項）
 msedge --headless=new --disable-gpu --allow-file-access-from-files ^
        --virtual-time-budget=20000 --dump-dom "file:///…/web/layout-tests.html"
 

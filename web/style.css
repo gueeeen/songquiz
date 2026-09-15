@@ -967,28 +967,63 @@ button { font: inherit; font-family: inherit; }
 .board-when { color: var(--ink-dim); font-size: .68rem; margin-left: 6px; opacity: .8; }
 
 /* ---- 意見箱 ---- */
-/* 結算頁那一排：只要星星和一句話。問太多東西的時機不是這裡——
-   剛打完的人是來看成績的，一份二十幾格的表單會直接被關掉。 */
-.rate {
-  margin: 20px 0;
-  padding: 14px 16px 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+/* 左下角的信箱，和右上角的齒輪對角。兩個都是「隨時可以按」的東西，
+   分在兩個角落才不會互相擋。 */
+.mailbox {
+  position: fixed;
+  left: 10px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 20;
+  width: 46px;
+  height: 46px;
+  border-radius: 99px;
+  border: 1px solid var(--accent);
   background: var(--bg-raised);
-  box-shadow: var(--shadow-1);
-  text-align: center;
+  color: var(--accent);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--shadow-2);
+  transition: transform .12s;
 }
-.rate-ask { margin: 0 0 8px; font-size: .9rem; }
+.mailbox:hover { transform: translateY(-2px); }
+.mailbox[aria-expanded="true"] { background: var(--sel); }
 
-.stars { display: flex; justify-content: center; gap: 4px; }
+/* 首頁底下釘著開始鈕那一條，信箱要讓開它，不然會疊在上面。 */
+body.has-dock .mailbox { bottom: calc(150px + env(safe-area-inset-bottom)); }
+
+/* 結算頁那一行：只是入口，不是表單。表單只有一份（那顆彈窗）。 */
+.rate-prompt {
+  display: block;
+  width: 100%;
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--accent-2);
+  font-size: .88rem;
+  cursor: pointer;
+}
+.rate-prompt:hover { border-color: var(--accent); color: var(--accent); }
+
+/* 彈窗本身沿用設定面板那一套（.sheet / .sheet-card），只補自己的內容。 */
+.fb-block { padding: 14px 0; border-top: 1px solid var(--line); }
+.fb-block:first-of-type { border-top: none; }
+
+.fb-lab { color: var(--ink); font-size: .88rem; }
+.fb-lab.block { display: block; margin-bottom: 10px; }
+.fb-lab i { color: var(--ink-dim); font-style: normal; font-size: .74rem; margin-left: 8px; }
+
+.stars { display: flex; justify-content: center; gap: 6px; }
 .star {
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 46px;
+  min-height: 46px;
   padding: 0;
   border: none;
   background: transparent;
   color: var(--line);
-  font-size: 1.7rem;
+  font-size: 1.9rem;
   line-height: 1;
   cursor: pointer;
   transition: color .12s, transform .12s;
@@ -998,65 +1033,7 @@ button { font: inherit; font-family: inherit; }
    「這是可以點的東西」，而星星要表達的是「已經給了幾分」。 */
 .star.on { color: var(--accent-2); }
 
-.rate-line { display: flex; gap: 8px; margin-top: 10px; }
-.rate-line input {
-  flex: 1;
-  min-width: 0;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--bg);
-  color: var(--ink);
-  font: inherit;
-  font-size: .85rem;
-}
-.rate-line .primary { padding: 10px 18px; white-space: nowrap; }
-
-.rate-state { margin: 10px 0 0; font-size: .78rem; color: var(--ink-dim); line-height: 1.6; }
-.rate-state.ok { color: var(--good); }
-.rate-state.bad { color: var(--bad); }
-
-/* 通往詳細表單的入口。刻意做成一行字而不是按鈕：
-   多數人到這裡就結束了，它不該跟「再來一場」搶注意力。 */
-.linkish {
-  margin-top: 10px;
-  padding: 6px;
-  border: none;
-  background: transparent;
-  color: var(--accent-2);
-  font-size: .8rem;
-  cursor: pointer;
-}
-.linkish:hover { text-decoration: underline; }
-
-/* ---- 詳細表單 ---- */
-#feedback-app .fb-intro {
-  color: var(--ink-dim);
-  font-size: .8rem;
-  line-height: 1.8;
-  margin: 0 0 16px;
-}
-#feedback-app .card + .card { margin-top: 14px; }
-
-.fb-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  border-top: 1px solid var(--line);
-}
-.fb-row:first-child { border-top: none; padding-top: 0; }
-.fb-row .stars { justify-content: flex-end; }
-.fb-row .star { min-width: 38px; min-height: 40px; font-size: 1.4rem; }
-
-.fb-lab { color: var(--ink); font-size: .88rem; }
-.fb-lab.block { display: block; margin-bottom: 10px; }
-.fb-lab i { color: var(--ink-dim); font-style: normal; font-size: .74rem; margin-left: 8px; }
-
-#fb-wants { margin-bottom: 18px; }
-
-#fb-detail {
+#fb-note {
   width: 100%;
   padding: 12px;
   border-radius: 10px;
@@ -1064,19 +1041,30 @@ button { font: inherit; font-family: inherit; }
   background: var(--bg);
   color: var(--ink);
   font: inherit;
-  font-size: .88rem;
-  line-height: 1.7;
-  resize: vertical;
+  font-size: .9rem;
 }
 
-.fb-state { text-align: center; font-size: .82rem; color: var(--ink-dim); margin: 14px 0 0; line-height: 1.7; }
+.fb-state { text-align: center; font-size: .8rem; color: var(--ink-dim); margin: 4px 0 0; line-height: 1.7; }
 .fb-state.ok { color: var(--good); }
 .fb-state.bad { color: var(--bad); }
 
 .fb-actions { display: flex; justify-content: center; margin-top: 14px; }
-.fb-actions .primary.big { width: 100%; max-width: 320px; }
+.fb-actions .primary.big { width: 100%; padding: 14px; }
+
+/* 站外的完整表單。刻意做成一行小字：多數人給完星就結束了，
+   它不該跟「送出」搶注意力。 */
+.fb-more {
+  display: block;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+  color: var(--accent-2);
+  font-size: .8rem;
+  text-decoration: none;
+}
+.fb-more:hover { text-decoration: underline; }
 
 @media (min-width: 900px) {
-  .rate { max-width: 720px; margin-left: auto; margin-right: auto; }
-  .star { font-size: 2rem; }
+  .star { font-size: 2.1rem; }
 }
