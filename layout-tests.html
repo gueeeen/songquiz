@@ -266,6 +266,99 @@
 
     group('顏色');
 
+    /**
+     * WCAG 的對比度。回傳 1（完全看不出來）到 21（黑配白）。
+     * 一般大小的字要 4.5 以上——低於這個數在戶外或投影幕上就是「看不清楚」，
+     * 而這個 app 兩種場合都會遇到。
+     */
+    function luminanceOf(rgb) {
+      var parts = rgb.map(function (value) {
+        var v = value / 255;
+        return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4);
+      });
+      return .2126 * parts[0] + .7152 * parts[1] + .0722 * parts[2];
+    }
+
+    function contrast(front, back) {
+      var a = luminanceOf(front) + .05;
+      var b = luminanceOf(back) + .05;
+      return a > b ? a / b : b / a;
+    }
+
+    /** #rrggbb 或 rgb()/rgba() 都吃。rgba 要疊在底色上算，透明本身沒有對比可言。 */
+    function colorOf(text, over) {
+      text = String(text).trim();
+      var rgb, alpha = 1;
+
+      if (text.charAt(0) === '#') {
+        var n = parseInt(text.slice(1), 16);
+        rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+      } else {
+        var nums = text.match(/[\d.]+/g).map(Number);
+        rgb = nums.slice(0, 3);
+        if (nums.length > 3) alpha = nums[3];
+      }
+
+      if (alpha >= 1 || !over) return rgb;
+      return rgb.map(function (value, i) {
+        return value * alpha + over[i] * (1 - alpha);
+      });
+    }
+
+    /** 量一整組配色，回傳最差的那一對。theme 是 'light' 或 'dark'。 */
+    function worstPairIn(view, theme) {
+      view.one('#theme-pick [data-theme="' + theme + '"]').click();
+      var css = view.win.getComputedStyle(view.doc.documentElement);
+      function token(name) { return css.getPropertyValue(name).trim(); }
+
+      var bg = colorOf(token('--bg'));
+      var raised = colorOf(token('--bg-raised'));
+
+      var pairs = [
+        ['內文', token('--ink'), raised],
+        ['次要文字', token('--ink-dim'), raised],
+        ['主色當文字', token('--accent'), bg],
+        ['第二色當文字', token('--accent-2'), bg],
+        ['答對', token('--good'), raised],
+        ['答錯', token('--bad'), raised],
+        ['主要按鈕的字', token('--on-accent'), colorOf(token('--accent'))],
+        ['警告框的字', token('--warn'), colorOf(token('--warn-soft'), raised)],
+        ['錯誤框的字', token('--bad-ink'), colorOf(token('--bad-soft'), raised)]
+      ];
+
+      var worst = null;
+      pairs.forEach(function (pair) {
+        var ratio = contrast(colorOf(pair[1], pair[2]), pair[2]);
+        if (!worst || ratio < worst.ratio) worst = { name: pair[0], ratio: ratio, color: pair[1] };
+      });
+
+      return worst;
+    }
+
+    test('日間版每一組字都讀得到（對比 4.5 以上）', function () {
+      var worst = worstPairIn(phone, 'light');
+      assertTrue(worst.ratio >= 4.5,
+        '最差的是「' + worst.name + '」' + worst.color + '，只有 ' + worst.ratio.toFixed(2) + ':1');
+    });
+
+    test('夜間版每一組字都讀得到（對比 4.5 以上）', function () {
+      var worst = worstPairIn(phone, 'dark');
+      assertTrue(worst.ratio >= 4.5,
+        '最差的是「' + worst.name + '」' + worst.color + '，只有 ' + worst.ratio.toFixed(2) + ':1');
+      phone.one('#theme-pick [data-theme="auto"]').click();
+    });
+
+    test('日間版不留任何硬寫的夜間色', function () {
+      // 踩過：房號輸入框寫死 #100d1b、警告框的字寫死 #ffd98a，
+      // 換成日間版之後一個變黑框、一個在近白底上消失。
+      phone.one('#theme-pick [data-theme="light"]').click();
+      var card = colorOf(phone.style('.card', 'backgroundColor'));
+      var inputBg = colorOf(phone.style('#r-join-code', 'backgroundColor'));
+      phone.one('#theme-pick [data-theme="auto"]').click();
+      assertTrue(luminanceOf(card) > .5, '卡片底色在日間版還是暗的');
+      assertTrue(luminanceOf(inputBg) > .5, '房號輸入框在日間版還是暗的');
+    });
+
 
     test('主要按鈕不是白字配琥珀金', function () {
       // 白字配 #f7b955 只有 1.9:1。這一條會在有人「順手」把 color 改回 #fff 時擋下來。
@@ -335,7 +428,99 @@
     });
 
 
+    test('多人大廳是一欄到底，不左右分欄', function () {
+      // 「加入」是一個動作、「開一間新的」是一張設定表，高度差好幾倍。
+      // 並排就一定會在矮的那一欄底下空出一大塊，而且會讓人以為兩邊一樣重。
+      var join = desktop.box('.card.join');
+      var create = desktop.box('#r-screen-lobby .card:not(.join)');
+      assertEqual(Math.round(join.left), Math.round(create.left), '兩張卡的左緣');
+      assertEqual(Math.round(join.right), Math.round(create.right), '兩張卡的右緣');
+    });
+
+    test('開房的四個設定在寬螢幕排成 2×2，而且同一列齊高', function () {
+      // 這裡的並排才是對稱的：四塊內容量差不多。
+      // 不齊高的話，語種（五顆會換行）旁邊的題數會矮一截——那就是看起來歪的地方。
+      var fields = desktop.doc.querySelectorAll('.create-grid .field');
+      assertEqual(4, fields.length, '設定的塊數');
+
+      var boxes = [];
+      for (var i = 0; i < fields.length; i++) boxes.push(fields[i].getBoundingClientRect());
+
+      assertEqual(Math.round(boxes[0].top), Math.round(boxes[1].top), '第一列的兩塊要同一行');
+      assertEqual(Math.round(boxes[0].height), Math.round(boxes[1].height),
+        '第一列高度 ' + Math.round(boxes[0].height) + ' vs ' + Math.round(boxes[1].height));
+      assertEqual(Math.round(boxes[2].height), Math.round(boxes[3].height),
+        '第二列高度 ' + Math.round(boxes[2].height) + ' vs ' + Math.round(boxes[3].height));
+    });
+
+    test('單人與多人的切換鈕長得一模一樣', function () {
+      // 同一個切換在兩邊長得不一樣，會讓人以為自己跑到別的地方了。
+      // 比的是實際算出來的樣式，不是 class 名字——class 一樣但被別條蓋掉才是常見的壞法。
+      var doc = desktop.doc;
+      var win = desktop.win;
+
+      function look(scope) {
+        var seg = doc.querySelector(scope + ' .seg');
+        var on = doc.querySelector(scope + ' .seg .who-pick[aria-current="page"]');
+        var off = doc.querySelector(scope + ' .seg .who-pick:not([aria-current])');
+        var segStyle = win.getComputedStyle(seg);
+        var onStyle = win.getComputedStyle(on);
+        var offStyle = win.getComputedStyle(off);
+        return [
+          segStyle.display, segStyle.borderRadius, segStyle.backgroundColor, segStyle.borderTopColor,
+          onStyle.backgroundColor, onStyle.color, onStyle.fontWeight, onStyle.fontSize,
+          offStyle.backgroundColor, offStyle.color, offStyle.fontSize,
+          Math.round(on.getBoundingClientRect().height),
+        ].join(' / ');
+      }
+
+      // 兩邊要各自在「自己那一半看得見」的時候量：藏起來的那一半量到的高度是 0，
+      // 那是隱藏造成的，不是版面不一致。
+      var solo = look('#screen-home');
+      doc.querySelector('#screen-home .seg .who-pick[data-who="room"]').click();
+      var room = look('#r-screen-lobby');
+      doc.querySelector('#r-screen-lobby .seg .who-pick[data-who="solo"]').click();
+
+      assertEqual(solo, room, '兩邊的切換鈕樣式');
+
+    });
+
+    test('多人大廳用的是和首頁同一個頂排', function () {
+      // 同一個切換在兩邊長得不一樣，會讓人以為自己跑到別的地方了。
+      assertTrue(!!desktop.one('#r-screen-lobby .topbar .wordmark'), '大廳沒有那個頂排');
+      assertEqual(2, desktop.doc.querySelectorAll('#r-screen-lobby .seg .who-pick').length,
+        '大廳的切換鈕數量');
+    });
+
+    test('「加入房間」比「開一間新的」小得多', function () {
+      // 只想加入別人房間的人要做的只有「打四個字、按加入」，
+      // 那不值得一張跟開房一樣大的卡。
+      var join = phone.box('.card.join');
+      var create = phone.box('.card:not(.join)');
+      assertTrue(join.height < create.height / 2,
+        '加入 ' + Math.round(join.height) + 'px、開房 ' + Math.round(create.height) + 'px');
+
+      // 房號和「加入」要在同一行，不是上下兩塊。
+      var input = phone.box('#r-join-code');
+      var button = phone.box('#r-btn-join');
+      assertTrue(Math.abs(input.top - button.top) < 8,
+        '房號和加入沒有並排（差 ' + Math.round(Math.abs(input.top - button.top)) + 'px）');
+      assertTrue(button.height >= 40, '加入鈕只有 ' + Math.round(button.height) + 'px 高');
+    });
+
+    test('房號輸入框不是硬寫的深色（日間版會變成黑框）', function () {
+      function luminance(color) {
+        var nums = color.match(/[\d.]+/g).map(Number);
+        return (nums[0] * 299 + nums[1] * 587 + nums[2] * 114) / 1000;
+      }
+      phone.one('#theme-pick [data-theme="light"]').click();
+      var input = luminance(phone.style('#r-join-code', 'backgroundColor'));
+      phone.one('#theme-pick [data-theme="auto"]').click();
+      assertTrue(input > 180, '日間版的輸入框底色亮度只有 ' + Math.round(input));
+    });
+
     test('切到多人的時候，單人的 dock 要跟著消失', function () {
+
       // dock 是 position: fixed，忘了跟著藏的話它會浮在多人畫面上。
       var h = phone.box('.dock').height;
       assertTrue(h === 0, 'dock 高 ' + Math.round(h) + '，solo hidden=' + phone.one('#solo-app').hidden + '，room hidden=' + phone.one('#room-app').hidden);

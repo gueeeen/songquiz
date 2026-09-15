@@ -1,5 +1,9 @@
 /* 深色為主：擺攤現場多半燈光不亮，而且玩家的眼睛要盯九個選項，底色越安靜越好。
-   但白天在室內用手機的人也不少，所以日間版是真的另一組值，不是把夜間版調亮。 */
+   但白天在室內用手機的人也不少，所以日間版是真的另一組值，不是把夜間版調亮。
+
+   底下每一個「狀態色」都成對出現：文字用的實色，加上墊在底下的半透明色。
+   兩邊都要有，因為夜間版的做法（亮色文字＋很淡的底）在淺底上會直接消失——
+   #ffd98a 這種字放在近白色的底上，等於沒有字。 */
 :root {
   --bg: #090e1a;
   --bg-raised: #141b2e;
@@ -12,19 +16,29 @@
   /* 壓在主色上的字。琥珀金是亮色，白字只有 1.9:1。 */
   --on-accent: #17120a;
   --accent-2: #5ee0ff;
+
   --good: #3ddc97;
+  --good-soft: rgba(61, 220, 151, .14);
+  --good-line: rgba(61, 220, 151, .5);
   --bad: #ff5c7c;
+  --bad-ink: #ffb3c2;
+  --bad-soft: rgba(255, 92, 124, .13);
+  --bad-line: rgba(255, 92, 124, .45);
+  --warn: #ffd98a;
+  --warn-soft: rgba(255, 200, 80, .08);
+  --warn-line: rgba(255, 200, 80, .45);
+  --mine-glow: rgba(94, 224, 255, .3);
 
   /* 「被選中」的底色。三個濃度分別給：分頁與 chip、整塊卡片、榜上自己那一列。 */
-  --sel: var(--sel);
-  --sel-soft: var(--sel-soft);
-  --sel-mark: var(--sel-mark);
-  --glow: var(--glow);
+  --sel: rgba(247, 185, 85, .22);
+  --sel-soft: rgba(247, 185, 85, .12);
+  --sel-mark: rgba(247, 185, 85, .16);
+  --glow: rgba(247, 185, 85, .4);
   /* 背景那張黑膠的三層。 */
-  --lamp: var(--lamp);
-  --lamp-2: var(--lamp-2);
-  --label: var(--label);
-  --groove: var(--groove);
+  --lamp: rgba(247, 185, 85, .10);
+  --lamp-2: rgba(94, 224, 255, .07);
+  --label: rgba(247, 185, 85, .055);
+  --groove: rgba(255, 255, 255, .026);
   --stage-light: #16233f;
   /* 榜上每一列的底。 */
   --row: rgba(255, 255, 255, .03);
@@ -35,58 +49,81 @@
 /* 日間版。
    主色從琥珀金換成深琥珀：同一個色相，但在淺底上要夠深才讀得到——
    #f7b955 配白底只有 1.8:1，拿來當文字或邊框等於沒有。
-   底色帶一點暖（#f7f4ee 而不是純白）：整站的色溫才跟夜間版是同一個調子。 */
+   底色帶一點暖（#f6f2ea 而不是純白）：整站的色溫才跟夜間版是同一個調子。 */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --bg: #f6f2ea;
     --bg-raised: #ffffff;
     --bg-rgb: 246, 242, 234;
-    --line: #e0d8c9;
-    --ink: #1b1d24;
-    --ink-dim: #6c7180;
-    --accent: #a25c00;
+    --line: #cfc2ab;
+    --ink: #17191f;
+    --ink-dim: #565c6a;
+    --accent: #9c5800;
     --on-accent: #fff6e6;
-    --accent-2: #0d6f86;
-    --good: #12794a;
-    --bad: #c22d43;
+    --accent-2: #0b6579;
 
-    --sel: rgba(162, 92, 0, .14);
-    --sel-soft: rgba(162, 92, 0, .07);
-    --sel-mark: rgba(162, 92, 0, .12);
-    --glow: rgba(162, 92, 0, .18);
-    --lamp: rgba(162, 92, 0, .07);
-    --lamp-2: rgba(13, 111, 134, .05);
-    --label: rgba(162, 92, 0, .04);
+    --good: #0f6c43;
+    --good-soft: rgba(15, 108, 67, .13);
+    --good-line: rgba(15, 108, 67, .5);
+    --bad: #b52236;
+    --bad-ink: #8a1224;
+    --bad-soft: rgba(181, 34, 54, .10);
+    --bad-line: rgba(181, 34, 54, .45);
+    --warn: #7a4300;
+    --warn-soft: rgba(156, 88, 0, .09);
+    --warn-line: rgba(156, 88, 0, .45);
+    --mine-glow: rgba(11, 101, 121, .35);
+
+    --sel: rgba(156, 88, 0, .20);
+    --sel-soft: rgba(156, 88, 0, .10);
+    --sel-mark: rgba(156, 88, 0, .18);
+    --glow: rgba(156, 88, 0, .18);
+    --lamp: rgba(156, 88, 0, .07);
+    --lamp-2: rgba(11, 101, 121, .05);
+    --label: rgba(156, 88, 0, .04);
     --groove: rgba(90, 70, 40, .05);
     --stage-light: #efe6d6;
-    --row: rgba(0, 0, 0, .035);
+    --row: rgba(0, 0, 0, .055);
   }
 }
 
-/* 使用者在設定裡選了「日間」就以他為準，不管系統是什麼。 */
+/* 使用者在設定裡選了「日間」就以他為準，不管系統是什麼。
+   （和上面那一組必須一模一樣。CSS 沒辦法讓兩個選擇器共用一份自訂屬性，
+   所以只能重複一次，改的時候兩邊都要改。測試只量得到這一組——
+   跟隨系統的那一組要靠瀏覽器模擬 prefers-color-scheme 才驗得到。） */
 :root[data-theme="light"] {
   --bg: #f6f2ea;
   --bg-raised: #ffffff;
   --bg-rgb: 246, 242, 234;
-  --line: #e0d8c9;
-  --ink: #1b1d24;
-  --ink-dim: #6c7180;
-  --accent: #a25c00;
+  --line: #cfc2ab;
+  --ink: #17191f;
+  --ink-dim: #565c6a;
+  --accent: #9c5800;
   --on-accent: #fff6e6;
-  --accent-2: #0d6f86;
-  --good: #12794a;
-  --bad: #c22d43;
+  --accent-2: #0b6579;
 
-  --sel: rgba(162, 92, 0, .14);
-  --sel-soft: rgba(162, 92, 0, .07);
-  --sel-mark: rgba(162, 92, 0, .12);
-  --glow: rgba(162, 92, 0, .18);
-  --lamp: rgba(162, 92, 0, .07);
-  --lamp-2: rgba(13, 111, 134, .05);
-  --label: rgba(162, 92, 0, .04);
+  --good: #0f6c43;
+  --good-soft: rgba(15, 108, 67, .13);
+  --good-line: rgba(15, 108, 67, .5);
+  --bad: #b52236;
+  --bad-ink: #8a1224;
+  --bad-soft: rgba(181, 34, 54, .10);
+  --bad-line: rgba(181, 34, 54, .45);
+  --warn: #7a4300;
+  --warn-soft: rgba(156, 88, 0, .09);
+  --warn-line: rgba(156, 88, 0, .45);
+  --mine-glow: rgba(11, 101, 121, .35);
+
+  --sel: rgba(156, 88, 0, .20);
+  --sel-soft: rgba(156, 88, 0, .10);
+  --sel-mark: rgba(156, 88, 0, .18);
+  --glow: rgba(156, 88, 0, .18);
+  --lamp: rgba(156, 88, 0, .07);
+  --lamp-2: rgba(11, 101, 121, .05);
+  --label: rgba(156, 88, 0, .04);
   --groove: rgba(90, 70, 40, .05);
   --stage-light: #efe6d6;
-  --row: rgba(0, 0, 0, .035);
+  --row: rgba(0, 0, 0, .055);
 }
 
 /* 表單元件（滑桿、捲軸）要跟著換，否則日間版會冒出一條夜間的滑軌。 */
@@ -147,19 +184,6 @@ body::before {
 
 .screen { animation: rise .25s ease both; }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
-
-/* ---- 開場 ---- */
-.brand { text-align: center; margin: 24px 0 28px; }
-.brand h1 {
-  font-size: clamp(2rem, 9vw, 3rem);
-  margin: 0;
-  letter-spacing: .04em;
-}
-.brand h1 span {
-  color: var(--accent);
-  text-shadow: 0 0 24px var(--glow);
-}
-.tagline { color: var(--ink-dim); margin: .6em 0 0; font-size: .95rem; }
 
 .volume {
   display: flex; align-items: center; gap: 12px;
@@ -279,8 +303,8 @@ body::before {
 
 .choice:hover:not(:disabled) { border-color: var(--accent); }
 .choice:disabled { cursor: default; opacity: .55; }
-.choice.correct { border-color: var(--good); background: rgba(61, 220, 151, .14); opacity: 1; }
-.choice.wrong { border-color: var(--bad); background: rgba(255, 92, 124, .14); opacity: 1; }
+.choice.correct { border-color: var(--good); background: var(--good-soft); opacity: 1; }
+.choice.wrong { border-color: var(--bad); background: var(--bad-soft); opacity: 1; }
 
 /* ---- 判定 ---- */
 .verdict {
@@ -448,32 +472,10 @@ button { font: inherit; font-family: inherit; }
 .to-room a { color: var(--accent-2); text-decoration: none; }
 .to-room a:hover { text-decoration: underline; }
 
-/* ---- 一個人玩／和朋友一起 ---- */
-/* 放在最上面，因為它決定了底下的設定有沒有意義：多人的語種與題數是房主在房裡挑的。 */
-.who { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+/* 一個人／和朋友的切換只剩 .seg 那一種長相（見底下的「開場」那一段）。
+   原本這裡還有一組「兩張大卡片」的樣式給多人大廳用，但同一個切換在兩邊
+   長得不一樣，會讓人以為自己跑到別的地方了。那一組已經刪掉。 */
 
-.who-pick {
-  display: grid;
-  gap: 3px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg-raised);
-  color: var(--ink-dim);
-  text-decoration: none;
-  font-size: .85rem;
-}
-.who-pick strong { color: var(--ink); font-size: .95rem; }
-.who-pick span { font-size: .74rem; line-height: 1.5; }
-
-/* 目前所在的那一邊要看得出來，否則兩顆長得一樣就不知道自己在哪一頁。 */
-.who-pick[aria-current="page"] {
-  border-color: var(--accent);
-  background: var(--sel-soft);
-}
-.who-pick[aria-current="page"] strong { color: var(--accent); }
-a.who-pick:hover { border-color: var(--accent-2); }
-a.who-pick:hover strong { color: var(--accent-2); }
 
 /* ---- 排行榜 ---- */
 .board-box {
@@ -842,3 +844,8 @@ a.who-pick:hover strong { color: var(--accent-2); }
 .modes.compact { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
 .modes.compact .mode { padding: 13px 10px; min-height: 48px; text-align: center; }
 .modes.compact .mode strong { font-size: .92rem; }
+
+/* 多人大廳也用首頁那個頂排，所以那幾條要在 #screen-home 之外也生效。
+   原本 .topbar / .wordmark / .seg 就沒有限定範圍，這裡只補大廳自己的間距。 */
+#r-screen-lobby .topbar { margin-bottom: 18px; }
+#r-screen-lobby .card + .card { margin-top: 14px; }
