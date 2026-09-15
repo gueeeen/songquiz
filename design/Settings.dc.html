@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root {
+      --bg: #090e1a; --bg-raised: #141b2e; --line: #26314d;
+      --ink: #eef2ff; --ink-dim: #93a2c7;
+      --accent: #f7b955; --accent-2: #5ee0ff; --bad: #ff5c7c; --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(900px 520px at 50% -8%, rgba(247,185,85,.10), transparent 62%),
+        radial-gradient(circle at 50% 20%, rgba(247,185,85,.055) 0 54px, transparent 56px),
+        repeating-radial-gradient(circle at 50% 20%, rgba(255,255,255,.026) 0 1px, transparent 1px 9px),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+    }
+    /* 底下那一層是遊戲畫面。面板是疊上去的，不是換頁——
+       退出與調音量都不該讓人先離開手上這一局。 */
+    .behind { padding: 24px 16px; opacity: .3; }
+    .behind .row { height: 72px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 8px; }
+    .veil { position: absolute; inset: 0; background: rgba(9,14,26,.72); }
+
+    .card {
+      position: absolute; left: 16px; right: 16px; bottom: 16px;
+      background: var(--bg-raised); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 14px 16px 18px;
+    }
+    .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .head h2 { margin: 0; font-size: 1.05rem; }
+    .ghost {
+      border: 1px solid var(--line); border-radius: 99px; background: transparent;
+      color: var(--ink-dim); padding: 8px 14px; font-size: .8rem;
+    }
+    .line {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 0; border-top: 1px solid var(--line); font-size: .88rem;
+    }
+    .lab { color: var(--ink-dim); font-size: .82rem; white-space: nowrap; }
+    .track { flex: 1; height: 4px; border-radius: 99px; background: #26314d; position: relative; }
+    .track::after { content: ""; position: absolute; inset: 0 20% 0 0; background: var(--accent); border-radius: 99px; }
+    .seg { display: flex; border: 1px solid var(--line); border-radius: 99px; overflow: hidden; margin-left: auto; }
+    .seg div { padding: 10px 12px; font-size: .78rem; color: var(--ink-dim); }
+    .seg div.on { background: rgba(247,185,85,.22); color: var(--ink); font-weight: 600; }
+    .actions { display: grid; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+    .actions .ghost { min-height: 46px; }
+    .danger { color: var(--bad); }
+  </style>
+</helmet>
+
+<div class="behind">
+  <div class="row"></div><div class="row"></div><div class="row"></div>
+  <div class="row"></div><div class="row"></div><div class="row"></div>
+</div>
+<div class="veil"></div>
+
+<div class="card">
+  <div class="head">
+    <h2>設定</h2>
+    <button class="ghost">關閉</button>
+  </div>
+
+  <div class="line">
+    <span class="lab">音量 80%</span>
+    <div class="track"></div>
+    <button class="ghost">試聽</button>
+  </div>
+
+  <div class="line">
+    <span class="lab">外觀</span>
+    <div class="seg">
+      <div class="on">跟隨系統</div><div>日間</div><div>夜間</div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="ghost">回到主畫面</button>
+    <button class="ghost danger">離開房間</button>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

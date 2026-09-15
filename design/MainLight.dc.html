@@ -9,19 +9,19 @@
 <helmet>
   <style>
     :root {
-      --bg: #090e1a; --bg-raised: #141b2e; --line: #26314d;
-      --ink: #eef2ff; --ink-dim: #93a2c7;
-      --accent: #f7b955; --on-accent: #17120a; --accent-2: #5ee0ff; --radius: 14px;
+      --bg: #f6f2ea; --bg-raised: #ffffff; --line: #e0d8c9;
+      --ink: #1b1d24; --ink-dim: #6c7180;
+      --accent: #a25c00; --on-accent: #fff6e6; --accent-2: #0d6f86; --radius: 14px;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       background:
-        radial-gradient(900px 520px at 50% -8%, rgba(247,185,85,.10), transparent 62%),
-        radial-gradient(760px 520px at 108% 94%, rgba(94,224,255,.07), transparent 60%),
-        radial-gradient(circle at 50% 20%, rgba(247,185,85,.055) 0 54px, transparent 56px),
-        repeating-radial-gradient(circle at 50% 20%, rgba(255,255,255,.026) 0 1px, transparent 1px 9px),
-        radial-gradient(1200px 600px at 50% -10%, #16233f 0%, transparent 60%),
+        radial-gradient(900px 520px at 50% -8%, rgba(162,92,0,.07), transparent 62%),
+        radial-gradient(760px 520px at 108% 94%, rgba(13,111,134,.05), transparent 60%),
+        radial-gradient(circle at 50% 20%, rgba(162,92,0,.04) 0 54px, transparent 56px),
+        repeating-radial-gradient(circle at 50% 20%, rgba(90,70,40,.05) 0 1px, transparent 1px 9px),
+        radial-gradient(1200px 600px at 50% -10%, #efe6d6 0%, transparent 60%),
         var(--bg);
       color: var(--ink);
       font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
@@ -33,10 +33,10 @@
 
     .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; padding-right: 52px; }
     .title { font-size: 1.2rem; font-weight: 700; letter-spacing: .04em; }
-    .title span { color: var(--accent); text-shadow: 0 0 20px rgba(247,185,85,.4); }
+    .title span { color: var(--accent); text-shadow: 0 0 20px rgba(162,92,0,.18); }
     .seg { display: flex; border: 1px solid var(--line); border-radius: 99px; overflow: hidden; background: var(--bg-raised); }
     .seg div { padding: 9px 16px; font-size: .82rem; color: var(--ink-dim); }
-    .seg div.on { background: rgba(247,185,85,.22); color: var(--ink); font-weight: 600; }
+    .seg div.on { background: rgba(162,92,0,.14); color: var(--ink); font-weight: 600; }
 
     /* 設定：右上角的齒輪。每個畫面都構得到——玩到一半要調音量或退出，
        不該先把這一局打完。裡面是音量、試聽、日間／夜間、回到主畫面、離開房間。 */
@@ -60,14 +60,14 @@
       border: 1px solid var(--line); background: var(--bg-raised);
       color: var(--ink-dim); font-size: .85rem; white-space: nowrap;
     }
-    .pill.on { color: var(--ink); border-color: var(--accent); background: rgba(247,185,85,.22); font-weight: 600; }
+    .pill.on { color: var(--ink); border-color: var(--accent); background: rgba(162,92,0,.14); font-weight: 600; }
 
     .modecards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .mc {
       padding: 13px 8px; border-radius: var(--radius); border: 1px solid var(--line);
       background: var(--bg-raised); text-align: center; min-height: 88px;
     }
-    .mc.on { border-color: var(--accent); background: rgba(247,185,85,.12); }
+    .mc.on { border-color: var(--accent); background: rgba(162,92,0,.07); }
     .mc b { display: block; font-size: 1rem; }
     .mc i { display: block; color: var(--ink-dim); font-style: normal; font-size: .7rem; margin-top: 5px; line-height: 1.4; }
 
@@ -78,7 +78,7 @@
     .board ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
     .board li {
       display: grid; grid-template-columns: 1.4rem 1fr auto; gap: 8px; align-items: center;
-      padding: 7px 8px; border-radius: 8px; font-size: .78rem; background: rgba(255,255,255,.03);
+      padding: 7px 8px; border-radius: 8px; font-size: .78rem; background: rgba(0,0,0,.035);
     }
     .board li b { color: var(--ink-dim); font-weight: 600; }
     .board li i { color: var(--ink-dim); font-style: normal; }
@@ -88,7 +88,7 @@
     /* 摘要與開始鈕釘在底部：設定改了要當場看得到後果。 */
     .dock {
       position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px 22px;
-      background: linear-gradient(to top, #090e1a 60%, rgba(9,14,26,.94) 82%, rgba(9,14,26,0));
+      background: linear-gradient(to top, #f6f2ea 60%, rgba(246,242,234,.94) 82%, rgba(246,242,234,0));
     }
     .summary { text-align: center; color: var(--accent-2); font-size: .76rem; margin: 0 0 10px; line-height: 1.5; }
     .start {
