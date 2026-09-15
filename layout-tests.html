@@ -336,7 +336,9 @@
       var css = view.win.getComputedStyle(view.doc.documentElement);
       function token(name) { return css.getPropertyValue(name).trim(); }
 
-      var bg = colorOf(token('--bg'));
+      // 直接落在頁面上的字（摘要、出處、區塊標籤）要對「真的畫出來的背景」量，
+      // 不是對 --bg——那上面還疊著幾層漸層。
+      var bg = pageBackground(token);
       var raised = colorOf(token('--bg-raised'));
 
       var pairs = [
@@ -370,6 +372,67 @@
       var worst = worstPairIn(phone, 'dark');
       assertTrue(worst.ratio >= 4.5,
         '最差的是「' + worst.name + '」' + worst.color + '，只有 ' + worst.ratio.toFixed(2) + ':1');
+      phone.one('#theme-pick [data-theme="auto"]').click();
+    });
+
+    /**
+     * 頁面真正畫出來的底色。
+     *
+     * 不能直接拿 --bg 當背景來量：body::before 還疊了幾層漸層（頂燈、冷光、
+     * 唱片標籤），文字實際上是落在那幾層之上的。只量 --bg 會得到一個
+     * 「測試過了但看起來還是不對」的結果——第一版就是這樣過關的。
+     */
+    function pageBackground(token) {
+      var base = colorOf(token('--bg'));
+      // 由下往上疊：舞台光 → 溝紋 → 標籤 → 冷光 → 頂燈。
+      ['--stage-light', '--groove', '--label', '--lamp-2', '--lamp'].forEach(function (name) {
+        base = colorOf(token(name), base);
+      });
+      return base;
+    }
+
+    test('日間版看得出結構：卡片浮在頁面上、邊框看得見', function () {
+      // 「不清晰」多半不是字的問題，是結構的問題。
+      // 第一版頁面 #f6f2ea 配卡片 #ffffff 只差 3% 亮度，卡片就不像卡片了。
+      phone.one('#theme-pick [data-theme="light"]').click();
+      var css = phone.win.getComputedStyle(phone.doc.documentElement);
+      function token(name) { return css.getPropertyValue(name).trim(); }
+
+      var page = pageBackground(token);
+      var card = colorOf(token('--bg-raised'));
+      var line = colorOf(token('--line'), card);
+      phone.one('#theme-pick [data-theme="auto"]').click();
+
+      assertTrue(contrast(card, page) >= 1.2,
+        '卡片和頁面只差 ' + contrast(card, page).toFixed(2) + ':1，卡片不像卡片');
+      assertTrue(contrast(line, card) >= 1.9,
+        '邊框對卡片只有 ' + contrast(line, card).toFixed(2) + ':1，框線等於沒有');
+    });
+
+    test('「被選中」在兩種主題下都一眼看得出來', function () {
+      // 選中和沒選中差不多，是這一頁最貴的一種不清楚：
+      // 語種、題數、模式全靠這個狀態表達。
+      ['light', 'dark'].forEach(function (theme) {
+        phone.one('#theme-pick [data-theme="' + theme + '"]').click();
+        var css = phone.win.getComputedStyle(phone.doc.documentElement);
+        function token(name) { return css.getPropertyValue(name).trim(); }
+
+        var card = colorOf(token('--bg-raised'));
+        var picked = colorOf(token('--sel'), card);
+        assertTrue(contrast(picked, card) >= 1.25,
+          theme + '：選中的底和沒選中只差 ' + contrast(picked, card).toFixed(2) + ':1');
+
+        // 整塊卡片（模式）的選中底色刻意比膠囊淡——整片刷滿會太吵。
+        // 所以它靠的是邊框：選中的框和一般的框要明顯不同，否則就沒有線索了。
+        var normalLine = colorOf(token('--line'), card);
+        var pickedLine = colorOf(token('--accent'), card);
+        assertTrue(contrast(pickedLine, normalLine) >= 1.6,
+          theme + '：選中的框和一般的框只差 ' + contrast(pickedLine, normalLine).toFixed(2) + ':1');
+
+        // 選中之後字還是要讀得到——刷了底卻看不到字是更糟的結果。
+        assertTrue(contrast(colorOf(token('--ink')), picked) >= 4.5,
+          theme + '：選中之後字只剩 ' + contrast(colorOf(token('--ink')), picked).toFixed(2) + ':1');
+      });
       phone.one('#theme-pick [data-theme="auto"]').click();
     });
 
