@@ -128,8 +128,30 @@
     var list = document.createElement('ol');
     list.className = 'board-list';
 
+    /**
+     * 清空這台裝置的紀錄。只在「這台裝置」那個分頁出現——
+     * 線上榜不給客戶端刪（RLS 只開了讀與新增），那是刻意的。
+     */
+    var clearRow = row('board-clear');
+    var clearButton = document.createElement('button');
+    clearButton.type = 'button';
+    clearButton.className = 'board-clear-btn';
+    clearButton.textContent = '清空這台裝置的紀錄';
+    clearButton.addEventListener('click', function () {
+      // 刪掉就回不來了，所以問一次。
+      if (!window.confirm('要清掉這台裝置上所有的猜歌紀錄嗎？這個動作沒辦法復原。')) return;
+
+      var cleared = Leaderboard.clearLocal();
+      state.highlight = null;
+      refresh();
+      note.textContent = cleared > 0
+        ? '已經清掉這台裝置上的所有紀錄。'
+        : '這台裝置本來就沒有紀錄。';
+    });
+    clearRow.append(clearButton);
+
     renderCounts();
-    host.append(sources, modes, langs, counts, note, list);
+    host.append(sources, modes, langs, counts, note, list, clearRow);
 
     // ---- 上傳到線上榜（只有結算頁）----
     var submitBox = null;
@@ -227,12 +249,16 @@
         note.textContent = '線上榜還沒設定（realtime-config.js 沒有填 Supabase）。';
         list.replaceChildren();
         if (submitBox) submitBox.hidden = true;
+        clearRow.hidden = true;
         return;
       }
 
       if (submitBox) {
         submitBox.hidden = !(state.source === 'online' && state.highlight && !state.submitted);
       }
+
+      // 清空鈕只管本機，線上榜不給客戶端刪。
+      clearRow.hidden = state.source !== 'local';
 
       note.textContent = describe() + '　載入中…';
 

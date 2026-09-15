@@ -451,3 +451,17 @@ a.who-pick:hover strong { color: var(--accent-2); }
   font-size: .85rem;
 }
 .board-submit-line .primary { padding: 10px 16px; white-space: nowrap; }
+
+/* 清空這台裝置的紀錄。刻意做得不顯眼：它是偶爾用一次的破壞性動作，
+   不該長得像主要功能。 */
+.board-clear { margin-top: 10px; display: flex; justify-content: flex-end; }
+.board-clear-btn {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--ink-dim);
+  font-size: .72rem;
+  cursor: pointer;
+}
+.board-clear-btn:hover { color: var(--bad); border-color: var(--bad); }
