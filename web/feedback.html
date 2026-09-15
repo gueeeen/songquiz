@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>完整回饋 — 流行音樂猜歌王</title>
+<link rel="stylesheet" href="style.css?v=14">
+<link rel="stylesheet" href="form.css?v=14">
+<!-- 主題要在第一次繪製之前就定下來，否則會先閃一下夜間版。
+     這一頁和遊戲共用同一個 localStorage 的鍵，所以外觀會跟著遊戲裡的選擇。 -->
+<script>
+(function () {
+  try {
+    var choice = window.localStorage.getItem('songquiz.theme');
+    if (choice === 'light' || choice === 'dark') {
+      document.documentElement.setAttribute('data-theme', choice);
+    }
+  } catch (error) {
+    // 無痕視窗會擋 localStorage。讀不到就跟隨系統，不是錯。
+  }
+})();
+</script>
+</head>
+<body>
+
+<!-- 進度條釘在最上面。長表單最容易發生的事是填到一半放棄，
+     而放棄的人多半不是不想填，是不知道還有多長。 -->
+<div class="form-progress" id="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+  <div class="form-progress-bar" id="progress-bar"></div>
+</div>
+
+<main id="app" class="form-page">
+
+  <header class="topbar">
+    <h1 class="wordmark">完整<span>回饋</span></h1>
+    <a class="ghost back" href="index.html">回遊戲</a>
+  </header>
+
+  <p class="form-intro">
+    每一個大項的<strong>星星是必填</strong>，文字都可以跳過。<br>
+    細項只會問你「玩過／注意到」的那幾個——沒碰過的東西你也答不出來，問了只是浪費你的時間。<br>
+    填到一半可以關掉，回來會接續（草稿存在這台裝置上，不會送出去）。
+  </p>
+
+  <p class="form-state" id="state"></p>
+
+  <!-- 每一段的內容由 js/form.js 依一份清單長出來。
+       寫死在 HTML 裡的話，語種與模式的清單會和 rules.js 分岔。 -->
+  <div id="sections"></div>
+
+  <div class="form-actions">
+    <button type="button" class="primary big" id="btn-submit">送出</button>
+    <button type="button" class="ghost" id="btn-clear">清空草稿</button>
+  </div>
+
+  <p class="form-state" id="state-bottom"></p>
+
+  <footer class="credit">
+    這份回饋只有站方看得到（資料表沒有開讀取權限），也不會記錄任何可以認出你的東西。<br>
+    音源為 <strong>Apple Music 官方 30 秒試聽</strong>，歌曲版權屬原權利人所有；
+    玩法參考
+    <a href="https://github.com/ntupm18th/ntupm-songguesser" target="_blank" rel="noopener">
+      台大流行音樂創作社的「金曲猜歌王」</a>。
+  </footer>
+
+</main>
+
+<script src="js/rules.js?v=14"></script>
+<script src="realtime-config.js?v=14"></script>
+<script src="js/form.js?v=14"></script>
+
+</body>
+</html>
