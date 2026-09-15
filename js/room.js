@@ -352,9 +352,8 @@
       return;
     }
 
-    line.textContent = '題庫：' + bank.tracks.length + ' 首 ＋ ' +
-      bank.decoys.length + ' 個誘餌' +
-      (bank.generatedAt ? '，' + bank.generatedAt.slice(0, 10) + ' 建立' : '');
+    // 題庫的張數是給做題庫的人看的，玩的人不需要知道。只在出事時說話。
+    line.textContent = '';
   }
 
   describeBank();
