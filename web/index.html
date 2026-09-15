@@ -8,8 +8,8 @@
      不加版本號的話，改完要等十分鐘（或使用者自己強制重新整理）才看得到新版——
      實際踩過：修好的 CSS 已經上線，但畫面還是舊的。
      發佈前把這個號碼加一，發佈流程寫在 代辦清單.md。 -->
-<link rel="stylesheet" href="style.css?v=11">
-<link rel="stylesheet" href="room.css?v=11">
+<link rel="stylesheet" href="style.css?v=12">
+<link rel="stylesheet" href="room.css?v=12">
 <!-- 主題要在第一次繪製之前就定下來。
      交給 shell.js（在 </body> 前）會先閃一下夜間版才變成日間版，
      那一下在白色房間裡特別刺眼。所以這一小段刻意內嵌在 head 裡。 -->
@@ -158,11 +158,26 @@
     <!-- 排行榜面板由 boardui.js 產生（同一個面板首頁也有一個）。 -->
     <section id="result-board"></section>
 
+    <!-- 快速評分放在這裡，因為這是意見真的形成的時刻——
+         剛打完一場，好不好玩當下最清楚。只要星星和一句話，
+         想再多講的人才點進詳細表單。 -->
+    <section class="rate" id="rate-box">
+      <p class="rate-ask">這一場好玩嗎？</p>
+      <div class="stars" id="rate-stars" role="radiogroup" aria-label="給幾顆星"></div>
+      <div class="rate-line">
+        <input type="text" id="rate-note" maxlength="60" placeholder="一句話就好（可以不填）" autocomplete="off">
+        <button type="button" class="primary" id="btn-rate-send" disabled>送出</button>
+      </div>
+      <p class="rate-state" id="rate-state"></p>
+      <button type="button" class="linkish" id="btn-rate-more">還有話想說 →</button>
+    </section>
+
     <ol class="review" id="review"></ol>
     <div class="result-actions">
       <button type="button" class="primary" id="btn-again">再來一場</button>
       <button type="button" class="ghost" id="btn-home">回首頁</button>
     </div>
+
   </section>
 
 </div>
@@ -331,7 +346,74 @@
 </footer>
 </main>
 
+<!-- ================= 意見回饋（詳細） ================= -->
+<!-- 獨立一區，不是塞在結算頁裡：詳細表單有二十幾個要點的東西，
+     和「剛打完想看成績」是兩種心情，混在同一頁會兩邊都做不好。
+     放在 #solo-app / #room-app 之外，兩邊都到得了；開關在 shell.js。 -->
+<div id="feedback-app" hidden>
+  <section class="screen">
+    <header class="topbar">
+      <h1 class="wordmark">意見<span>回饋</span></h1>
+      <button type="button" class="ghost" id="btn-fb-back">返回</button>
+    </header>
+
+    <p class="fb-intro">
+      每一項都可以跳過，填幾項就送幾項。<br>
+      這些意見只有站方看得到（資料表沒有開讀取權限），也不會記錄任何可以認出你的東西。
+    </p>
+
+    <div class="card">
+      <div class="fb-row">
+        <span class="fb-lab">整體<i>最想知道的一項</i></span>
+        <div class="stars" data-scale="stars" role="radiogroup" aria-label="整體滿意度"></div>
+      </div>
+      <div class="fb-row">
+        <span class="fb-lab">玩法好不好玩</span>
+        <div class="stars" data-scale="fun" role="radiogroup" aria-label="玩法滿意度"></div>
+      </div>
+      <div class="fb-row">
+        <span class="fb-lab">選歌與題目</span>
+        <div class="stars" data-scale="songs" role="radiogroup" aria-label="選歌滿意度"></div>
+      </div>
+      <div class="fb-row">
+        <span class="fb-lab">畫面與美術</span>
+        <div class="stars" data-scale="looks" role="radiogroup" aria-label="美術滿意度"></div>
+      </div>
+      <div class="fb-row">
+        <span class="fb-lab">音樂與音質</span>
+        <div class="stars" data-scale="sound" role="radiogroup" aria-label="音質滿意度"></div>
+      </div>
+      <div class="fb-row">
+        <span class="fb-lab">多人房<i>沒玩過就跳過</i></span>
+        <div class="stars" data-scale="multiplayer" role="radiogroup" aria-label="多人房滿意度"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="fb-lab block">最想看到什麼<i>可以多選</i></span>
+      <div class="chips" id="fb-wants">
+        <button type="button" class="chip" data-want="更多語種" aria-pressed="false">更多語種</button>
+        <button type="button" class="chip" data-want="自選歌手" aria-pressed="false">自選歌手</button>
+        <button type="button" class="chip" data-want="更多題數" aria-pressed="false">更多題數</button>
+        <button type="button" class="chip" data-want="更好的多人房" aria-pressed="false">更好的多人房</button>
+        <button type="button" class="chip" data-want="歌詞提示" aria-pressed="false">歌詞提示</button>
+        <button type="button" class="chip" data-want="難度選擇" aria-pressed="false">難度選擇</button>
+      </div>
+
+      <span class="fb-lab block">還想說什麼</span>
+      <textarea id="fb-detail" rows="5" maxlength="2000"
+                placeholder="卡在哪裡、哪裡看不懂、想聽到誰的歌——什麼都可以"></textarea>
+    </div>
+
+    <p class="fb-state" id="fb-state"></p>
+    <div class="fb-actions">
+      <button type="button" class="primary big" id="btn-fb-send">送出</button>
+    </div>
+  </section>
+</div>
+
 <!-- 設定。固定在右上角，每個畫面都構得到——玩到一半想調音量或退出，
+
      不該先把這一局打完。放在 #solo-app 與 #room-app 外面，兩邊共用同一份；
      接線在 shell.js，因為只有它同時認得單人與多人這兩半。 -->
 <button type="button" id="btn-settings" class="gear" aria-label="設定" aria-expanded="false" aria-controls="settings">⚙</button>
@@ -359,7 +441,9 @@
     </div>
 
     <div class="sheet-actions">
+      <button type="button" class="ghost" id="btn-settings-feedback">意見回饋</button>
       <button type="button" class="ghost" id="btn-settings-home">回到主畫面</button>
+
       <button type="button" class="ghost danger" id="btn-settings-leave" hidden>離開房間</button>
     </div>
   </div>
@@ -377,16 +461,18 @@
      不然「只想一個人玩」的人要白付那 218 KB。
      shell.js 最後，因為它要呼叫前面兩邊掛出來的停止函式。
      全部都是傳統 script（不是 module），這樣從 file:// 雙擊開也能玩。 -->
-<script src="js/rules.js?v=11"></script>
-<script src="js/questions.js?v=11"></script>
-<script src="js/game.js?v=11"></script>
-<script src="data/bank.js?v=11"></script>
-<script src="realtime-config.js?v=11"></script>
-<script src="js/realtime.js?v=11"></script>
-<script src="js/leaderboard.js?v=11"></script>
-<script src="js/boardui.js?v=11"></script>
-<script src="js/app.js?v=11"></script>
-<script src="js/room.js?v=11"></script>
-<script src="js/shell.js?v=11"></script>
+<script src="js/rules.js?v=12"></script>
+<script src="js/questions.js?v=12"></script>
+<script src="js/game.js?v=12"></script>
+<script src="data/bank.js?v=12"></script>
+<script src="realtime-config.js?v=12"></script>
+<script src="js/realtime.js?v=12"></script>
+<script src="js/feedback.js?v=12"></script>
+<script src="js/leaderboard.js?v=12"></script>
+<script src="js/boardui.js?v=12"></script>
+<script src="js/app.js?v=12"></script>
+<script src="js/room.js?v=12"></script>
+<script src="js/feedbackui.js?v=12"></script>
+<script src="js/shell.js?v=12"></script>
 </body>
 </html>

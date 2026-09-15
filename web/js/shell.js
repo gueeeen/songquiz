@@ -76,7 +76,26 @@
 
   apply(window.location.hash === '#room' ? 'room' : 'solo');
 
+  // 意見回饋是第三個區塊，但它不是「一個人／和朋友」那種對等的選擇，
+  // 所以不放進切換鈕裡——它借用這裡的 pane 控制，開完自己關回原本那一半。
+  window.Shell = {
+    current: function () { return current; },
+    hidePanes: function () {
+      if (current === 'solo' && window.SoloShell) window.SoloShell.stop();
+      if (current === 'room' && window.RoomShell) window.RoomShell.stop();
+      panes.solo.hidden = true;
+      panes.room.hidden = true;
+      document.body.classList.remove('has-dock');
+    },
+    show: function (mode) {
+      // current 還停在離開前那一半，直接 apply 會被「同一邊就不用換」擋掉。
+      current = null;
+      apply(mode);
+    },
+  };
+
   // ------------------------------------------------------------ 設定面板
+
   //
   // 接線放在這裡而不是 app.js／room.js：面板上的「回到主畫面」與「離開房間」
   // 要同時認得單人和多人這兩半，而這個檔是唯一認得的。
@@ -117,7 +136,13 @@
     if (event.key === 'Escape' && !sheet.hidden) closeSheet();
   });
 
+  document.getElementById('btn-settings-feedback').addEventListener('click', function () {
+    closeSheet();
+    if (window.FeedbackUI) window.FeedbackUI.open(0);
+  });
+
   document.getElementById('btn-settings-home').addEventListener('click', function () {
+
     // 「回到主畫面」＝結束手上這一局回到設定畫面。兩邊各自的 stop() 已經做完
     // 該收的事（計時器、音訊、自動跳題），這裡只要挑對呼叫誰。
     if (current === 'room' && window.RoomShell) window.RoomShell.stop();

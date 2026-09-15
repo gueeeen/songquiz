@@ -42,7 +42,17 @@
    *   options.withSubmit 要不要顯示「上傳到線上榜」（只有結算頁要）
    *   options.filter     初始篩選條件
    */
+  /** 把 ISO 時間變成本地的「MM/DD」。撞名的時候用它把兩列分開。 */
+  function dayOf(iso) {
+    var when = new Date(iso);
+    if (isNaN(when.getTime())) return '';
+    function two(value) { return (value < 10 ? '0' : '') + value; }
+    return two(when.getMonth() + 1) + '/' + two(when.getDate());
+  }
+
   function create(host, options) {
+
+
     options = options || {};
 
     // onlineOnly：首頁那一份只放線上榜。首頁的榜是拿來看「現在的目標是幾分」的，
@@ -266,6 +276,15 @@
 
         var name = document.createElement('span');
         name.textContent = entry.name;
+
+        // 撞名的時候補上日期，否則榜上兩個「阿明」在畫面上一模一樣。
+        if (entry.duplicated && entry.at) {
+          var when = document.createElement('small');
+          when.className = 'board-when';
+          when.textContent = dayOf(entry.at);
+          name.append(when);
+        }
+
 
         var score = document.createElement('i');
         // 不分題數的時候排的是每題平均，那就要顯示平均——

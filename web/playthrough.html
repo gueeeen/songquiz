@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>整場測試</title>
+<style>
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #14161c;
+    color: #d8dbe4;
+    font: 15px/1.7 "Segoe UI", "Microsoft JhengHei", sans-serif;
+  }
+  h1 { margin: 0 0 4px; font-size: 22px; font-family: Consolas, monospace; }
+  h1.pass { color: #57d98a; }
+  h1.fail { color: #ff6b6b; }
+  p.hint { margin: 0 0 20px; color: #7c8494; font-size: 13px; }
+  ul { margin: 0; padding: 0; list-style: none; }
+  li { padding: 2px 0; }
+  li.pass::before { content: "通過　"; color: #57d98a; }
+  li.fail::before { content: "失敗　"; color: #ff6b6b; }
+  li.fail { color: #ff9d9d; }
+  li .why {
+    display: block; margin-left: 4em; color: #ffc9c9;
+    font-family: Consolas, monospace; font-size: 13px;
+  }
+  #log {
+    margin-top: 20px; padding: 10px 12px; background: #1b1e26; border-radius: 8px;
+    font-family: Consolas, monospace; font-size: 12px; color: #7c8494;
+    white-space: pre-wrap; max-height: 260px; overflow: auto;
+  }
+  iframe { display: block; border: 0; margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<h1 id="result">RESULT 進行中…</h1>
+<p class="hint">
+  這一頁把一整場十題從頭打到完，看它會不會走到結算頁。
+  tests.html 驗的是規則、layout-tests.html 驗的是版面，兩者都不會真的跑完一局——
+  而「打到第七題就卡住」這種錯，只有真的打完才看得到。
+  無頭要加 <code>--allow-file-access-from-files</code>，而且時間要給足（一題之間有一秒的翻牌）。
+</p>
+<div id="report"></div>
+<pre id="log"></pre>
+
+<iframe id="game" src="index.html" width="390" height="844" title="被測的遊戲"></iframe>
+
+<script>
+(function () {
+  'use strict';
+
+  var results = [];
+  var lines = [];
+
+  function log(text) {
+    lines.push(text);
+    document.getElementById('log').textContent = lines.join('\n');
+  }
+
+  function check(name, ok, why) {
+    results.push({ name: name, ok: !!ok, why: ok ? '' : (why || '') });
+  }
+
+  var frame = document.getElementById('game');
+
+  function doc() { return frame.contentDocument; }
+  function el(id) { return doc().getElementById(id); }
+
+  /**
+   * 這一頁是一台狀態機，不是一串 await。
+   *
+   * 每 50ms 看一次「現在畫面長什麼樣」再決定下一步，而不是「點完等 X 毫秒」：
+   * 載入題庫、音檔、翻牌、自動跳下一題各有各的時間，寫死等待時間的測試
+   * 會在慢的機器上假性失敗，在快的機器上又提早往下跑。
+   */
+  var step = 'boot';
+  var ticks = 0;
+  var answered = 0;
+  var lastQuestion = 0;
+
+  var timer = setInterval(function () {
+    ticks++;
+    if (ticks > 2000) {
+      check('整場打得完', false, '卡在「' + step + '」，已經答了 ' + answered + ' 題');
+      return finish();
+    }
+
+    try {
+      tick();
+    } catch (error) {
+      check('沒有丟出例外', false, step + '：' + error.message);
+      finish();
+    }
+  }, 50);
+
+  function tick() {
+    var d = doc();
+    if (!d || d.readyState !== 'complete') return;
+
+    if (step === 'boot') {
+      if (!el('lang-chips') || !el('lang-chips').children.length) return;
+
+      // 競速模式、十題：題數固定，不會因為某一關沒過就提早結束，
+      // 所以「有沒有打完十題」這件事才驗得準。
+      d.querySelector('.mode[data-mode="speed"]').click();
+      var ten = null;
+      var counts = d.querySelectorAll('#count-chips .chip');
+      for (var i = 0; i < counts.length; i++) {
+        if (counts[i].textContent.indexOf('10') === 0) ten = counts[i];
+      }
+      check('挑得到「競速・10 題」', !!ten, '題數清單裡沒有 10 題');
+      if (ten) ten.click();
+
+      log('設定：' + el('setup-summary').textContent);
+      check('開始鈕是可以按的', !el('btn-start').disabled, '題庫湊不出這一場');
+      el('btn-start').click();
+      step = 'playing';
+      return;
+    }
+
+    if (step === 'playing') {
+      if (el('screen-play').hidden) return;
+
+      // 翻牌中（判定框開著）就按那顆鈕往下走。
+      //
+      // 不能只等它自己跳：只有中間那幾題會自動跳（一秒後），
+      // 最後一題的鈕是「看結算」而且刻意不自動——玩家要自己決定什麼時候
+      // 離開最後一題的答案。等它自動跳的測試會在這裡永遠卡住（我就卡了一次）。
+      if (!el('verdict').hidden) {
+        var next = el('btn-next');
+        if (next && !next.hidden) next.click();
+        return;
+      }
+
+
+      var choices = d.querySelectorAll('#choices .choice');
+      if (choices.length !== 9) return;
+      if (choices[0].disabled) return;
+
+      var progress = el('hud-progress').textContent;
+      var number = Number((progress.match(/第 (\d+)/) || [])[1] || 0);
+      if (!number || number === lastQuestion) return;
+      lastQuestion = number;
+
+      // 隨便挑一個。這一頁驗的是「整場走不走得完」，不是分數對不對——
+      // 分數的邊界在 tests.html 裡用假時鐘驗，那裡不會受音檔載入影響。
+      choices[Math.floor(Math.random() * choices.length)].click();
+      answered++;
+      log('第 ' + number + ' 題：已作答（提示：' + el('play-hint').textContent + '）');
+      return;
+    }
+  }
+
+  // 結算頁一出現就收工。放在 tick 外面用另一個判斷，
+  // 是因為最後一題答完之後會先翻牌再切頁，tick 那邊看不到中間狀態。
+  var watch = setInterval(function () {
+    var d = doc();
+    if (!d || !d.getElementById('screen-result')) return;
+    if (d.getElementById('screen-result').hidden) return;
+
+    clearInterval(watch);
+    inspectResult();
+    finish();
+  }, 50);
+
+  function inspectResult() {
+    var d = doc();
+
+    check('十題都答完了', answered === 10, '只答了 ' + answered + ' 題');
+    check('走到結算頁', !el('screen-result').hidden, '結算頁沒有出現');
+
+    var review = d.querySelectorAll('#review li');
+    check('回顧列出十首歌', review.length === 10, '只有 ' + review.length + ' 列');
+
+    var score = el('result-score').textContent.replace(/,/g, '');
+    check('分數是一個數字', /^\d+$/.test(score), '分數是「' + score + '」');
+
+    check('結算頁有排行榜', !!d.querySelector('#result-board .board-list'), '找不到排行榜');
+    check('結算頁有意見箱', d.querySelectorAll('#rate-stars .star').length === 5, '找不到那五顆星');
+    check('每一列都看得到歌名和歌手',
+      review.length > 0 && review[0].querySelector('.song b') && review[0].querySelector('.song i'),
+      '回顧的第一列缺了歌名或歌手');
+
+    log('結算：' + el('result-title').textContent + ' ' + score + ' 分　' + el('result-note').textContent);
+
+    // 「再來一場」是直接開下一場（不是回首頁——那是旁邊那顆），
+    // 重點在於它有沒有把上一場的東西真的洗掉。
+    el('btn-again').click();
+
+    check('「再來一場」直接開下一場', !el('screen-play').hidden, '按了之後沒有進到遊戲畫面');
+    check('「再來一場」從第一題開始', el('hud-progress').textContent.indexOf('第 1 /') === 0,
+      '進度是「' + el('hud-progress').textContent + '」');
+    check('「再來一場」清掉上一場的回顧', d.querySelectorAll('#review li').length === 0,
+      '回顧還留著 ' + d.querySelectorAll('#review li').length + ' 列');
+    check('「再來一場」重置意見箱的星等',
+      d.querySelectorAll('#rate-stars .star.on').length === 0, '上一場的評分還亮著');
+
+    // 設定面板的「回到主畫面」要能中途離開，而且不會把人拉回遊戲裡
+    // （自動跳下一題的計時器沒收乾淨的話就會）。
+    el('btn-settings').click();
+    el('btn-settings-home').click();
+    check('設定裡的「回到主畫面」真的回得去', !el('screen-home').hidden,
+      '還停在' + (el('screen-play').hidden ? '結算' : '遊戲') + '畫面');
+
+  }
+
+  function finish() {
+    clearInterval(timer);
+    clearInterval(watch);
+
+    var passed = results.filter(function (entry) { return entry.ok; }).length;
+    var line = 'RESULT ' + (passed === results.length ? 'PASS' : 'FAIL') +
+               ' ' + passed + '/' + results.length;
+
+    document.title = line;
+    var heading = document.getElementById('result');
+    heading.textContent = line;
+    heading.className = passed === results.length ? 'pass' : 'fail';
+
+    var list = document.createElement('ul');
+    results.forEach(function (entry) {
+      var item = document.createElement('li');
+      item.className = entry.ok ? 'pass' : 'fail';
+      item.textContent = entry.name;
+      if (!entry.ok) {
+        var why = document.createElement('span');
+        why.className = 'why';
+        why.textContent = entry.why;
+        item.appendChild(why);
+      }
+      list.appendChild(item);
+    });
+    document.getElementById('report').appendChild(list);
+  }
+})();
+</script>
+
+</body>
+</html>

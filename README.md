@@ -61,14 +61,18 @@
 
 **遊戲規則**（68 項）：打開 `web\tests.html`，最上面會顯示 `RESULT PASS 68/68`。
 
-**版面**（15 項）：打開 `web\layout-tests.html`。它把 `index.html` 分別用 390px 和
+**版面**（43 項）：打開 `web\layout-tests.html`。它把 `index.html` 分別用 390px 和
 1200px 的寬度載進兩個 iframe，量實際排出來的尺寸——開始鈕有沒有釘在底部、出處會不會
-被它蓋住、橫向捲動的提示有沒有在「其實排得下」的時候亂亮、每個可點的東西夠不夠 40px、
-桌機有沒有真的變成兩欄，以及單人那邊的樣式有沒有波及多人大廳。
-這些都是宣告寫對、卻被別條規則蓋掉就看不出來的東西，所以一律量 `getBoundingClientRect`
-和 `getComputedStyle`，不看 CSS 原始碼。
+被它蓋住、九宮格在桌機上是不是還像格子、日夜兩種主題的對比夠不夠（連「卡片對頁面」
+和「邊框對卡片」都量，只量文字會漏掉「字很清楚但整頁糊成一片」那種壞法）。
+這些都是宣告寫對、卻被別條規則蓋掉就看不出來的東西，所以一律量
+`getBoundingClientRect` 和 `getComputedStyle`，不看 CSS 原始碼。
 
-測試不依賴 Node，也沒有測試框架：那兩頁都是自己寫的極小跑法，打開就跑完。
+**整場**（14 項）：打開 `web\playthrough.html`。它把一整場十題從頭打到完，
+看會不會走到結算頁，以及「再來一場」有沒有真的把上一場洗掉。
+前兩份都不會真的跑完一局，而「打到第七題就卡住」這種錯，只有真的打完才看得到。
+
+測試不依賴 Node，也沒有測試框架：三頁都是自己寫的極小跑法，打開就跑完。
 要無頭跑（CI 也能用同一條）：
 
 ```
@@ -76,12 +80,19 @@ msedge --headless=new --disable-gpu --virtual-time-budget=5000 --dump-dom "file:
 
 msedge --headless=new --disable-gpu --allow-file-access-from-files ^
        --virtual-time-budget=20000 --dump-dom "file:///…/web/layout-tests.html"
+
+msedge --headless=new --disable-gpu --allow-file-access-from-files ^
+       --autoplay-policy=no-user-gesture-required ^
+       --virtual-time-budget=120000 --dump-dom "file:///…/web/playthrough.html"
 ```
 
-版面那一條一定要加 `--allow-file-access-from-files`：從 `file://` 開的頁面，
+後兩條一定要加 `--allow-file-access-from-files`：從 `file://` 開的頁面，
 iframe 算跨來源，沒有這個旗標就讀不到裡面的文件，測試會全部掛在「讀得到被測頁面」。
 
 **題庫產生器**（19 項，歌名清洗與輸出格式）：`dotnet test`。
+
+以上全部是無頭瀏覽器在桌機上跑的。**真機、真的發得出聲音、兩台裝置連不連得上——
+那些自動測試驗不到**，清單在 [QA清單.md](QA清單.md)，要拿著手機一項一項做。
 
 ---
 
@@ -130,13 +141,19 @@ web/                  這就是網站本體
   js/shell.js         單人／多人的切換（同一頁，不跳頁）
   js/realtime.js      即時層：同機／區域網路／Supabase 三個 adapter 共用一組介面
   js/room.js          房間邏輯：名冊、出題同步、搶答仲裁、排行榜
+  js/feedback.js      意見箱：只送出，不讀回（那張表沒有開讀取權限）
+  js/feedbackui.js    意見箱的畫面：結算頁那排星星 ＋ 獨立的詳細表單
 tools/
   SongQuiz.BankBuilder/   C# 離線工具：產生 data/bank.js
   SongQuiz.LanServer/     C# 區域網路伺服器：靜態檔 ＋ WebSocket 中繼，不懂遊戲
+  supabase-排行榜.sql     建排行榜的表（只跑一次）
+  supabase-意見箱.sql     建意見箱的表（只跑一次；只給寫不給讀）
 tests/
   SongQuiz.BankBuilder.Tests/
 架構.md               為什麼是靜態站、答案在瀏覽器裡的取捨
 多人房間.md           三條連線路徑、房間協定、怎麼驗
+QA清單.md             自動測試驗不到的那些，要拿著手機做
+
 代辦清單.md           做到哪、下一步做什麼
 ```
 
