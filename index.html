@@ -207,11 +207,15 @@
           <div class="chips" id="r-count-chips"></div>
         </fieldset>
 
-        <!-- 這裡只有兩個選項，因為房間裡只有兩種「題目怎麼出」的方式。
-             單人版的積分模式在房間裡沒有意義：房間的分數永遠是「搶到幾題」，
-             而積分的出題方式和競速一模一樣——留著它只會變成一個選了沒差別的鈕。 -->
+        <!-- 計分方式的三顆鈕由 room.js 依 Rules.ROOM_SCORINGS 產生，
+             寫死在 HTML 裡會和規則層分岔。 -->
         <fieldset class="field">
-          <legend>出題方式<i>房間的分數一律是「搶到幾題」，這裡挑的是題目怎麼出</i></legend>
+          <legend>計分方式<i>分數怎麼算。和下面的「題目怎麼出」是兩件獨立的事</i></legend>
+          <div class="modes" id="r-scorings"></div>
+        </fieldset>
+
+        <fieldset class="field">
+          <legend>出題方式<i>題目怎麼挑。和上面的計分方式互不影響</i></legend>
           <div class="modes" id="r-modes">
             <button type="button" class="mode" data-mode="speed" aria-pressed="true">
               <strong>隨機出題</strong>
