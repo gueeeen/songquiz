@@ -88,7 +88,7 @@
   letter-spacing: .18em;
   color: var(--accent-2);
   font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  text-shadow: 0 0 30px rgba(110, 231, 255, .35);
+  text-shadow: 0 0 30px rgba(94, 224, 255, .35);
 }
 .room-settings { margin: 0 0 24px; text-align: center; color: var(--ink-dim); font-size: .85rem; }
 
@@ -117,7 +117,7 @@
 .hint.bad { color: var(--bad); }
 
 /* 自己按的那一顆要看得出來，不然被搶走的時候會分不清「我按了嗎」。 */
-.choice.mine { border-color: var(--accent-2); box-shadow: 0 0 0 2px rgba(110, 231, 255, .3) inset; }
+.choice.mine { border-color: var(--accent-2); box-shadow: 0 0 0 2px rgba(94, 224, 255, .3) inset; }
 
 /* 被搶走要和自己答錯分開：一個是「來不及」，一個是「答錯」，感受完全不同。 */
 .verdict.taken { border-color: var(--accent-2); }
@@ -147,7 +147,7 @@
   border-radius: var(--radius);
 }
 .standings li.me { border-color: var(--accent-2); }
-.standings li:first-child { border-color: var(--accent); background: rgba(255, 77, 136, .08); }
+.standings li:first-child { border-color: var(--accent); background: var(--sel-soft); }
 .standings i {
   font-style: normal; text-align: center;
   color: var(--ink-dim); font-size: 1.2rem; font-weight: 700;

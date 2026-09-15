@@ -1,0 +1,143 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root {
+      --bg: #090e1a; --bg-raised: #141b2e; --line: #26314d;
+      --ink: #eef2ff; --ink-dim: #93a2c7;
+      --accent: #f7b955; --accent-2: #5ee0ff; --good: #3ddc97; --bad: #ff5c7c; --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(900px 520px at 50% -8%, rgba(247,185,85,.10), transparent 62%),
+        radial-gradient(760px 520px at 108% 94%, rgba(94,224,255,.07), transparent 60%),
+        radial-gradient(circle at 50% 20%, rgba(247,185,85,.055) 0 54px, transparent 56px),
+        repeating-radial-gradient(circle at 50% 20%, rgba(255,255,255,.026) 0 1px, transparent 1px 9px),
+        radial-gradient(1200px 600px at 50% -10%, #16233f 0%, transparent 60%),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+    }
+    a { color: var(--accent-2); } a:hover { color: var(--accent); }
+    .app { padding: 24px 16px 40px; }
+    h2 { text-align: center; margin: 12px 0 4px; font-size: 1.3rem; }
+    .result-score { text-align: center; margin: 0 0 4px; }
+    .result-score span { font-size: 3rem; font-weight: 800; }
+    .result-score small { color: var(--ink-dim); font-size: .9rem; margin-left: 4px; }
+    .result-note { text-align: center; color: var(--accent-2); font-size: .9rem; margin: 0 0 8px; }
+    .result-best { text-align: center; color: var(--accent); font-weight: 700; font-size: .82rem; margin: 0 0 20px; }
+    .board-box { border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-raised); padding: 12px; margin-bottom: 18px; }
+    .board-row { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+    .board-tab { flex: 1; padding: 8px; border: 1px solid var(--line); border-radius: 99px; background: transparent; color: var(--ink-dim); font-size: .82rem; }
+    .board-tab.on { color: #fff; border-color: var(--accent); background: rgba(247,185,85,.22); font-weight: 600; }
+    .board-scope { flex: 1; padding: 6px; border: 1px solid var(--line); border-radius: 99px; background: transparent; color: var(--ink-dim); font-size: .74rem; }
+    .board-scope.on { color: var(--accent-2); border-color: var(--accent-2); }
+    .board-filter { padding: 6px 11px; border: 1px solid var(--line); border-radius: 99px; background: transparent; color: var(--ink-dim); font-size: .74rem; }
+    .board-filter.on { color: var(--accent-2); border-color: var(--accent-2); }
+    .board-note { color: var(--ink-dim); font-size: .76rem; margin: 0 0 8px; line-height: 1.6; }
+    .board-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+    .board-list li {
+      display: grid; grid-template-columns: 1.6rem 1fr auto; align-items: center; gap: 8px;
+      padding: 7px 9px; border-radius: 8px; font-size: .82rem; background: rgba(255,255,255,.03);
+    }
+    .board-list li.me { background: rgba(247,185,85,.16); }
+    .board-list li b { color: var(--ink-dim); font-weight: 600; }
+    .board-list li i { color: var(--ink-dim); font-style: normal; }
+    .board-clear { margin-top: 10px; display: flex; justify-content: flex-end; }
+    .board-clear button { padding: 6px 10px; border: 1px solid var(--line); border-radius: 99px; background: transparent; color: var(--ink-dim); font-size: .72rem; }
+    .review { list-style: none; padding: 0; margin: 0 0 24px; display: grid; gap: 6px; }
+    .review li {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+      padding: 10px 12px; background: var(--bg-raised); border: 1px solid var(--line);
+      border-left-width: 3px; border-radius: 10px; font-size: .82rem;
+    }
+    .review li.ok { border-left-color: var(--good); }
+    .review li.no { border-left-color: var(--bad); }
+    .review .song { display: grid; gap: 2px; min-width: 0; }
+    .review .song i { color: var(--ink-dim); font-style: normal; font-size: .76rem; }
+    .review .pts { color: var(--ink-dim); white-space: nowrap; }
+    .review .play { flex: none; width: 34px; height: 34px; border-radius: 99px; background: transparent; border: 1px solid var(--line); color: var(--ink-dim); font-size: .74rem; }
+    .actions { display: flex; gap: 10px; justify-content: center; }
+    .primary { padding: 12px 22px; border-radius: 99px; background: var(--accent); color: #17120a; border: none; font-weight: 700; }
+    .ghost { padding: 12px 22px; border-radius: 99px; background: transparent; color: var(--ink-dim); border: 1px solid var(--line); }
+  </style>
+</helmet>
+
+<div class="app">
+  <h2>競速模式結算</h2>
+  <p class="result-score"><span>8,412</span><small>/ 10,000</small></p>
+  <p class="result-note">答對 9 / 10 題</p>
+  <p class="result-best">破紀錄！多了 1,204 分</p>
+
+  <div class="board-box">
+    <div class="board-row">
+      <button class="board-tab on">這台裝置</button>
+      <button class="board-tab">線上</button>
+    </div>
+    <div class="board-row">
+      <button class="board-scope">闖關</button>
+      <button class="board-scope on">競速</button>
+      <button class="board-scope">積分</button>
+    </div>
+    <div class="board-row">
+      <button class="board-filter on">不分語種</button>
+      <button class="board-filter">華語</button>
+      <button class="board-filter">台語</button>
+      <button class="board-filter">西洋</button>
+      <button class="board-filter">韓語</button>
+      <button class="board-filter">日語</button>
+    </div>
+    <div class="board-row">
+      <button class="board-filter on">不分題數</button>
+      <button class="board-filter">5 題</button>
+      <button class="board-filter">10 題</button>
+      <button class="board-filter">15 題</button>
+      <button class="board-filter">20 題</button>
+    </div>
+
+    <p class="board-note">這台裝置・競速模式・不分語種・不分題數　照每題平均分排</p>
+
+    <ol class="board-list">
+      <li class="me"><b>1</b><span>09/15 15:49</span><i>841 分／題　10 題・全語種</i></li>
+      <li><b>2</b><span>09/15 14:02</span><i>780 分／題　10 題・華語</i></li>
+      <li><b>3</b><span>09/14 22:31</span><i>712 分／題　20 題・全語種</i></li>
+      <li><b>4</b><span>09/14 21:58</span><i>655 分／題　5 題・西洋</i></li>
+    </ol>
+
+    <div class="board-clear"><button>清空這台裝置的紀錄</button></div>
+  </div>
+
+  <ol class="review">
+    <li class="ok">
+      <span class="song"><b>晴天</b><i>周杰倫・華語</i></span>
+      <span class="pts">842 分・3.2 秒</span>
+      <button class="play">聽</button>
+    </li>
+    <li class="no">
+      <span class="song"><b>浪子回頭</b><i>茄子蛋・台語</i></span>
+      <span class="pts">—</span>
+      <button class="play">聽</button>
+    </li>
+    <li class="ok">
+      <span class="song"><b>Yellow</b><i>Coldplay・西洋</i></span>
+      <span class="pts">915 分・2.1 秒</span>
+      <button class="play">聽</button>
+    </li>
+  </ol>
+
+  <div class="actions">
+    <button class="primary">再來一場</button>
+    <button class="ghost">回首頁</button>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
