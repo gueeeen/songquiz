@@ -148,6 +148,33 @@
     return rank(rows, filter);
   }
 
+  /**
+   * 清掉這台裝置上的所有紀錄。回傳清掉幾組設定。
+   *
+   * 只刪 songquiz.board.* ——音量、暱稱、上次挑的設定不該被一起帶走，
+   * 那些不是「成績」。要整個清空的人本來就會去清瀏覽器的網站資料。
+   *
+   * 先收集再刪：邊走 localStorage 邊 removeItem 會讓索引位移，漏掉一半。
+   */
+  function clearLocal() {
+    var keys = [];
+
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var key = localStorage.key(i);
+        if (key.indexOf('songquiz.board.') === 0) keys.push(key);
+      }
+
+      keys.forEach(function (key) {
+        localStorage.removeItem(key);
+      });
+    } catch (e) {
+      return 0;
+    }
+
+    return keys.length;
+  }
+
   // ---- 線上 ----
   // 直接打 Supabase 的 REST（PostgREST），不載 SDK：
   // 為了一次 insert 與一次 select 去載 218 KB 不值得。
@@ -261,6 +288,7 @@
     addLocal: addLocal,
     submit: submit,
     query: query,
+    clearLocal: clearLocal,
     perQuestion: perQuestion,
   };
 })();
