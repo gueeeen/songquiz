@@ -133,6 +133,31 @@
       phone.win.scrollTo(0, 0);
     });
 
+    test('出處只有一份，而且在整頁的最後', function () {
+      // 兩邊各放一份的時候，兩段文字已經長得不一樣了。
+      // 授權聲明有兩個版本比只有一個版本更糟：改了其中一份，另一份就是錯的。
+      assertEqual(1, phone.doc.querySelectorAll('.credit').length, '出處的份數');
+      var last = phone.one('#app').lastElementChild;
+      assertTrue(last.classList.contains('credit'),
+        '最後一個元素是 ' + last.className + '，不是出處');
+    });
+
+    test('切到多人那一半，出處還在（它在兩半之外）', function () {
+      phone.one('.seg .who-pick[data-who="room"]').click();
+      assertTrue(phone.box('.credit').height > 0, '多人畫面上看不到出處');
+      phone.one('#r-screen-lobby .seg .who-pick[data-who="solo"]').click();
+    });
+
+    test('只有首頁要留位置給釘在底部的開始鈕', function () {
+      // 留位置的是 #app（body.has-dock），不是 .home-scroll——
+      // 頁尾在 .home-scroll 外面，位置留錯地方它就會被那條蓋住。
+      assertTrue(phone.doc.body.classList.contains('has-dock'), '首頁應該要留位置');
+      phone.one('.seg .who-pick[data-who="room"]').click();
+      assertTrue(!phone.doc.body.classList.contains('has-dock'), '多人那半沒有那條，不該留位置');
+      phone.one('#r-screen-lobby .seg .who-pick[data-who="solo"]').click();
+      assertTrue(phone.doc.body.classList.contains('has-dock'), '切回來要再留位置');
+    });
+
     test('語種與題數不橫向捲動，全部看得到', function () {
       // 橫向捲動看起來省位置，但它把「還有幾個選項」藏起來了。
       ['#lang-chips', '#count-chips'].forEach(function (selector) {
