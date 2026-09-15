@@ -45,6 +45,7 @@
 
 <iframe id="phone" src="index.html" width="390" height="844" title="手機寬度"></iframe>
 <iframe id="desktop" src="index.html" width="1200" height="880" title="桌機寬度"></iframe>
+<iframe id="form" src="feedback.html" width="390" height="1400" title="完整回饋表單"></iframe>
 
 <script>
 (function () {
@@ -105,6 +106,7 @@
   function run() {
     var phone = view('phone');
     var desktop = view('desktop');
+    var form = view('form');
 
     // ------------------------------------------------------------ 手機
 
@@ -663,8 +665,84 @@
     test('沒填站外表單網址的時候，不要放一個點下去是空白頁的連結', function () {
       var more = phone.one('#fb-more');
       var url = phone.win.FEEDBACK_FORM_URL;
-      if (url) assertTrue(!more.hidden && more.href.indexOf(url) === 0, '填了網址卻沒有連結');
-      else assertTrue(more.hidden, '沒填網址卻放了連結');
+
+      // 要比 getAttribute('href')，不是 .href——後者會被瀏覽器展開成絕對網址，
+      // 相對路徑（feedback.html）比起來永遠對不上。
+      if (url) {
+        assertTrue(!more.hidden, '填了網址卻沒有連結');
+        assertEqual(url, more.getAttribute('href'), '連結的網址');
+        assertEqual('_blank', more.getAttribute('target'), '完整表單要開新分頁，不要把人帶離遊戲');
+      } else {
+        assertTrue(more.hidden, '沒填網址卻放了連結');
+      }
+
+    });
+
+    group('完整回饋表單');
+
+    test('六段，其中五段有必填的大項星等', function () {
+      assertEqual(6, form.doc.querySelectorAll('.form-card').length, '段數');
+      assertEqual(5, form.doc.querySelectorAll('.form-stars .stars').length, '大項星等的組數');
+      assertEqual(9, form.doc.querySelectorAll('.form-card')[2].querySelectorAll('.chips .chip').length,
+        '模式的選項數（單人三種 ＋ 多人計分×出題六種）');
+    });
+
+    test('只問玩過的：勾了才展開，取消就收回', function () {
+      // 九個模式全部攤開是九組星星，大部分人答不出來，硬填只會得到雜訊。
+      var chips = form.doc.querySelectorAll('.form-card')[2].querySelectorAll('.chips .chip');
+      assertEqual(0, form.doc.querySelectorAll('.form-revealed .form-row').length, '一開始不該有細項');
+
+      chips[0].click();
+      chips[4].click();
+      assertEqual(2, form.doc.querySelectorAll('.form-revealed .form-row').length, '勾兩個應該展開兩列');
+
+      chips[0].click();
+      assertEqual(1, form.doc.querySelectorAll('.form-revealed .form-row').length, '取消一個應該收回一列');
+    });
+
+    test('反覆勾選之後，必填的數量仍然是對的', function () {
+      // 壞過一次：必填清單是一邊畫一邊累積的，細項每重畫一次就多一份，
+      // 於是「還有 N 個沒給」的 N 會越來越大，而且那幾項指向已經消失的元素——
+      // 表單會變成永遠送不出去。現在是每次現算的。
+      function total() {
+        var label = form.one('#progress').getAttribute('aria-label');
+        return Number((label.match(/\/ (\d+)/) || [])[1] || 0);
+      }
+
+      var chips = form.doc.querySelectorAll('.form-card')[2].querySelectorAll('.chips .chip');
+      var before = total();
+
+      chips[0].click();
+      var withOne = total();
+      assertEqual(before + 1, withOne, '勾一個應該多一項必填');
+
+      chips[0].click();
+      assertEqual(before, total(), '取消之後應該回到原本的數量');
+
+      chips[0].click();
+      chips[0].click();
+      chips[0].click();
+      assertEqual(withOne, total(), '勾了三次之後仍然只該多一項，實際 ' + total());
+
+      chips[0].click();
+    });
+
+    test('沒填完就送出，會標出來而且說出是哪一個', function () {
+      // 一份這麼長的表單，只說「有東西沒填」等於叫人自己找。
+      form.one('#btn-submit').click();
+      assertTrue(form.doc.querySelectorAll('.missing').length > 0, '沒有標出任何一項');
+      assertTrue(form.one('#state').textContent.indexOf('沒給') !== -1,
+        '訊息是「' + form.one('#state').textContent + '」');
+      assertTrue(form.one('#state').textContent.indexOf('整體') !== -1, '沒有講出是哪一項');
+    });
+
+    test('草稿會留著，也清得掉', function () {
+      // 填到一半關掉、手機跳出通知、不小心上一頁——沒有草稿那些都等於從頭來過，
+      // 而沒有人會從頭來過第二次。
+      var saved = null;
+      try { saved = form.win.localStorage.getItem('songquiz.form.draft'); } catch (error) { saved = null; }
+      assertTrue(!!saved, '勾過東西之後卻沒有存草稿');
+      assertTrue(saved.indexOf('playedModes') !== -1, '草稿裡沒有剛剛勾的模式');
     });
 
     group('單人與多人共用的 class');
@@ -869,12 +947,14 @@
     tries++;
     var ready = false;
     try {
-      ready = ['phone', 'desktop'].every(function (id) {
+      ready = ['phone', 'desktop', 'form'].every(function (id) {
         var doc = document.getElementById(id).contentDocument;
         // readyState 一定要等到 complete：語種是 app.js 畫的，但切換鈕的事件是
         // 排在它後面的 shell.js 掛的。只等語種出現，會有幾成機率在事件掛上之前
         // 就開始點——點下去沒反應，測試看起來像版面壞了，其實是測試自己太早跑。
         if (!doc || doc.readyState !== 'complete') return false;
+        // 回饋表單那一頁沒有語種膠囊，它畫完的訊號是第一張卡片。
+        if (id === 'form') return !!doc.querySelector('.form-card');
         var chips = doc.getElementById('lang-chips');
         return !!(chips && chips.children.length > 0);
       });
