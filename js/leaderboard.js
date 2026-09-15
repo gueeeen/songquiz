@@ -232,7 +232,9 @@
   function queryOnline(filter) {
     if (!online()) return Promise.reject(new Error('線上榜沒有設定'));
 
-    var path = 'scores?select=nickname,score,stage,correct,total,question_count,languages' +
+    // created_at 要撈：暱稱沒有唯一性（沒有帳號，RLS 只給 insert），
+    // 榜上出現兩個「阿明」是常態，要有東西分得開他們。
+    var path = 'scores?select=nickname,created_at,score,stage,correct,total,question_count,languages' +
       '&mode=eq.' + encodeURIComponent(filter.mode);
 
     if (filter.questionCount) path += '&question_count=eq.' + filter.questionCount;
@@ -249,6 +251,7 @@
       return rank((rows || []).map(function (row) {
         return {
           name: row.nickname,
+          at: row.created_at || null,
           score: row.score,
           correct: row.correct,
           total: row.total,
@@ -267,15 +270,27 @@
       return byAverage ? perQuestion(b) - perQuestion(a) : b.score - a.score;
     });
 
-    return {
-      byAverage: byAverage,
-      rows: rows.slice(0, TOP).map(function (row, i) {
-        row.rank = i + 1;
-        row.average = Math.round(perQuestion(row));
-        return row;
-      }),
-    };
+    var picked = rows.slice(0, TOP).map(function (row, i) {
+      row.rank = i + 1;
+      row.average = Math.round(perQuestion(row));
+      return row;
+    });
+
+    // 同名的人要標出來。暱稱沒有唯一性也不可能有——沒有帳號，
+    // 而且 RLS 只開 insert，第二個「阿明」擋不掉也不該擋（擋了他就上不了榜）。
+    // 所以不是去避免重複，是讓重複的那幾列分得開：只有真的撞名才加日期，
+    // 沒撞名的列不要多一串沒用的字。
+    var seen = {};
+    picked.forEach(function (row) {
+      seen[row.name] = (seen[row.name] || 0) + 1;
+    });
+    picked.forEach(function (row) {
+      row.duplicated = seen[row.name] > 1;
+    });
+
+    return { byAverage: byAverage, rows: picked };
   }
+
 
   /** 一次查詢的入口。source 是 'local' 或 'online'。 */
   function query(source, filter) {

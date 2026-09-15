@@ -458,7 +458,11 @@
     el('result-best').textContent = '';
     el('result-note').textContent = '';
     el('hud-target').textContent = '';
+
+    // 上一場的評分不能留在畫面上：那會讓人以為自己已經評過這一場了。
+    if (window.FeedbackUI) window.FeedbackUI.resetQuick();
   }
+
 
   // ---- 出題 ----
   function nextQuestion() {

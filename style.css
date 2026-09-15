@@ -962,3 +962,121 @@ button { font: inherit; font-family: inherit; }
 }
 
 .board-filters { margin-bottom: 8px; }
+
+/* 榜上撞名的時候，名字後面補一個日期把兩列分開。 */
+.board-when { color: var(--ink-dim); font-size: .68rem; margin-left: 6px; opacity: .8; }
+
+/* ---- 意見箱 ---- */
+/* 結算頁那一排：只要星星和一句話。問太多東西的時機不是這裡——
+   剛打完的人是來看成績的，一份二十幾格的表單會直接被關掉。 */
+.rate {
+  margin: 20px 0;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-1);
+  text-align: center;
+}
+.rate-ask { margin: 0 0 8px; font-size: .9rem; }
+
+.stars { display: flex; justify-content: center; gap: 4px; }
+.star {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--line);
+  font-size: 1.7rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color .12s, transform .12s;
+}
+.star:hover { transform: scale(1.12); }
+/* 選中的星星用第二色（琥珀），不用主色——主色的青藍在這裡會被當成
+   「這是可以點的東西」，而星星要表達的是「已經給了幾分」。 */
+.star.on { color: var(--accent-2); }
+
+.rate-line { display: flex; gap: 8px; margin-top: 10px; }
+.rate-line input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: .85rem;
+}
+.rate-line .primary { padding: 10px 18px; white-space: nowrap; }
+
+.rate-state { margin: 10px 0 0; font-size: .78rem; color: var(--ink-dim); line-height: 1.6; }
+.rate-state.ok { color: var(--good); }
+.rate-state.bad { color: var(--bad); }
+
+/* 通往詳細表單的入口。刻意做成一行字而不是按鈕：
+   多數人到這裡就結束了，它不該跟「再來一場」搶注意力。 */
+.linkish {
+  margin-top: 10px;
+  padding: 6px;
+  border: none;
+  background: transparent;
+  color: var(--accent-2);
+  font-size: .8rem;
+  cursor: pointer;
+}
+.linkish:hover { text-decoration: underline; }
+
+/* ---- 詳細表單 ---- */
+#feedback-app .fb-intro {
+  color: var(--ink-dim);
+  font-size: .8rem;
+  line-height: 1.8;
+  margin: 0 0 16px;
+}
+#feedback-app .card + .card { margin-top: 14px; }
+
+.fb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.fb-row:first-child { border-top: none; padding-top: 0; }
+.fb-row .stars { justify-content: flex-end; }
+.fb-row .star { min-width: 38px; min-height: 40px; font-size: 1.4rem; }
+
+.fb-lab { color: var(--ink); font-size: .88rem; }
+.fb-lab.block { display: block; margin-bottom: 10px; }
+.fb-lab i { color: var(--ink-dim); font-style: normal; font-size: .74rem; margin-left: 8px; }
+
+#fb-wants { margin-bottom: 18px; }
+
+#fb-detail {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: .88rem;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.fb-state { text-align: center; font-size: .82rem; color: var(--ink-dim); margin: 14px 0 0; line-height: 1.7; }
+.fb-state.ok { color: var(--good); }
+.fb-state.bad { color: var(--bad); }
+
+.fb-actions { display: flex; justify-content: center; margin-top: 14px; }
+.fb-actions .primary.big { width: 100%; max-width: 320px; }
+
+@media (min-width: 900px) {
+  .rate { max-width: 720px; margin-left: auto; margin-right: auto; }
+  .star { font-size: 2rem; }
+}
