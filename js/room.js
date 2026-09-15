@@ -1,4 +1,4 @@
-// 多人房間：房主開一間、朋友輸房號進來、先答對的人拿一分，最後用題數排名。
+// 多人房間：房主開一間、朋友輸房號進來、一起猜歌，最後比分數。
 //
 // 和單人版住在同一頁（index.html），由 shell.js 切換誰露臉。
 // 兩邊的 DOM 完全分開：房間這一半的 id 都有 r- 前綴，class 選取也限定在 #room-app 裡，
@@ -7,11 +7,12 @@
 //
 // 兩件事值得先講清楚，看下面的程式才不會覺得奇怪：
 //
-// 一、**Game 在這裡只當「出題器」。** 真正的計分是房間自己的（先答對的拿一分），
+// 一、**Game 在這裡只當「出題器」。** 真正的計分是房間自己的（三種方式，見 Rules.ROOM_SCORINGS），
 //     Game 的 totalScore 在這一頁是沒有意義的數字，不要去讀它。
 //
-// 二、**沒有伺服器，所以房主就是裁判。** 誰先答對由房主收到訊息的順序決定。
-//     理由寫在 arbitrate() 上面。
+// 二、**沒有伺服器，所以房主就是裁判。** 搶答模式「誰先」由房主收到訊息的順序決定；
+//     另外兩種計分是各算各的，用玩家自己回報的秒數。理由分別寫在 arbitrate() 與
+//     Rules.roomScoreFor() 上面。
 
 (function () {
   'use strict';
@@ -126,6 +127,10 @@
     locked: true,
     /** 房主視角：這一題已經有人答對了嗎。 */
     resolved: false,
+    /** 房主視角：每個人的連對數（只有積分計分用得到）。 */
+    streaks: {},
+    /** 這一題出現在我自己畫面上的時刻，用來量我自己的作答秒數。 */
+    shownAt: 0,
     /** 房主視角：這一題誰已經出手過了，避免同一人連點兩次。 */
     claimed: {},
     points: {},
@@ -135,11 +140,18 @@
     joinTimer: null,
   };
 
-  /** 房主開場挑的設定。 */
+  /**
+   * 房主開場挑的設定。
+   *
+   * mode 是「題目怎麼出」，scoring 是「分數怎麼算」——兩件獨立的事。
+   * 原本只有 mode，而房間的計分寫死成搶答，所以單人的三個模式在房間裡
+   * 看起來像「選了沒差別」。
+   */
   var setup = {
     languages: availableLanguages.slice(),
     questionCount: Rules.QUESTIONS_PER_ROUND,
     mode: 'speed',
+    scoring: 'steal',
   };
 
   var screens = {
@@ -274,6 +286,36 @@
     });
   }
 
+  /**
+   * 計分方式的三顆鈕。內容從 Rules.ROOM_SCORINGS 長出來，不寫死在 HTML 裡——
+   * 規則層加一種計分方式，畫面就跟著有，不會兩邊分岔。
+   */
+  function renderScoringButtons() {
+    var box = el('scorings');
+    box.replaceChildren();
+
+    Rules.ROOM_SCORINGS.forEach(function (scoring) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'mode';
+      button.dataset.scoring = scoring.key;
+      button.setAttribute('aria-pressed', scoring.key === setup.scoring ? 'true' : 'false');
+
+      var title = document.createElement('strong');
+      title.textContent = scoring.label;
+      var note = document.createElement('span');
+      note.textContent = scoring.note;
+
+      button.append(title, note);
+      button.addEventListener('click', function () {
+        setup.scoring = scoring.key;
+        refreshSetup();
+      });
+
+      box.append(button);
+    });
+  }
+
   function renderCountChips() {
     var box = el('count-chips');
     box.replaceChildren();
@@ -304,13 +346,19 @@
       settings.questionCount;
   }
 
+  function scoringLabel(key) {
+    var found = Rules.ROOM_SCORINGS.filter(function (s) { return s.key === key; })[0];
+    return found ? found.label : key;
+  }
+
   function describeSettings(settings) {
     var names = settings.languages.map(Rules.nameOf).join('／');
     var total = totalQuestionsFor(settings);
-    var modeName = { stage: '闖關', speed: '競速', combo: '積分' }[settings.mode] || settings.mode;
+    var howQuestions = settings.mode === 'stage' ? '逐關解鎖語種' : '隨機出題';
 
-    // 房間的分數是「搶到幾題」，所以這裡只講題數，不講單人版的滿分。
-    return modeName + '出題 · 共 ' + total + ' 題 · ' + names +
+    // 兩件事都要講：題目怎麼出、分數怎麼算。它們是獨立的選擇。
+    return scoringLabel(settings.scoring || 'steal') + ' · ' + howQuestions +
+      ' · 共 ' + total + ' 題 · ' + names +
       (settings.mode === 'stage'
         ? '（' + Rules.stagesFor(settings.languages, settings.questionCount, 'stage').length +
           ' 關 × 每關 ' + settings.questionCount + ' 題）'
@@ -325,6 +373,7 @@
 
     renderLanguageChips();
     renderCountChips();
+    renderScoringButtons();
 
     var capacity = bankReady
       ? Rules.capacityFor(bank, setup.languages, setup.questionCount, setup.mode)
@@ -370,6 +419,7 @@
     state.roomCode = Realtime.makeRoomCode();
     state.settings = {
       mode: setup.mode,
+      scoring: setup.scoring,
       languages: setup.languages.slice(),
       questionCount: setup.questionCount,
       // 種子只要是整數就好。用時間 ^ 亂數，是為了「同一台電腦連開兩場」也不會撞。
@@ -518,6 +568,7 @@
     state.index = 0;
     state.totalQuestions = totalQuestionsFor(settings);
     state.points = {};
+    state.streaks = {};
 
     state.players.forEach(function (person) {
       state.points[person.id] = 0;
@@ -591,6 +642,7 @@
     state.locked = false;
     state.resolved = false;
     state.claimed = {};
+    state.shownAt = performance.now();
 
     // 正解要在這裡抄下來：game.answer() 一旦呼叫，game.current 就變 null 了。
     state.answerId = state.game.current.answerId;
@@ -683,21 +735,38 @@
 
     var correct = choiceId === state.answerId;
 
+    // 作答秒數用**自己的**時鐘量（從這一題出現在自己畫面上算起）。
+    // 用房主收到訊息的時間算的話，網路慢的人每一題都吃虧，而房主完全不吃虧。
+    var elapsed = (performance.now() - state.shownAt) / 1000;
+
     var pickedButton = q('.choice[data-id="' + choiceId + '"]');
     if (pickedButton) pickedButton.classList.add(correct ? 'mine' : 'wrong');
 
+    lockChoices();
+
     if (correct) {
-      lockChoices();
-      el('play-hint').textContent = '送出了，等房主判定…';
+      el('play-hint').textContent = stealing()
+        ? '送出了，等房主判定…'
+        : '答對了，等這一題結束…';
     } else {
-      // 答錯不能重答同一題，但題目還沒結束（別人還在搶），所以只鎖自己。
-      lockChoices();
-      el('play-hint').textContent = '答錯了。這一題你出局，看誰搶到。';
+      // 答錯不能重答同一題，但題目還沒結束（別人還在答），所以只鎖自己。
+      el('play-hint').textContent = stealing()
+        ? '答錯了。這一題你出局，看誰搶到。'
+        : '答錯了。這一題你沒分，等其他人。';
       el('play-hint').className = 'hint bad';
     }
 
-    if (isHost()) arbitrate(state.adapter.selfId, state.index, correct);
-    else state.adapter.send('claim', { index: state.index, correct: correct });
+    if (isHost()) arbitrate(state.adapter.selfId, state.index, correct, elapsed);
+    else state.adapter.send('claim', { index: state.index, correct: correct, elapsed: elapsed });
+  }
+
+  /** 這一場是不是「先搶到的拿一分」。另外兩種計分方式，答對的人都有分。 */
+  function stealing() {
+    return scoringOf() === 'steal';
+  }
+
+  function scoringOf() {
+    return (state.settings && state.settings.scoring) || 'steal';
   }
 
   /**
@@ -725,36 +794,99 @@
    * 慢的人看得到「已經被搶走」：會。判定的同一刻就廣播 award，
    * 所有人立刻鎖選項、看到是誰搶到、看到正解——不用在那裡乾等十二秒。
    */
-  function arbitrate(fromId, index, correct) {
+  function arbitrate(fromId, index, correct, elapsed) {
     if (!isHost()) return;
     if (index !== state.index) return; // 上一題的遲到訊息
-    if (state.resolved) return;        // 已經被搶走
+    if (state.resolved) return;        // 這一題已經結束了
     if (state.claimed[fromId]) return; // 一人一題只能出手一次
     state.claimed[fromId] = true;
 
+    // 玩家自報的秒數只用來算分，不用來決定名次；而且要夾在合理範圍內，
+    // 免得一個壞掉（或造假）的值算出天文數字。
+    var seconds = Math.min(Math.max(Number(elapsed) || 0, 0), Rules.QUESTION_SECONDS);
+
+    if (stealing()) return arbitrateSteal(fromId, index, correct);
+
+    // 競速與積分：不必搶，答對的人各自拿各自的分。
+    var streak = correct ? (state.streaks[fromId] || 0) + 1 : 0;
+    state.streaks[fromId] = streak;
+
+    var gained = Rules.roomScoreFor(scoringOf(), correct, seconds, streak);
+    state.points[fromId] = (state.points[fromId] || 0) + gained;
+
+    // points 整份傳出去，而不是只傳增量：掉一則訊息的話，
+    // 只傳增量會讓某個人的分數從此永遠少一截，而且沒有人會發現。
+    var tally = { index: index, id: fromId, gained: gained, streak: streak, points: state.points };
+    state.adapter.send('tally', tally);
+    applyTally(tally);
+
+    // 大家都答完了就不必再等時間到——這是多人場最常見的空等。
+    if (everyoneAnswered()) finishQuestion(index, null);
+  }
+
+  /** 搶答：第一個答對的人拿一分，這一題就結束。 */
+  function arbitrateSteal(fromId, index, correct) {
     if (!correct) {
       // 答錯不結束這一題，只是這個人出局。廣播出去讓所有人看得到有人已經出手，
       // 現場才知道「還剩幾個人有機會」。
       state.adapter.send('strike', { index: index, id: fromId });
       renderStrike(fromId);
+
+      // 所有人都答錯了，這一題不會有人搶到，不必讓大家乾等到十二秒。
+      if (everyoneAnswered()) finishQuestion(index, null);
       return;
     }
 
-    state.resolved = true;
     state.points[fromId] = (state.points[fromId] || 0) + 1;
-
-    // points 整份傳出去，而不是只傳「誰加一分」：只傳增量的話，
-    // 中途掉一則訊息就會讓某個人的分數從此永遠少一分，而且沒有人會發現。
-    state.adapter.send('award', { index: index, winnerId: fromId, points: state.points });
-    applyAward(index, fromId, state.points);
+    finishQuestion(index, fromId);
   }
 
-  /** 時間到都沒人答對。只有房主會走到這裡——它是唯一有權宣布這一題作廢的人。 */
-  function arbitrateTimeout() {
+  /** 房裡的人是不是都出手過了。 */
+  function everyoneAnswered() {
+    return state.players.every(function (person) {
+      return state.claimed[person.id];
+    });
+  }
+
+  /** 房主宣布這一題結束（有人搶到、大家都答完、或時間到）。 */
+  function finishQuestion(index, winnerId) {
     if (!isHost() || state.resolved) return;
     state.resolved = true;
-    state.adapter.send('award', { index: state.index, winnerId: null, points: state.points });
-    applyAward(state.index, null, state.points);
+
+    state.adapter.send('award', { index: index, winnerId: winnerId, points: state.points });
+    applyAward(index, winnerId, state.points);
+  }
+
+  /**
+   * 有人得分了（競速／積分）。這一題還沒結束，所以只更新比分與提示，
+   * 不揭曉正解——別人還在作答，提早揭曉等於送分。
+   */
+  function applyTally(tally) {
+    if (tally.index !== state.index) return;
+
+    state.points = tally.points || state.points;
+    renderBoard();
+
+    if (tally.id === state.adapter.selfId && tally.gained > 0) {
+      el('play-hint').textContent = scoringOf() === 'combo'
+        ? '答對！＋' + tally.gained + '（連對 ' + tally.streak + '）等其他人…'
+        : '答對！＋' + tally.gained + '　等其他人…';
+      el('play-hint').className = 'hint ok';
+    }
+  }
+
+  /** 時間到了。只有房主會走到這裡——它是唯一有權宣布這一題結束的人。 */
+  function arbitrateTimeout() {
+    if (!isHost()) return;
+
+    // 競速與積分：沒出手的人這一題連對歸零，否則「都不按」會保住倍率。
+    if (!stealing()) {
+      state.players.forEach(function (person) {
+        if (!state.claimed[person.id]) state.streaks[person.id] = 0;
+      });
+    }
+
+    finishQuestion(state.index, null);
   }
 
   function renderStrike(fromId) {
@@ -791,9 +923,16 @@
     box.hidden = false;
     box.className = 'verdict ' + (winnerId ? (winnerId === state.adapter.selfId ? 'ok' : 'taken') : 'no');
 
-    if (!winnerId) title.textContent = '時間到，沒有人答對';
-    else if (winnerId === state.adapter.selfId) title.textContent = '你搶到了！＋1';
-    else title.textContent = nameOfPlayer(winnerId) + ' 先答對，這一分被搶走了';
+    if (winnerId) {
+      // 只有搶答會有「贏家」——另外兩種計分裡，答對的人各自拿各自的分。
+      title.textContent = winnerId === state.adapter.selfId
+        ? '你搶到了！＋1'
+        : nameOfPlayer(winnerId) + ' 先答對，這一分被搶走了';
+    } else if (stealing()) {
+      title.textContent = '這一題沒有人搶到';
+    } else {
+      title.textContent = '這一題結束';
+    }
 
     el('verdict-answer').textContent = '正解：' + state.answerLabel;
     renderBoard();
@@ -867,7 +1006,7 @@
       var who = document.createElement('span');
       who.textContent = row.name;
       var pts = document.createElement('b');
-      pts.textContent = row.points;
+      pts.textContent = num(row.points) + Rules.roomScoreUnit(scoringOf());
 
       item.append(who, pts);
       box.append(item);
@@ -892,7 +1031,7 @@
     var tie = rows.length > 1 && rows[1].points === top.points;
 
     el('result-title').textContent = !top || top.points === 0
-      ? '沒有人搶到任何一題'
+      ? (stealing() ? '沒有人搶到任何一題' : '沒有人拿到分數')
       : (tie ? '並列第一：' + rows.filter(function (r) {
           return r.points === top.points;
         }).map(function (r) {
@@ -900,10 +1039,14 @@
         }).join('、')
         : top.name + ' 拿下這一場');
 
-    el('result-note').textContent = '共 ' + state.totalQuestions + ' 題，' +
-      rows.reduce(function (sum, r) {
-        return sum + r.points;
-      }, 0) + ' 題有人搶到。';
+    var total = rows.reduce(function (sum, r) {
+      return sum + r.points;
+    }, 0);
+
+    // 搶答的分數就是題數，可以講「幾題有人搶到」；另外兩種是分數，那樣講會錯。
+    el('result-note').textContent = stealing()
+      ? '共 ' + state.totalQuestions + ' 題，' + total + ' 題有人搶到。'
+      : '共 ' + state.totalQuestions + ' 題，全場一共拿了 ' + num(total) + ' 分。';
 
     var list = el('standings');
     list.replaceChildren();
@@ -1049,7 +1192,12 @@
         return;
 
       case 'claim':
-        arbitrate(message.from, payload.index, !!payload.correct);
+        arbitrate(message.from, payload.index, !!payload.correct, payload.elapsed);
+        return;
+
+      case 'tally':
+        if (isHost()) return; // 房主是這則訊息的來源
+        applyTally(payload);
         return;
 
       case 'strike':
