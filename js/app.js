@@ -51,6 +51,8 @@
     board: null,
     /** 試聽的停止計時器。有值就代表正在試聽。 */
     testTimer: null,
+    /** 「等音樂響」的上限計時器。載不動的時候靠它把這一題開下去。 */
+    startGuard: null,
   };
 
   /** 開場挑的設定。開一場遊戲就是把這三個值交給 Game。 */
@@ -119,8 +121,23 @@
    *     而開頭正是最好認的地方。用 muted 而不是 volume：iOS 不讓程式改音量，
    *     但 muted 是可以的。
    */
-  function playPreview(url, offset) {
+  /** 目前掛在 <audio> 上的「開始播了」監聽。一次只能有一個。 */
+  var playingHook = null;
+
+  function playPreview(url, offset, onPlaying) {
+
     var seeked = false;
+
+    // 「開始播」要聽 playing 而不是 play()：play() 的 promise 只表示瀏覽器
+    // 接受了這次播放要求，聲音可能還在等資料。分數看的是玩家何時聽到聲音。
+    //
+    // 上一題如果從頭到尾沒響過（載失敗、被擋掉），它掛的監聽會留在 <audio> 上，
+    // 然後在這一題響的時候才觸發——那會用上一題的參數再開一個計時器，
+    // 兩個計時器一起跑，同一題會被送出兩次。所以先把舊的拆掉。
+    if (playingHook) player.removeEventListener('playing', playingHook);
+    playingHook = onPlaying || null;
+    if (playingHook) player.addEventListener('playing', playingHook, { once: true });
+
 
     player.src = url;
     player.muted = !!offset;
@@ -422,6 +439,9 @@
     stopTimer();
     clearTimeout(state.advanceTimer);
     state.advanceTimer = null;
+    clearTimeout(state.startGuard);
+    state.startGuard = null;
+
 
     player.pause();
     clearPlayingMark();
@@ -456,13 +476,43 @@
     if (question.number === 1) el('hud-score').textContent = '0';
 
     renderChoices(question.choices);
+    el('play-hint').textContent = '載入中…';
+
+    // 十二秒從音樂真的響起來才開始算（理由寫在 game.js 的 restartClock）。
+    var begun = false;
+    function begin(hint) {
+      if (begun) return;
+      begun = true;
+      clearTimeout(state.startGuard);
+      state.startGuard = null;
+      state.game.restartClock();
+      el('play-hint').textContent = hint || '正在播放…選出你聽到的那一首';
+      startTimer(question.seconds);
+    }
+
     // 每一題的起點由出題時決定（見 questions.js），所以同一首歌每次聽到的段落不同。
-    playPreview(question.previewUrl, question.offset).catch(function () {
-      el('play-hint').textContent = '瀏覽器擋住了自動播放——點畫面任一處再試。';
-    });
-    startTimer(question.seconds);
+    playPreview(question.previewUrl, question.offset, function () {
+      // 守門計時器已經先開場、音樂才姍姍來遲的情況：不能重開計時器（那會變兩個），
+      // 但要把「還在載入」那句換掉，否則它會一直掛在畫面上，看起來像壞了。
+      if (begun) {
+        el('play-hint').textContent = '正在播放…選出你聽到的那一首';
+        return;
+      }
+      begin();
+    })
+
+      .catch(function () {
+        // 放不出來也要能玩下去，不然畫面會永遠停在「載入中」。
+        begin('瀏覽器擋住了自動播放——點畫面任一處再試。');
+      });
+
+    // 載不動也不能無限等。三秒是上限：超過就照常開始，
+    // 玩家至少看得到倒數，而不是對著一個不動的畫面。
+    state.startGuard = setTimeout(function () { begin('還在載入…先開始計時了'); }, 3000);
+
     state.answering = false;
   }
+
 
   function modeName(mode) {
     if (mode === 'combo') return '積分模式';
@@ -492,8 +542,16 @@
       var button = document.createElement('button');
       button.type = 'button';
       button.className = 'choice';
-      button.textContent = choice.label;
       button.dataset.id = choice.id;
+
+      // 歌名一行、歌手一行。九宮格裡要在一瞬間掃過九個選項，
+      // 而人是靠歌名認歌的——歌名放大加粗，歌手退成註腳。
+      var title = document.createElement('b');
+      title.textContent = choice.title;
+      var artist = document.createElement('i');
+      artist.textContent = choice.artist;
+      button.append(title, artist);
+
       button.addEventListener('click', function () {
         submit(choice.id);
       });
@@ -522,7 +580,10 @@
   function stopTimer() {
     if (state.ticker) clearInterval(state.ticker);
     state.ticker = null;
+    clearTimeout(state.startGuard);
+    state.startGuard = null;
   }
+
 
   // ---- 作答 ----
   function submit(choiceId) {
@@ -668,6 +729,7 @@
   // 各自有自己的篩選條件——首頁想看「積分・華語」的同時，
   // 結算頁那個還停在剛打完的模式，兩邊互不影響才符合直覺。
   var homeBoard = window.BoardUI.create(el('home-board'), {
+    onlineOnly: true,
     filter: { mode: setup.mode },
   });
 
@@ -734,16 +796,21 @@
     var parts = [];
 
     if (bestScore === 0) {
-      parts.push('這是你在這個設定下的第一筆紀錄');
+      // 第一場不喊破紀錄。基準是「自己過去的成績」，而現在還沒有過去——
+      // 語種組合有 31 種、題數四到五種、模式三種，加起來將近四百個獨立的紀錄格，
+      // 每換一個設定都喊一次破紀錄，這三個字就不值錢了。
+      parts.push('這台裝置上、這個設定的第一場');
     } else {
-      parts.push('這個設定的最佳 ' + num(bestScore) + ' 分' +
+      // 講明基準是哪一台、哪一個設定：不寫清楚的話，看到「最佳」會以為是在跟別人比。
+      parts.push('這台裝置上這個設定的最佳 ' + num(bestScore) + ' 分' +
         (game.mode === 'stage' ? '、最遠第 ' + bestStage + ' 關' : ''));
       if (newScore) parts.push('破紀錄！多了 ' + num(game.totalScore - bestScore) + ' 分');
       if (newStage) parts.push('也是走得最遠的一次');
     }
 
     line.textContent = parts.join('　');
-    line.classList.toggle('record', newScore || newStage);
+    line.classList.toggle('record', bestScore > 0 && (newScore || newStage));
+
   }
 
   // ---- 逐題回顧 ----

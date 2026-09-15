@@ -45,8 +45,14 @@
   function create(host, options) {
     options = options || {};
 
+    // onlineOnly：首頁那一份只放線上榜。首頁的榜是拿來看「現在的目標是幾分」的，
+    // 那個目標應該是別人的成績；自己這台裝置的紀錄在打完之後的結算頁才有意義。
+    // 少一排分頁，首頁也少一個要決定的東西。
+    var onlineOnly = !!options.onlineOnly;
+
     var state = {
-      source: 'local',
+      source: onlineOnly ? 'online' : 'local',
+
       filter: {
         mode: (options.filter && options.filter.mode) || 'speed',
         language: (options.filter && options.filter.language) || null,
@@ -151,7 +157,11 @@
     clearRow.append(clearButton);
 
     renderCounts();
-    host.append(sources, modes, langs, counts, note, list, clearRow);
+    if (!onlineOnly) host.append(sources);
+    host.append(modes, langs, counts, note, list);
+    // 清空鈕只管本機，所以只線上的那一份根本不放它。
+    if (!onlineOnly) host.append(clearRow);
+
 
     // ---- 上傳到線上榜（只有結算頁）----
     var submitBox = null;
@@ -191,7 +201,10 @@
 
     function describe() {
       var mode = MODES.filter(function (m) { return m.key === state.filter.mode; })[0];
-      var parts = [state.source === 'local' ? '這台裝置' : '線上', mode ? mode.label + '模式' : ''];
+      var parts = [];
+      if (!onlineOnly) parts.push(state.source === 'local' ? '這台裝置' : '線上');
+      parts.push(mode ? mode.label + '模式' : '');
+
 
       parts.push(state.filter.language ? Rules.nameOf(state.filter.language) : '不分語種');
       parts.push(state.filter.questionCount ? state.filter.questionCount + ' 題' : '不分題數');
