@@ -66,7 +66,12 @@
     Object.keys(screens).forEach(function (key) {
       screens[key].hidden = key !== name;
     });
+
+    // 只有首頁有那條釘在底部的開始鈕。頁尾在兩半之外，要靠這個 class
+    // 讓整頁留出位置，否則捲到底會被那條蓋住。
+    document.body.classList.toggle('has-dock', name === 'home');
   }
+
 
   function num(value) {
     return value.toLocaleString('en-US');
