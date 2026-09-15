@@ -438,12 +438,6 @@ a.who-pick:hover strong { color: var(--accent-2); }
 .board-filter[aria-pressed="true"] { color: var(--accent-2); border-color: var(--accent-2); }
 
 .board-submit { display: block; margin-top: 10px; }
-.board-submit-hint {
-  color: var(--ink-dim);
-  font-size: .74rem;
-  line-height: 1.6;
-  margin: 0 0 8px;
-}
 .board-submit-line { display: flex; gap: 8px; }
 .board-submit-line input {
   flex: 1;
