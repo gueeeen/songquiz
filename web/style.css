@@ -46,44 +46,53 @@
   --radius: 14px;
 }
 
-/* 日間版。
-   主色從琥珀金換成深琥珀：同一個色相，但在淺底上要夠深才讀得到——
+/* 日間版：淺紫的頁面 + 純白的卡片。
+   第一版是「米白頁面 + 白卡片」，字的對比都合格，但整頁還是看不清楚——
+   問題不在字，在**結構**：頁面 #f6f2ea 和卡片 #ffffff 只差 3% 亮度，
+   邊框對白底只有 1.35:1，所以卡片不像卡片、膠囊不像按鈕，整片糊成米白。
+   現在頁面帶一個明確的色相（淺紫），卡片維持純白，兩者一眼分得開。
+
+   主色從琥珀金換成深琥珀 #8f5000：同一個色相，但在淺底上要夠深才讀得到——
    #f7b955 配白底只有 1.8:1，拿來當文字或邊框等於沒有。
-   底色帶一點暖（#f6f2ea 而不是純白）：整站的色溫才跟夜間版是同一個調子。 */
+   淺紫離琥珀（主色）、綠（答對）、紅（答錯）都遠，三種狀態不會被背景干擾。
+
+   「被選中」不用深琥珀去刷底（那會變成一片濁褐），改用高亮度的杏色
+   rgba(255,178,66,.55)——疊在白底上是暖暖的一格，深色字壓在上面很清楚。 */
+
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --bg: #f6f2ea;
+    --bg: #f1eef9;
     --bg-raised: #ffffff;
-    --bg-rgb: 246, 242, 234;
-    --line: #cfc2ab;
-    --ink: #17191f;
-    --ink-dim: #565c6a;
-    --accent: #9c5800;
+    --bg-rgb: 241, 238, 249;
+    --line: #b8abd6;
+    --ink: #221d30;
+    --ink-dim: #565070;
+    --accent: #874b00;
     --on-accent: #fff6e6;
-    --accent-2: #0b6579;
+    --accent-2: #0a5e73;
 
     --good: #0f6c43;
-    --good-soft: rgba(15, 108, 67, .13);
-    --good-line: rgba(15, 108, 67, .5);
+    --good-soft: rgba(15, 108, 67, .14);
+    --good-line: rgba(15, 108, 67, .55);
     --bad: #b52236;
     --bad-ink: #8a1224;
-    --bad-soft: rgba(181, 34, 54, .10);
-    --bad-line: rgba(181, 34, 54, .45);
+    --bad-soft: rgba(181, 34, 54, .11);
+    --bad-line: rgba(181, 34, 54, .5);
     --warn: #7a4300;
-    --warn-soft: rgba(156, 88, 0, .09);
-    --warn-line: rgba(156, 88, 0, .45);
-    --mine-glow: rgba(11, 101, 121, .35);
+    --warn-soft: rgba(255, 178, 66, .22);
+    --warn-line: rgba(135, 75, 0, .45);
+    --mine-glow: rgba(10, 94, 115, .35);
 
-    --sel: rgba(156, 88, 0, .20);
-    --sel-soft: rgba(156, 88, 0, .10);
-    --sel-mark: rgba(156, 88, 0, .18);
-    --glow: rgba(156, 88, 0, .18);
-    --lamp: rgba(156, 88, 0, .07);
-    --lamp-2: rgba(11, 101, 121, .05);
-    --label: rgba(156, 88, 0, .04);
-    --groove: rgba(90, 70, 40, .05);
-    --stage-light: #efe6d6;
-    --row: rgba(0, 0, 0, .055);
+    --sel: rgba(255, 178, 66, .55);
+    --sel-soft: rgba(255, 178, 66, .32);
+    --sel-mark: rgba(255, 178, 66, .40);
+    --glow: rgba(135, 75, 0, .18);
+    --lamp: rgba(255, 190, 120, .17);
+    --lamp-2: rgba(140, 220, 205, .16);
+    --label: rgba(196, 160, 255, .12);
+    --groove: rgba(120, 100, 170, .055);
+    --stage-light: #e7e1f7;
+    --row: rgba(80, 60, 130, .07);
   }
 }
 
@@ -92,38 +101,38 @@
    所以只能重複一次，改的時候兩邊都要改。測試只量得到這一組——
    跟隨系統的那一組要靠瀏覽器模擬 prefers-color-scheme 才驗得到。） */
 :root[data-theme="light"] {
-  --bg: #f6f2ea;
+  --bg: #f1eef9;
   --bg-raised: #ffffff;
-  --bg-rgb: 246, 242, 234;
-  --line: #cfc2ab;
-  --ink: #17191f;
-  --ink-dim: #565c6a;
-  --accent: #9c5800;
+  --bg-rgb: 241, 238, 249;
+  --line: #b8abd6;
+  --ink: #221d30;
+  --ink-dim: #565070;
+  --accent: #874b00;
   --on-accent: #fff6e6;
-  --accent-2: #0b6579;
+  --accent-2: #0a5e73;
 
   --good: #0f6c43;
-  --good-soft: rgba(15, 108, 67, .13);
-  --good-line: rgba(15, 108, 67, .5);
+  --good-soft: rgba(15, 108, 67, .14);
+  --good-line: rgba(15, 108, 67, .55);
   --bad: #b52236;
   --bad-ink: #8a1224;
-  --bad-soft: rgba(181, 34, 54, .10);
-  --bad-line: rgba(181, 34, 54, .45);
+  --bad-soft: rgba(181, 34, 54, .11);
+  --bad-line: rgba(181, 34, 54, .5);
   --warn: #7a4300;
-  --warn-soft: rgba(156, 88, 0, .09);
-  --warn-line: rgba(156, 88, 0, .45);
-  --mine-glow: rgba(11, 101, 121, .35);
+  --warn-soft: rgba(255, 178, 66, .22);
+  --warn-line: rgba(135, 75, 0, .45);
+  --mine-glow: rgba(10, 94, 115, .35);
 
-  --sel: rgba(156, 88, 0, .20);
-  --sel-soft: rgba(156, 88, 0, .10);
-  --sel-mark: rgba(156, 88, 0, .18);
-  --glow: rgba(156, 88, 0, .18);
-  --lamp: rgba(156, 88, 0, .07);
-  --lamp-2: rgba(11, 101, 121, .05);
-  --label: rgba(156, 88, 0, .04);
-  --groove: rgba(90, 70, 40, .05);
-  --stage-light: #efe6d6;
-  --row: rgba(0, 0, 0, .055);
+  --sel: rgba(255, 178, 66, .55);
+  --sel-soft: rgba(255, 178, 66, .32);
+  --sel-mark: rgba(255, 178, 66, .40);
+  --glow: rgba(135, 75, 0, .18);
+  --lamp: rgba(255, 190, 120, .17);
+  --lamp-2: rgba(140, 220, 205, .16);
+  --label: rgba(196, 160, 255, .12);
+  --groove: rgba(120, 100, 170, .055);
+  --stage-light: #e7e1f7;
+  --row: rgba(80, 60, 130, .07);
 }
 
 /* 表單元件（滑桿、捲軸）要跟著換，否則日間版會冒出一條夜間的滑軌。 */
