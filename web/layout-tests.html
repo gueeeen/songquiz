@@ -597,6 +597,60 @@
 
     // ------------------------------------------------------ 兩邊互不干擾
 
+    group('意見箱');
+
+    test('結算頁只問星星和一句話', function () {
+      // 剛打完的人是來看成績的。一份二十幾格的表單放在這裡會直接被關掉，
+      // 所以詳細的問題要在另一區。
+      var result = phone.one('#screen-result');
+      var wasHidden = result.hidden;
+      result.hidden = false;
+
+      var stars = phone.doc.querySelectorAll('#rate-stars .star');
+      assertEqual(5, stars.length, '結算頁的星星數');
+      assertEqual(1, phone.doc.querySelectorAll('#rate-box input').length, '結算頁的輸入欄數');
+      assertTrue(phone.one('#btn-rate-send').disabled, '還沒給星就可以送出');
+
+      stars[2].click();
+      assertEqual(3, phone.doc.querySelectorAll('#rate-stars .star.on').length, '點第三顆應該亮三顆');
+      assertTrue(!phone.one('#btn-rate-send').disabled, '給了星之後要能送出');
+
+      // 再點同一顆是取消：那是「我不想回答」，和「給三分」不是同一件事。
+      stars[2].click();
+      assertEqual(0, phone.doc.querySelectorAll('#rate-stars .star.on').length, '再點一次應該取消');
+
+      result.hidden = wasHidden;
+    });
+
+    test('詳細表單在另一區，而且會帶走剛剛給的星等', function () {
+      var result = phone.one('#screen-result');
+      var wasHidden = result.hidden;
+      result.hidden = false;
+
+      phone.doc.querySelectorAll('#rate-stars .star')[3].click();
+      phone.one('#btn-rate-more').click();
+
+      assertTrue(!phone.one('#feedback-app').hidden, '詳細表單沒有打開');
+      assertTrue(phone.one('#solo-app').hidden, '打開詳細表單時單人那半沒有收起來');
+      assertEqual(4, phone.doc.querySelectorAll('#feedback-app .stars[data-scale="stars"] .star.on').length,
+        '沒有把剛剛給的星等帶過去');
+      assertEqual(6, phone.doc.querySelectorAll('#feedback-app .stars[data-scale]').length, '細項的量表數');
+
+      phone.one('#btn-fb-back').click();
+      assertTrue(phone.one('#feedback-app').hidden, '返回之後表單還開著');
+      assertTrue(!phone.one('#solo-app').hidden, '返回之後沒有回到原本那一半');
+
+      result.hidden = wasHidden;
+    });
+
+    test('設定面板裡也進得去意見箱', function () {
+      phone.one('#btn-settings').click();
+      phone.one('#btn-settings-feedback').click();
+      assertTrue(!phone.one('#feedback-app').hidden, '從設定進不去意見箱');
+      assertTrue(phone.one('#settings').hidden, '進去之後設定面板還開著');
+      phone.one('#btn-fb-back').click();
+    });
+
     group('單人與多人共用的 class');
 
     test('大廳的計分／出題只給標題，說明收在「?」後面', function () {
