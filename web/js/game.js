@@ -108,6 +108,19 @@
   };
 
   /**
+   * 把這一題的碼表歸零。
+   *
+   * 出題的當下就起算，等於把「音檔從 Apple 載下來的時間」算進玩家的作答時間——
+   * 網路慢的人先天少分，而且他永遠不知道自己輸在哪。自己跟自己比還好（同一支手機
+   * 大致公平），但排行榜是跨裝置比的，那就變成拿網速當實力。
+   * 所以播放端要在音樂真的響起來的時候呼叫這個，十二秒從那一刻才開始。
+   */
+  Game.prototype.restartClock = function () {
+    if (this.status !== Status.AWAITING_ANSWER) return;
+    this.issuedAt = this.now();
+  };
+
+  /**
    * 作答。choiceId 傳 null 代表時間到都沒選。
    */
   Game.prototype.answer = function (choiceId) {

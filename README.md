@@ -59,14 +59,27 @@
 
 ## 測試
 
-**遊戲規則**（61 項）：打開 `web\tests.html`，最上面會顯示 `RESULT PASS 61/61`。
+**遊戲規則**（68 項）：打開 `web\tests.html`，最上面會顯示 `RESULT PASS 68/68`。
 
-這台機器沒有 Node 也沒有 Python，所以那一頁是自己寫的極小跑法，零依賴。
+**版面**（15 項）：打開 `web\layout-tests.html`。它把 `index.html` 分別用 390px 和
+1200px 的寬度載進兩個 iframe，量實際排出來的尺寸——開始鈕有沒有釘在底部、出處會不會
+被它蓋住、橫向捲動的提示有沒有在「其實排得下」的時候亂亮、每個可點的東西夠不夠 40px、
+桌機有沒有真的變成兩欄，以及單人那邊的樣式有沒有波及多人大廳。
+這些都是宣告寫對、卻被別條規則蓋掉就看不出來的東西，所以一律量 `getBoundingClientRect`
+和 `getComputedStyle`，不看 CSS 原始碼。
+
+測試不依賴 Node，也沒有測試框架：那兩頁都是自己寫的極小跑法，打開就跑完。
 要無頭跑（CI 也能用同一條）：
 
 ```
 msedge --headless=new --disable-gpu --virtual-time-budget=5000 --dump-dom "file:///…/web/tests.html"
+
+msedge --headless=new --disable-gpu --allow-file-access-from-files ^
+       --virtual-time-budget=20000 --dump-dom "file:///…/web/layout-tests.html"
 ```
+
+版面那一條一定要加 `--allow-file-access-from-files`：從 `file://` 開的頁面，
+iframe 算跨來源，沒有這個旗標就讀不到裡面的文件，測試會全部掛在「讀得到被測頁面」。
 
 **題庫產生器**（19 項，歌名清洗與輸出格式）：`dotnet test`。
 

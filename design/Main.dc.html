@@ -1,0 +1,175 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root {
+      --bg: #090e1a; --bg-raised: #141b2e; --line: #26314d;
+      --ink: #eef2ff; --ink-dim: #93a2c7;
+      --accent: #f7b955; --accent-2: #5ee0ff; --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(900px 520px at 50% -8%, rgba(247,185,85,.10), transparent 62%),
+        radial-gradient(760px 520px at 108% 94%, rgba(94,224,255,.07), transparent 60%),
+        radial-gradient(circle at 50% 20%, rgba(247,185,85,.055) 0 54px, transparent 56px),
+        repeating-radial-gradient(circle at 50% 20%, rgba(255,255,255,.026) 0 1px, transparent 1px 9px),
+        radial-gradient(1200px 600px at 50% -10%, #16233f 0%, transparent 60%),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+    }
+    a { color: var(--accent-2); } a:hover { color: var(--accent); }
+
+    /* 捲動區的底部留白要大於 dock 的高度，不然最後一段會被蓋住。 */
+    .app { padding: 20px 16px 150px; }
+
+    .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+    .title { font-size: 1.2rem; font-weight: 700; letter-spacing: .04em; }
+    .title span { color: var(--accent); text-shadow: 0 0 20px rgba(247,185,85,.4); }
+    .seg { display: flex; border: 1px solid var(--line); border-radius: 99px; overflow: hidden; }
+    .seg div { padding: 8px 15px; font-size: .8rem; color: var(--ink-dim); }
+    .seg div.on { background: rgba(247,185,85,.22); color: #fff; font-weight: 600; }
+
+    .band { margin-bottom: 18px; }
+    .band .lab { color: var(--ink-dim); font-size: .74rem; margin-bottom: 8px; display: block; }
+    .band .lab em { font-style: normal; opacity: .75; margin-left: 6px; }
+
+    /* 橫向捲動的一列。右緣留一道漸層，暗示後面還有東西——
+       方向 B 的主要風險就是「看起來只有這幾個」。 */
+    .railwrap { position: relative; }
+    .railwrap::after {
+      content: ""; position: absolute; top: 0; bottom: 0; right: -16px; width: 40px;
+      background: linear-gradient(to right, rgba(9,14,26,0), #090e1a 70%);
+      pointer-events: none;
+    }
+    .rail { display: flex; gap: 8px; overflow: hidden; }
+    .pill {
+      flex: none; min-height: 40px; padding: 10px 15px; border-radius: 99px;
+      border: 1px solid var(--line); background: var(--bg-raised);
+      color: var(--ink-dim); font-size: .85rem; white-space: nowrap;
+    }
+    .pill.on { color: #fff; border-color: var(--accent); background: rgba(247,185,85,.22); font-weight: 600; }
+
+    .modecards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .mc {
+      padding: 14px 8px; border-radius: var(--radius); border: 1px solid var(--line);
+      background: var(--bg-raised); text-align: center; min-height: 82px;
+    }
+    .mc.on { border-color: var(--accent); background: rgba(247,185,85,.12); }
+    .mc b { display: block; font-size: .95rem; }
+    .mc i { display: block; color: var(--ink-dim); font-style: normal; font-size: .68rem; margin-top: 5px; line-height: 1.45; }
+
+    /* 音量與試聽壓成一行——它是次要設定，不該佔一個區塊。 */
+    .sound {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+      padding: 10px 14px; border: 1px solid var(--line); border-radius: 99px; background: var(--bg-raised);
+    }
+    .sound .lab { color: var(--ink-dim); font-size: .76rem; white-space: nowrap; }
+    .track { flex: 1; height: 4px; border-radius: 99px; background: #26314d; position: relative; }
+    .track::after { content: ""; position: absolute; inset: 0 20% 0 0; background: var(--accent); border-radius: 99px; }
+    .sound .test { padding: 6px 14px; border-radius: 99px; border: 1px solid var(--line); background: transparent; color: var(--ink-dim); font-size: .76rem; }
+
+    .board { border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-raised); padding: 12px 14px; }
+    .board .head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+    .board .head b { font-size: .9rem; }
+    .board .head a { font-size: .74rem; text-decoration: none; }
+    .board ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+    .board li {
+      display: grid; grid-template-columns: 1.4rem 1fr auto; gap: 8px; align-items: center;
+      padding: 7px 8px; border-radius: 8px; font-size: .78rem; background: rgba(255,255,255,.03);
+    }
+    .board li b { color: var(--ink-dim); font-weight: 600; }
+    .board li i { color: var(--ink-dim); font-style: normal; }
+    .board li.me { background: rgba(247,185,85,.16); }
+
+    .credit { color: var(--ink-dim); font-size: .7rem; text-align: center; margin: 18px 0 0; opacity: .6; line-height: 1.7; }
+
+    /* 開始鈕釘在底部，永遠在拇指構得到的地方。 */
+    .dock {
+      position: absolute; left: 0; right: 0; bottom: 0; padding: 16px 16px 22px;
+      background: linear-gradient(to top, #090e1a 55%, rgba(9,14,26,.92) 80%, rgba(9,14,26,0));
+    }
+    .summary { text-align: center; color: var(--accent-2); font-size: .76rem; margin: 0 0 10px; line-height: 1.5; }
+    .start {
+      width: 100%; min-height: 56px; padding: 16px; border-radius: 99px;
+      background: var(--accent); color: #17120a; border: none; font-weight: 700; font-size: 1.05rem;
+    }
+  </style>
+</helmet>
+
+<div class="app">
+  <div class="topbar">
+    <span class="title">猜歌<span>王</span></span>
+    <div class="seg"><div class="on">一個人</div><div>和朋友</div></div>
+  </div>
+
+  <div class="band">
+    <span class="lab">語種<em>可以多選</em></span>
+    <div class="railwrap">
+      <div class="rail">
+        <span class="pill on">華語</span>
+        <span class="pill on">台語</span>
+        <span class="pill on">西洋</span>
+        <span class="pill on">韓語</span>
+        <span class="pill on">日語</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="band">
+    <span class="lab">題數<em>闖關是每關題數</em></span>
+    <div class="railwrap">
+      <div class="rail">
+        <span class="pill">5</span>
+        <span class="pill on">10</span>
+        <span class="pill">15</span>
+        <span class="pill">20</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="band">
+    <span class="lab">模式</span>
+    <div class="modecards">
+      <div class="mc on"><b>闖關</b><i>逐關解鎖語種</i></div>
+      <div class="mc"><b>競速</b><i>越快分越高</i></div>
+      <div class="mc"><b>積分</b><i>連對有倍率</i></div>
+    </div>
+  </div>
+
+  <div class="sound">
+    <span class="lab">音量 80%</span>
+    <div class="track"></div>
+    <button class="test">試聽</button>
+  </div>
+
+  <div class="board">
+    <div class="head"><b>排行榜・闖關</b><a href="#">看完整</a></div>
+    <ol>
+      <li class="me"><b>1</b><span>09/15 15:49</span><i>841 分／題</i></li>
+      <li><b>2</b><span>09/15 14:02</span><i>780 分／題</i></li>
+      <li><b>3</b><span>09/14 22:31</span><i>712 分／題</i></li>
+    </ol>
+  </div>
+
+  <p class="credit">
+    音源為 Apple Music 官方 30 秒試聽，由 Apple 伺服器直接播放，歌曲版權屬原權利人所有。<br>
+    玩法參考 <a href="#">台大流行音樂創作社的「金曲猜歌王」</a>，本站程式碼為獨立實作。
+  </p>
+</div>
+
+<div class="dock">
+  <p class="summary">闖關 · 6 關 × 每關 10 題 · 門檻 4,000→9,000</p>
+  <button class="start">開始</button>
+</div>
+</x-dc>
+</body>
+</html>

@@ -131,6 +131,9 @@
     streaks: {},
     /** 這一題出現在我自己畫面上的時刻，用來量我自己的作答秒數。 */
     shownAt: 0,
+    /** 這一題的碼表有沒有被「音樂響了」校正過。 */
+    clockStarted: false,
+
     /** 房主視角：這一題誰已經出手過了，避免同一人連點兩次。 */
     claimed: {},
     points: {},
@@ -292,7 +295,9 @@
    */
   function renderScoringButtons() {
     var box = el('scorings');
+    var help = el('scorings-help');
     box.replaceChildren();
+    help.replaceChildren();
 
     Rules.ROOM_SCORINGS.forEach(function (scoring) {
       var button = document.createElement('button');
@@ -303,14 +308,21 @@
 
       var title = document.createElement('strong');
       title.textContent = scoring.label;
-      var note = document.createElement('span');
-      note.textContent = scoring.note;
+      button.append(title);
 
-      button.append(title, note);
+      // 說明不放在鈕裡，放進「?」展開的那一塊——三段文字常態攤開，
+      // 開房這一頁會長到要捲好幾次才看得到「建立房間」。
+      var line = document.createElement('p');
+      var name = document.createElement('b');
+      name.textContent = scoring.label;
+      line.append(name, document.createTextNode(scoring.note));
+      help.append(line);
+
       button.addEventListener('click', function () {
         setup.scoring = scoring.key;
         refreshSetup();
       });
+
 
       box.append(button);
     });
@@ -642,7 +654,11 @@
     state.locked = false;
     state.resolved = false;
     state.claimed = {};
+    // 先給一個值，等音樂真的響起來再改（見下面的 playing 監聽）。
+    // 沒有它的話，音檔還沒來就有人搶答會除到 undefined。
     state.shownAt = performance.now();
+    state.clockStarted = false;
+
 
     // 正解要在這裡抄下來：game.answer() 一旦呼叫，game.current 就變 null 了。
     state.answerId = state.game.current.answerId;
@@ -690,6 +706,27 @@
     player.addEventListener('loadedmetadata', seek, { once: true });
     setTimeout(seek, 1200);
 
+    // 碼表從「音樂真的響」開始算，不是從「這一題出現」開始算。
+    //
+    // 競速與積分是各人用自己回報的秒數計分的，所以音檔載得慢的人如果從出題就起算，
+    // 等於把他家的網速算進他的實力。房間裡每個人的網路都不一樣，這個差距是直接
+    // 反映在名次上的。搶答那一種本來就由房主收到的順序決定，這裡幫不上忙——
+    // 那個不公平寫在 arbitrate() 上面。
+    //
+    // 畫面上那條倒數**不跟著改**，它仍然從出題起算：那是整間房共用的回合時鐘，
+    // 房主也照它決定什麼時候收題。所以載得慢的人會看到「剩 3 秒」但計分上只用掉
+    // 9 秒——那正是要補給他的那 3 秒，因為他晚 3 秒才聽到音樂。
+    //
+    // 上一題如果從頭到尾沒響過，它掛的監聽會留在 <audio> 上，然後在這一題響的
+    // 時候才觸發，把這一題的碼表重設一次。所以先把舊的拆掉。
+    if (playingHook) player.removeEventListener('playing', playingHook);
+    playingHook = function () {
+      if (state.clockStarted) return;
+      state.clockStarted = true;
+      state.shownAt = performance.now();
+    };
+    player.addEventListener('playing', playingHook, { once: true });
+
     var playing = player.play();
     if (playing && playing.catch) {
       playing.catch(function () {
@@ -697,6 +734,10 @@
       });
     }
   }
+
+  /** 目前掛在 <audio> 上的「開始播了」監聽。一次只能有一個。 */
+  var playingHook = null;
+
 
   function renderChoices(choices) {
     var box = el('choices');
@@ -706,8 +747,15 @@
       var button = document.createElement('button');
       button.type = 'button';
       button.className = 'choice';
-      button.textContent = choice.label;
       button.dataset.id = choice.id;
+
+      // 和單人那邊同一套：歌名一行加粗放大，歌手退成註腳。
+      var title = document.createElement('b');
+      title.textContent = choice.title;
+      var artist = document.createElement('i');
+      artist.textContent = choice.artist;
+      button.append(title, artist);
+
       button.addEventListener('click', function () {
         claim(choice.id);
       });
@@ -1246,10 +1294,38 @@
    * 留著一條半死的連線最糟——房主那邊的名冊上還有你，等你搶答，
    * 但你人已經在單人模式裡了。
    */
+  /**
+   * 標題後面那顆「?」。點開才看說明。
+   *
+   * 不用 <details>：說明要能被標題旁邊那個小符號控制，而 <details> 的觸發器
+   * 是整條 <summary>，做出來會變成「整行標題可以點」——那條標題底下就是一排
+   * 可以點的鈕，多一個看不出邊界的可點區域只會讓人誤觸。
+   */
+  var explainButtons = qa('.explain');
+  for (var e = 0; e < explainButtons.length; e++) {
+    explainButtons[e].addEventListener('click', function () {
+      var box = document.getElementById(this.getAttribute('aria-controls'));
+      if (!box) return;
+      var open = box.hidden;
+      box.hidden = !open;
+      this.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+
   window.RoomShell = {
+
     stop: function () {
       if (state.role) leaveRoom();
       else show('lobby');
     },
+    /** 設定面板要知道現在該不該給「離開房間」這個選項。 */
+    inRoom: function () {
+      return !!state.role;
+    },
+    leave: function () {
+      if (state.role) leaveRoom();
+      else show('lobby');
+    },
   };
+
 })();

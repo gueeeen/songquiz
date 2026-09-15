@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root {
+      --bg: #090e1a; --bg-raised: #141b2e; --line: #26314d;
+      --ink: #eef2ff; --ink-dim: #93a2c7;
+      --accent: #f7b955; --accent-2: #5ee0ff; --good: #3ddc97; --bad: #ff5c7c; --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(900px 520px at 50% -8%, rgba(247,185,85,.10), transparent 62%),
+        radial-gradient(760px 520px at 108% 94%, rgba(94,224,255,.07), transparent 60%),
+        radial-gradient(circle at 50% 20%, rgba(247,185,85,.055) 0 54px, transparent 56px),
+        repeating-radial-gradient(circle at 50% 20%, rgba(255,255,255,.026) 0 1px, transparent 1px 9px),
+        radial-gradient(1200px 600px at 50% -10%, #16233f 0%, transparent 60%),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+    }
+    a { color: var(--accent-2); } a:hover { color: var(--accent); }
+    .app { padding: 24px 16px 40px; }
+    .hud { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; }
+    .hud-left { display: grid; gap: 2px; }
+    .hud-right { text-align: right; display: grid; gap: 2px; }
+    .stage { color: var(--accent); font-weight: 700; font-size: .95rem; }
+    .progress, .target { color: var(--ink-dim); font-size: .8rem; }
+    .score { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .timer { height: 10px; background: var(--bg-raised); border-radius: 99px; overflow: hidden; margin-bottom: 6px; }
+    .timer-bar { height: 100%; width: 62%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
+    .timer-text { display: block; text-align: right; font-size: .78rem; color: var(--ink-dim); margin-bottom: 12px; }
+    .hint { color: var(--ink-dim); font-size: .85rem; text-align: center; margin: 6px 0 14px; }
+    .choices { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .choice {
+      padding: 14px 12px; min-height: 64px; background: var(--bg-raised);
+      border: 1px solid var(--line); border-radius: var(--radius);
+      color: inherit; font-size: .85rem; line-height: 1.45; text-align: left;
+    }
+    .choice.correct { border-color: var(--good); background: rgba(61,220,151,.14); }
+    .choice.wrong { border-color: var(--bad); background: rgba(255,92,124,.14); }
+    .choice.dim { opacity: .55; }
+    .verdict {
+      margin-top: 16px; padding: 16px; background: var(--bg-raised);
+      border: 1px solid var(--line); border-radius: var(--radius);
+      display: grid; gap: 8px; justify-items: center; text-align: center;
+    }
+    .verdict strong { font-size: 1.1rem; color: var(--good); }
+    .verdict span { color: var(--ink-dim); font-size: .85rem; }
+    .primary { padding: 12px 22px; border-radius: 99px; background: var(--accent); color: #17120a; border: none; font-weight: 700; }
+  </style>
+</helmet>
+
+<div class="app">
+  <div class="hud">
+    <div class="hud-left">
+      <span class="stage">第 2 / 6 關</span>
+      <span class="progress">第 4 / 10 題</span>
+    </div>
+    <div class="hud-right">
+      <span class="score">3,412</span>
+      <span class="target">過關需 5,000</span>
+    </div>
+  </div>
+
+  <div class="timer"><div class="timer-bar"></div></div>
+  <span class="timer-text">7.4</span>
+
+  <p class="hint">正在播放…選出你聽到的那一首</p>
+
+  <div class="choices">
+    <button class="choice dim">小幸運 — 田馥甄</button>
+    <button class="choice dim">魚仔 — 盧廣仲</button>
+    <button class="choice dim">浪子回頭 — 茄子蛋</button>
+    <button class="choice correct">晴天 — 周杰倫</button>
+    <button class="choice wrong">李白 — 李榮浩</button>
+    <button class="choice dim">你敢不敢 — 徐佳瑩</button>
+    <button class="choice dim">愛人錯過 — 告五人</button>
+    <button class="choice dim">我很好騙 — 動力火車</button>
+    <button class="choice dim">不為誰而作的歌 — 林俊傑</button>
+  </div>
+
+  <div class="verdict">
+    <strong>答對！＋842</strong>
+    <span>晴天 — 周杰倫</span>
+    <button class="primary">下一題</button>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
