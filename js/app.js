@@ -327,6 +327,7 @@
   /**
    * 試聽放多久。原本三秒，但三秒不夠調音量——手伸到音量旋鈕它就停了，
    * 得一直重按。十秒足夠一邊聽一邊把音量調到對的位置。
+   * 鈕上不寫秒數：那是實作細節，寫出來反而像是「要等十秒」。
    */
   var TEST_MS = 10000;
 
@@ -350,10 +351,8 @@
     clearTimeout(state.testTimer);
     state.testTimer = null;
     player.pause();
-    el('btn-test').textContent = '試聽 10 秒';
+    el('btn-test').textContent = '試聽';
   }
-
-  el('btn-test').textContent = '試聽 10 秒';
 
   // ---- 開一場 ----
   el('btn-start').addEventListener('click', startGame);
