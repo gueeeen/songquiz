@@ -620,24 +620,69 @@
       tabs[i].disabled = tabs[i].dataset.board === 'online' && !window.Leaderboard.available();
     }
 
-    selectBoard('local');
+    // 預設看「這個模式全部」：每換一個題數或語種就是一張新的空榜，
+    // 看起來會像這個模式沒有排行榜。
+    selectBoard('local', window.Leaderboard.SCOPES.MODE);
   }
 
-  function selectBoard(which) {
+  function boardScopes() {
+    return qa('.board-scope');
+  }
+
+  function selectBoard(which, scope) {
+    var board = state.board;
+    board.source = which || board.source || 'local';
+    board.scope = scope || board.scope || window.Leaderboard.SCOPES.MODE;
+
     var tabs = boardTabs();
     for (var i = 0; i < tabs.length; i++) {
-      tabs[i].setAttribute('aria-pressed', tabs[i].dataset.board === which ? 'true' : 'false');
+      tabs[i].setAttribute('aria-pressed', tabs[i].dataset.board === board.source ? 'true' : 'false');
     }
 
-    if (which === 'local') return renderLocalBoard();
+    var scopes = boardScopes();
+    for (var s = 0; s < scopes.length; s++) {
+      scopes[s].setAttribute('aria-pressed', scopes[s].dataset.scope === board.scope ? 'true' : 'false');
+    }
+
+    if (board.source === 'local') return renderLocalBoard();
     return renderOnlineBoard();
+  }
+
+  function byMode() {
+    return state.board.scope === window.Leaderboard.SCOPES.MODE;
+  }
+
+  /** 排行榜那一行標題：講清楚「現在這一份榜是誰跟誰在比」。 */
+  function boardHeading(source) {
+    var entry = state.board.entry;
+    return source + '・' + (byMode()
+      ? modeName(entry.mode) + '（不分題數與語種，照每題平均分排）'
+      : describeSetting(entry));
   }
 
   function renderLocalBoard() {
     var board = state.board;
     el('board-submit').hidden = true;
 
-    el('board-note').textContent = '這台裝置・' + describeSetting(board.entry) +
+    if (byMode()) {
+      var rows = window.Leaderboard.localByMode(board.entry.mode);
+
+      el('board-note').textContent = boardHeading('這台裝置') +
+        '　共 ' + rows.length + ' 筆';
+
+      return renderRows(rows.map(function (row, i) {
+        return {
+          rank: i + 1,
+          name: row.at,
+          score: Math.round(window.Leaderboard.perQuestion(row)),
+          unit: ' 分／題',
+          note: row.questionCount + ' 題・' + row.languages.map(Rules.nameOf).join('／'),
+          me: sameRun(row),
+        };
+      }), '這台裝置還沒有紀錄。');
+    }
+
+    el('board-note').textContent = boardHeading('這台裝置') +
       '　這一局排第 ' + board.local.rank + '（共 ' + board.local.total + ' 局）';
 
     renderRows(board.local.rows.map(function (row, i) {
@@ -651,6 +696,13 @@
     }), '這台裝置還沒有紀錄。');
   }
 
+  /** 這一列是不是剛剛打完的那一局。分數與題數都對上才算，免得誤標別的場次。 */
+  function sameRun(row) {
+    var entry = state.board.entry;
+    return row.score === entry.score &&
+      (row.questionCount || row.total) === entry.total;
+  }
+
   function renderOnlineBoard() {
     var board = state.board;
 
@@ -661,22 +713,32 @@
     }
 
     el('board-submit').hidden = board.submitted;
-    el('board-note').textContent = '線上・' + describeSetting(board.entry) + '　載入中…';
+    el('board-note').textContent = boardHeading('線上') + '　載入中…';
 
-    window.Leaderboard.top(board.entry).then(function (rows) {
+    var scope = board.scope;
+
+    window.Leaderboard.top(board.entry, scope).then(function (rows) {
+      // 切太快的話舊的請求可能晚到，蓋掉新的那一份。
+      if (board.scope !== scope || board.source !== 'online') return;
+
       board.online = rows;
-      el('board-note').textContent = '線上・' + describeSetting(board.entry) +
+      el('board-note').textContent = boardHeading('線上') +
         (board.submitted ? '　你的成績已經上榜' : '　留個暱稱就能上榜');
 
       renderRows(rows.map(function (row, i) {
         return {
           rank: i + 1,
           name: row.nickname,
-          score: row.score,
-          note: row.correct + '/' + row.total + ' 題',
+          score: byMode() ? Math.round(window.Leaderboard.perQuestion(row)) : row.score,
+          unit: byMode() ? ' 分／題' : '',
+          note: byMode()
+            ? row.question_count + ' 題・' + String(row.languages || '').split('-').map(Rules.nameOf).join('／')
+            : row.correct + '/' + row.total + ' 題',
           me: false,
         };
-      }), '這組設定還沒有人上榜——你會是第一個。');
+      }), byMode()
+        ? '這個模式還沒有人上榜——你會是第一個。'
+        : '這組設定還沒有人上榜——你會是第一個。');
     }).catch(function (err) {
       el('board-note').textContent = '線上榜讀不到：' + err.message;
       renderRows([], '');
@@ -711,7 +773,7 @@
       var name = document.createElement('span');
       name.textContent = row.name;
       var score = document.createElement('i');
-      score.textContent = num(row.score) + '　' + row.note;
+      score.textContent = num(row.score) + (row.unit || '') + '　' + row.note;
 
       item.append(rank, name, score);
       list.append(item);
@@ -720,7 +782,13 @@
 
   for (var b = 0; b < boardTabs().length; b++) {
     boardTabs()[b].addEventListener('click', function () {
-      selectBoard(this.dataset.board);
+      selectBoard(this.dataset.board, null);
+    });
+  }
+
+  for (var sc = 0; sc < boardScopes().length; sc++) {
+    boardScopes()[sc].addEventListener('click', function () {
+      selectBoard(null, this.dataset.scope);
     });
   }
 
