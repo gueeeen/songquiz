@@ -22,6 +22,45 @@
   var LANGUAGES = ['mandarin', 'taiwanese', 'western', 'korean', 'japanese'];
 
   /**
+   * 難度。題庫裡每一首都貼了 0／1／2（見產生器的 Difficulty.cs）：
+   * 在同語種裡，依知名度排序的前 50% 是簡單、接下來 25% 中等、最後 25% 困難。
+   *
+   * DIFFICULTY_MIX 是**出題的比例**，和題庫的比例是兩件事：
+   * 題庫裡簡單佔一半，但六成的題目從那一半出——所以有名的歌會被重複用到，
+   * 而那正是要的。原本九個選項從整個語種隨機抽，一首冷門歌和一首國民歌
+   * 中獎率一樣，玩起來就是「大部分題目沒聽過」。
+   *
+   * 為什麼困難那一級留 10% 而不是 0：全部出簡單的話，熟的人十題全對沒有懸念。
+   * 一兩題冷門的才有「這首是什麼」的空間。
+   */
+  var TIERS = { EASY: 0, MEDIUM: 1, HARD: 2 };
+
+  var DIFFICULTY_MIX = [
+    { tier: TIERS.EASY, share: 0.6, label: '簡單' },
+    { tier: TIERS.MEDIUM, share: 0.3, label: '中等' },
+    { tier: TIERS.HARD, share: 0.1, label: '困難' },
+  ];
+
+  /**
+   * 這一題要出哪一級。
+   *
+   * @param {number} roll 0～1 的隨機數。由出題層傳進來，才能用同一顆種子重現——
+   *   多人房間所有人要拿到同一題，而他們唯一共享的東西就是那顆種子。
+   */
+  function tierFor(roll) {
+    var seen = 0;
+
+    for (var i = 0; i < DIFFICULTY_MIX.length; i++) {
+      seen += DIFFICULTY_MIX[i].share;
+      if (roll < seen) return DIFFICULTY_MIX[i].tier;
+    }
+
+    // 浮點誤差讓 roll 剛好落在最後面的時候。
+    return DIFFICULTY_MIX[DIFFICULTY_MIX.length - 1].tier;
+  }
+
+
+  /**
    * 語種的中文名。這一份**故意比 LANGUAGES 長**：
    * 粵語的排行榜管道、分類、名稱都已經備好，只差沒開放。
    * 要開放就把 'cantonese' 加進上面那一行，並在 Languages.cs 取消那一行的註解。
@@ -344,6 +383,9 @@
 
   window.Rules = {
     LANGUAGES: LANGUAGES,
+    TIERS: TIERS,
+    DIFFICULTY_MIX: DIFFICULTY_MIX,
+    tierFor: tierFor,
     LANGUAGE_NAMES: LANGUAGE_NAMES,
     QUESTION_SECONDS: QUESTION_SECONDS,
     QUESTIONS_PER_ROUND: QUESTIONS_PER_ROUND,
