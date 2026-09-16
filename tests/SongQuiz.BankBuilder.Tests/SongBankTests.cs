@@ -17,7 +17,8 @@ public class SongBankTests
     {
         Tracks =
         [
-            new Track(1, "晴天", "周杰倫", Language.Mandarin, RealPrefix + Middle + RealSuffix),
+            new Track(1, "晴天", "周杰倫", Language.Mandarin, RealPrefix + Middle + RealSuffix) { Tier = 2 },
+
             // 第二首刻意用不合前後綴的網址：Apple 有兩種資產路徑，
             // 實測兩千多首裡有兩首長這樣，那條退路是真的會被踩到的。
             new Track(2, "浪流連", "茄子蛋", Language.Taiwanese, "https://audio-ssl.itunes.apple.com/itunes-assets/Music/7f/mzm.psvckgpm.aac.p.m4a"),
@@ -86,13 +87,15 @@ public class SongBankTests
             {
                 var track = root.GetProperty("tracks")[0];
                 Assert.Equal(JsonValueKind.Array, track.ValueKind);
-                Assert.Equal(5, track.GetArrayLength());
+                Assert.Equal(6, track.GetArrayLength());
 
                 Assert.Equal(1, track[0].GetInt64());
                 Assert.Equal("晴天", track[1].GetString());
                 Assert.Equal("周杰倫", track[2].GetString());
                 Assert.Equal(0, track[3].GetInt32());          // mandarin 的索引
                 Assert.Equal(Middle, track[4].GetString());    // 前後綴被砍掉了
+                Assert.Equal(2, track[5].GetInt32());          // 難度（這筆樣本設成困難）
+
 
                 var decoy = root.GetProperty("decoys")[0];
                 Assert.Equal(3, decoy.GetArrayLength());

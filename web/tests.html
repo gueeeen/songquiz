@@ -1026,6 +1026,116 @@
 
   // ------------------------------------------------------------ 自選題數
 
+  group('難度分級');
+
+  test('比例加起來剛好是一', function () {
+    // 加不到一的話，tierFor 會在最後面靠「浮點誤差的退路」硬撐，
+    // 那條退路是給浮點誤差用的，不是給設定錯誤用的。
+    var total = Rules.DIFFICULTY_MIX.reduce(function (sum, item) { return sum + item.share; }, 0);
+    assertTrue(Math.abs(total - 1) < 1e-9, '加起來是 ' + total);
+  });
+
+  test('骰到哪一級照比例來', function () {
+    // 簡單六成、中等三成、困難一成，所以邊界在 0.6 和 0.9。
+    assertEqual(Rules.TIERS.EASY, Rules.tierFor(0));
+    assertEqual(Rules.TIERS.EASY, Rules.tierFor(0.59));
+    assertEqual(Rules.TIERS.MEDIUM, Rules.tierFor(0.6));
+    assertEqual(Rules.TIERS.MEDIUM, Rules.tierFor(0.89));
+    assertEqual(Rules.TIERS.HARD, Rules.tierFor(0.9));
+    assertEqual(Rules.TIERS.HARD, Rules.tierFor(0.999));
+  });
+
+  test('骰到 1 也不會掉出去', function () {
+    // rng() 理論上不會回 1，但浮點加總會讓 0.6+0.3+0.1 不是剛好 1，
+    // 所以最後那一級一定要有退路——沒有的話會回 undefined，
+    // 然後整場的題目全部從「難度是 undefined」那個空集合退回整個 pool。
+    assertEqual(Rules.TIERS.HARD, Rules.tierFor(1));
+  });
+
+  test('出題真的偏向簡單的那一級', function () {
+    // 這是整個改動的目的：原本一首冷門歌和一首國民歌中獎率一樣。
+    var bank = { tracks: [], decoys: [] };
+
+    // 照題庫真正的比例造：簡單一半、中等四分之一、困難四分之一。
+    //
+    // 三級都要有，不然測到的不是 60/30/10。第一版只放了簡單和困難，
+    // 結果骰到「中等」時那一級是空的、退回整個題庫變成五五抽，
+    // 期望值就從 60% 變成 0.6 + 0.3×0.5 = 75%——測試量到 76%，數學是對的，
+    // 是資料造錯了。
+    function fill(count, tier, name) {
+      for (var i = 0; i < count; i++) {
+        bank.tracks.push({
+          id: tier * 1000 + i,
+          title: name + i,
+          artist: '甲',
+          language: 'mandarin',
+          previewUrl: 'u',
+          tier: tier,
+        });
+      }
+    }
+
+    fill(100, 0, '簡單');
+    fill(50, 1, '中等');
+    fill(50, 2, '困難');
+
+
+    var maker = new window.QuestionMaker(bank, makeRng(7));
+    var easy = 0;
+    var total = 200;
+
+    for (var k = 0; k < total; k++) {
+      var question = maker.next(['mandarin'], {}, null);
+      if (question.answer.tier === 0) easy++;
+    }
+
+    // 期望六成。樣本 200 次，給一個寬一點的區間——
+    // 這裡要抓的是「有沒有偏向」，不是「偏得剛好是 60.0%」。
+    var share = easy / total;
+    assertTrue(share > 0.5 && share < 0.7, '簡單佔 ' + (share * 100).toFixed(0) + '%（期望六成）');
+
+  });
+
+  test('那一級抽不到歌就退回整個題庫，不是出不了題', function () {
+    // 語種選得窄、題數又多的時候會發生：某一級被前面幾題用完了。
+    // 這時候寧可難度偏掉一題，也不要回 null——回 null 的下一步是整場結束。
+    var bank = {
+      tracks: [
+        { id: 1, title: '只有這首', artist: '甲', language: 'mandarin', previewUrl: 'u', tier: 2 },
+      ],
+      decoys: [],
+    };
+
+    var maker = new window.QuestionMaker(bank, makeRng(3));
+
+    // 連骰十次，每次都要出得了題——不管骰到哪一級，題庫裡只有困難那一首。
+    for (var i = 0; i < 10; i++) {
+      var question = maker.next(['mandarin'], {}, null);
+      assertTrue(question !== null, '第 ' + (i + 1) + ' 次出不了題');
+      assertEqual('只有這首', question.answer.title);
+    }
+  });
+
+  test('題庫沒有難度欄位也照樣出得了題', function () {
+    // 舊題庫檔（還沒重建的那種）沒有 tier。那時候每一級都抽不到，
+    // 全部走退路，行為和分級之前一樣。
+    // 誘餌要夠多才湊得滿九個選項——這和難度無關，是題庫本來的需求。
+    var bank = { tracks: [], decoys: [] };
+    for (var i = 0; i < 3; i++) {
+      bank.tracks.push({ id: i + 1, title: '舊資料' + i, artist: '甲', language: 'mandarin', previewUrl: 'u' });
+    }
+    for (var j = 0; j < 12; j++) {
+      bank.decoys.push({ title: '誘餌' + j, artist: '乙', language: 'mandarin' });
+    }
+
+
+    var maker = new window.QuestionMaker(bank, makeRng(11));
+    var question = maker.next(['mandarin'], {}, null);
+
+    assertTrue(question !== null, '舊題庫出不了題');
+    assertEqual(9, question.choices.length);
+  });
+
   group('自選題數');
 
   test('題數五、十五、二十都打得完', function () {

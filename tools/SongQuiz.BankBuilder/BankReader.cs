@@ -68,7 +68,13 @@ public static class BankReader
                     row[1].GetString() ?? string.Empty,
                     row[2].GetString() ?? string.Empty,
                     language.Value,
-                    url));
+                    url)
+                {
+                    // 舊檔案沒有難度那一欄（第 6 個），當成「簡單」讀進來。
+                    // 合併之後會重新貼一次難度，所以這個值只是過渡。
+                    Tier = row.GetArrayLength() > 5 ? row[5].GetInt32() : 0,
+                });
+
             }
 
             var decoys = new List<Decoy>();

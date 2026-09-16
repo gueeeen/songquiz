@@ -44,7 +44,32 @@ public sealed record Track(
     /// <summary>選項上顯示的字串。算出來的，不進題庫檔。</summary>
     [JsonIgnore]
     public string Label => $"{Title} — {Artist}";
+
+    /// <summary>
+    /// 知名度分數，**越小越有名**。只在建題庫的過程中用，不進題庫檔。
+    /// </summary>
+    /// <remarks>
+    /// 沒有任何公開來源給得到「播放次數」這個絕對數字（Apple 沒有，
+    /// Spotify 只給 0～100 的相對熱度而且要註冊金鑰）。所以這裡用兩個
+    /// 手上已經有的排名合成：
+    ///
+    ///   * **歌手有多紅**：他在排行榜上的名次。榜是真的播放排行。
+    ///   * **這首歌在他的歌裡有多紅**：Search API 回傳結果的順序。
+    ///     實測是知名度排序（周杰倫回「晴天、七里香…」，
+    ///     Taylor Swift 回「Cruel Summer、Love Story…」）。
+    ///
+    /// 合成方式讓歌手的名次主導、歌的順序當細分——
+    /// 一線歌手的第五首歌，多數人還是比三線歌手的第一首熟。
+    /// </remarks>
+    public int Fame { get; init; }
+
+    /// <summary>
+    /// 難度：0 簡單、1 中等、2 困難。依 Fame 在同語種裡的位置切出來（見 Difficulty）。
+    /// 這一個**會**進題庫檔，出題時照比例挑。
+    /// </summary>
+    public int Tier { get; init; }
 }
+
 
 /// <summary>
 /// 只當錯誤選項用的歌名。它們不會被出題，存在的目的是讓九個選項看起來一樣合理，
