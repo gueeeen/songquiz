@@ -92,4 +92,10 @@ public sealed class ItunesTrack
     [JsonPropertyName("artistName")] public string? ArtistName { get; set; }
     [JsonPropertyName("previewUrl")] public string? PreviewUrl { get; set; }
     [JsonPropertyName("kind")] public string? Kind { get; set; }
+
+    /// <summary>
+    /// 這首歌自己的曲風。語種靠它判斷——按歌手判的話，雙聲帶歌手
+    /// （蕭煌奇同時唱台語和華語）的歌會整批被算成同一種。
+    /// </summary>
+    [JsonPropertyName("primaryGenreName")] public string? PrimaryGenreName { get; set; }
 }

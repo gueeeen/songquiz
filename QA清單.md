@@ -1,6 +1,6 @@
 # QA 清單
 
-三套自動測試（`web/tests.html` 68 項、`web/layout-tests.html` 45 項、
+三套自動測試（`web/tests.html` 74 項、`web/layout-tests.html` 50 項、
 `web/playthrough.html` 14 項）全部是**無頭瀏覽器在這台 Windows 上**跑的。
 它們驗得到規則、版面、和「一整場走不走得完」，但有一整類東西驗不到：
 
@@ -79,11 +79,11 @@
 ## 自動測試怎麼跑
 
 ```
-:: 規則（68 項）
+:: 規則（74 項）
 msedge --headless=new --disable-gpu --virtual-time-budget=5000 ^
        --dump-dom "file:///…/web/tests.html"
 
-:: 版面（45 項）
+:: 版面（50 項）
 msedge --headless=new --disable-gpu --allow-file-access-from-files ^
        --virtual-time-budget=20000 --dump-dom "file:///…/web/layout-tests.html"
 
@@ -94,4 +94,4 @@ msedge --headless=new --disable-gpu --allow-file-access-from-files ^
 ```
 
 三頁都會把 `RESULT PASS n/n` 畫進 DOM，所以 `--dump-dom` 抓得到。
-題庫產生器那半邊是 `dotnet test`（29 項）。
+題庫產生器那半邊是 `dotnet test`（44 項）。

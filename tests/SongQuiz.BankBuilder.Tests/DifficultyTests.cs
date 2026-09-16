@@ -10,15 +10,28 @@ public class DifficultyTests
         new(fame, $"歌{fame}", "甲", language, "u") { Fame = fame };
 
     [Fact]
-    public void 前一半簡單接下來四分之一中等最後四分之一困難()
+    public void 四成簡單三成中等三成困難()
     {
         var tracks = Enumerable.Range(0, 100).Select(i => Make(i, Language.Mandarin));
 
         var tagged = Difficulty.Assign(tracks);
 
-        Assert.Equal(50, tagged.Count(t => t.Tier == 0));
-        Assert.Equal(25, tagged.Count(t => t.Tier == 1));
-        Assert.Equal(25, tagged.Count(t => t.Tier == 2));
+        Assert.Equal(40, tagged.Count(t => t.Tier == 0));
+        Assert.Equal(30, tagged.Count(t => t.Tier == 1));
+        Assert.Equal(30, tagged.Count(t => t.Tier == 2));
+    }
+
+    [Fact]
+    public void 每語種四百首剛好容得下華語的全部經典()
+    {
+        // 40% 這個數字是從經典回推的：初版題庫的華語經典是 160 首，
+        // 400 × 40% 剛好 160。這一條就是在釘那個對應關係——
+        // 有人把 EasyShare 調小，華語經典就會有一部分掉到「中等」。
+        var tagged = Difficulty.Assign(Enumerable.Range(0, 400).Select(i => Make(i, Language.Mandarin)));
+
+        Assert.Equal(160, tagged.Count(t => t.Tier == 0));
+        Assert.Equal(120, tagged.Count(t => t.Tier == 1));
+        Assert.Equal(120, tagged.Count(t => t.Tier == 2));
     }
 
     [Fact]
@@ -26,9 +39,17 @@ public class DifficultyTests
     {
         // Fame 是「越小越有名」。搞反的話整個分級會上下顛倒，
         // 而且從外面看不出來——出題會偏向最冷門的歌。
-        var tagged = Difficulty.Assign([Make(0, Language.Mandarin), Make(999, Language.Mandarin)]);
+        //
+        // 用三首而不是兩首：三級要各拿到一首才驗得出順序。
+        // 兩首的話第二首會落在「中等」，斷言就跟著切法走而不是跟著意圖走。
+        var tagged = Difficulty.Assign([
+            Make(0, Language.Mandarin),
+            Make(500, Language.Mandarin),
+            Make(999, Language.Mandarin),
+        ]);
 
         Assert.Equal(0, tagged.Single(t => t.Fame == 0).Tier);
+        Assert.Equal(1, tagged.Single(t => t.Fame == 500).Tier);
         Assert.Equal(2, tagged.Single(t => t.Fame == 999).Tier);
     }
 
@@ -46,9 +67,9 @@ public class DifficultyTests
         foreach (var language in new[] { Language.Mandarin, Language.Taiwanese })
         {
             var group = tagged.Where(t => t.Language == language).ToList();
-            Assert.Equal(50, group.Count(t => t.Tier == 0));
-            Assert.Equal(25, group.Count(t => t.Tier == 1));
-            Assert.Equal(25, group.Count(t => t.Tier == 2));
+            Assert.Equal(40, group.Count(t => t.Tier == 0));
+            Assert.Equal(30, group.Count(t => t.Tier == 1));
+            Assert.Equal(30, group.Count(t => t.Tier == 2));
         }
     }
 
