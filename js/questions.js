@@ -62,7 +62,22 @@
 
     if (pool.length === 0) return null;
 
-    var answer = pool[Math.floor(rng() * pool.length)];
+    /**
+     * 先決定這一題的難度，再從那一級裡挑。
+     *
+     * 為什麼要分兩步：不分的話一首冷門歌和一首國民歌被抽中的機率一樣，
+     * 而題庫裡冷門的比有名的多——玩起來就是「大部分題目沒聽過」。
+     * 比例在 rules.js 的 DIFFICULTY_MIX（目前簡單六成、中等三成、困難一成）。
+     *
+     * 那一級抽不到歌的時候（語種選得窄、題數多、後面幾題把那一級用完了）
+     * 就退回整個 pool。寧可難度偏掉一題，也不要出不了題——
+     * 出不了題的下一步是整場結束，那是更糟的結果。
+     */
+    var tier = window.Rules.tierFor(rng());
+    var tiered = pool.filter(function (t) { return t.tier === tier; });
+    var from = tiered.length > 0 ? tiered : pool;
+
+    var answer = from[Math.floor(rng() * from.length)];
     var options = this.wrongOptions(answer);
 
     options.push(optionOf(answer));
