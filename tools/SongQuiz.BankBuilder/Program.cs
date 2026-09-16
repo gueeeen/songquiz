@@ -103,6 +103,7 @@ foreach (var (language, artists) in Artists.ByLanguage)
 
 // ── 第二段：對每位演出者撈歌 ──────────────────────────────────
 
+// 合併那一段會整份換掉，所以不能是 readonly。
 var tracks = new List<Track>();
 var decoys = new List<Decoy>();
 
@@ -181,16 +182,101 @@ foreach (var language in Languages.InBank)
     }
 }
 
+// ── 和上一版合併 ──────────────────────────────────────────────
+//
+// 每個月重跑會換一批新榜，但不該把上個月的整批丟掉，理由有兩個：
+//
+//   一、**一條管道壞掉就少一個語種。** 榜單是外部服務。重跑時剛好連不上，
+//       直接覆蓋就會產出一份缺語種的題庫，而且是靜悄悄的。
+//   二、**換血要平順。** 上個月紅、這個月掉榜的歌，玩家未必忘了。
+//
+// 做法：這個月的新歌優先，但只佔上限的一部分（--carry 決定留多少給舊的），
+// 剩下的名額先給上一版還在、這次沒撈到的歌，還有空位才用更多新歌補滿。
+
+var carried = 0;
+
+if (options.Carry > 0)
+{
+    var previous = BankReader.TryRead(options.Output);
+
+    if (previous is null)
+    {
+        Console.WriteLine("\n── 合併 ──\n  沒有上一版（或讀不懂），這次是全新建。");
+    }
+    else
+    {
+        Console.WriteLine("\n── 合併 ──");
+        Console.WriteLine($"  上一版：{previous.Value.Tracks.Count} 首、{previous.Value.Decoys.Count} 誘餌");
+
+        var freshIds = tracks.Select(t => t.Id).ToHashSet();
+        var freshTitles = tracks.Select(t => $"{t.Title}|{t.Artist}").ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var decoyTitles = decoys.Select(d => $"{d.Title}|{d.Artist}").ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var merged = new List<Track>();
+        var mergedDecoys = new List<Decoy>();
+
+        foreach (var language in Languages.InBank)
+        {
+            var fresh = tracks.Where(t => t.Language == language).ToList();
+            var old = previous.Value.Tracks
+                .Where(t => t.Language == language)
+                .Where(t => !freshIds.Contains(t.Id))
+                .Where(t => !freshTitles.Contains($"{t.Title}|{t.Artist}"))
+                .ToList();
+
+            // 留給舊歌的名額。新歌不夠多的時候（管道壞了）這個數字會自動放大。
+            var reserved = Math.Min((int)(options.TracksPerLanguage * options.Carry), old.Count);
+            var newRoom = Math.Max(0, options.TracksPerLanguage - reserved);
+
+            var kept = fresh.Take(newRoom).ToList();
+            var carryOver = old.Take(options.TracksPerLanguage - kept.Count).ToList();
+
+            merged.AddRange(kept);
+            merged.AddRange(carryOver);
+
+            // 還有空位（舊的也不夠）就拿更多新歌補滿。
+            merged.AddRange(fresh.Skip(kept.Count).Take(options.TracksPerLanguage - kept.Count - carryOver.Count));
+
+            carried += carryOver.Count;
+
+            // 誘餌同樣處理，但它沒有 id，只能靠「歌名｜歌手」去重。
+            var freshDecoys = decoys.Where(d => d.Language == language).ToList();
+            var oldDecoys = previous.Value.Decoys
+                .Where(d => d.Language == language)
+                .Where(d => !decoyTitles.Contains($"{d.Title}|{d.Artist}"))
+                .ToList();
+
+            var decoyReserved = Math.Min((int)(options.DecoysPerLanguage * options.Carry), oldDecoys.Count);
+            var decoyRoom = Math.Max(0, options.DecoysPerLanguage - decoyReserved);
+
+            var keptDecoys = freshDecoys.Take(decoyRoom).ToList();
+            var carryDecoys = oldDecoys.Take(options.DecoysPerLanguage - keptDecoys.Count).ToList();
+
+            mergedDecoys.AddRange(keptDecoys);
+            mergedDecoys.AddRange(carryDecoys);
+            mergedDecoys.AddRange(freshDecoys.Skip(keptDecoys.Count)
+                .Take(options.DecoysPerLanguage - keptDecoys.Count - carryDecoys.Count));
+
+            Console.WriteLine($"  {Names.Of(language)}：這個月 {kept.Count} 首 ＋ 上一版留下 {carryOver.Count} 首");
+        }
+
+        tracks = merged;
+        decoys = mergedDecoys;
+    }
+}
+
 // ── 收工 ──────────────────────────────────────────────────────
 
 var bank = new SongBank { Tracks = tracks, Decoys = decoys };
 bank.Save(options.Output);
 
+
 var size = new FileInfo(options.Output).Length;
 
 Console.WriteLine($"\n完成：{tracks.Count} 首可出題、{decoys.Count} 個誘餌"
                   + $"（共 {tracks.Count + decoys.Count} 個選項來源）");
-Console.WriteLine($"送出 {requests} 次搜尋，檔案 {size / 1024} KB");
+Console.WriteLine($"送出 {requests} 次搜尋，檔案 {size / 1024} KB"
+                  + (carried > 0 ? $"，其中 {carried} 首是從上一版留下來的" : ""));
 
 foreach (var language in Languages.InBank)
 {
@@ -235,7 +321,8 @@ internal sealed record BuilderOptions(
     int DecoysPerLanguage,
     string Country,
     TimeSpan Delay,
-    int ChartLimit);
+    int ChartLimit,
+    double Carry);
 
 internal static class CommandLine
 {
@@ -254,6 +341,7 @@ internal static class CommandLine
         var delay = TimeSpan.FromMilliseconds(800);
 
         var chartLimit = 100;        // 榜單一次要幾名（Apple 實測上限 100）
+        var carry = 0.30;            // 上限裡留多少比例給上一版的歌（0 = 直接覆蓋）
 
         for (var i = 0; i < args.Length - 1; i += 2)
         {
@@ -268,10 +356,11 @@ internal static class CommandLine
                 case "--country": country = value; break;
                 case "--delay": delay = TimeSpan.FromMilliseconds(double.Parse(value)); break;
                 case "--chart-limit": chartLimit = int.Parse(value); break;
+                case "--carry": carry = double.Parse(value); break;
             }
         }
 
-        return new BuilderOptions(output, perArtist, decoysPerArtist, tracks, decoys, country, delay, chartLimit);
+        return new BuilderOptions(output, perArtist, decoysPerArtist, tracks, decoys, country, delay, chartLimit, Math.Clamp(carry, 0, 0.9));
     }
 
     /// <summary>預設寫到網頁讀的位置，讓「跑完就能玩」成立。</summary>
