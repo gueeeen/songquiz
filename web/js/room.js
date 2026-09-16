@@ -278,7 +278,7 @@
 
     availableLanguages.forEach(function (language) {
       var on = setup.languages.indexOf(language) !== -1;
-      box.append(chip(Rules.nameOf(language) + ' ' + bankCounts[language], on, function () {
+      box.append(chip(Rules.nameOf(language), on, function () {
         var at = setup.languages.indexOf(language);
         if (at !== -1 && setup.languages.length === 1) return;
         if (at === -1) setup.languages.push(language);
@@ -649,6 +649,54 @@
     return view.choices.length + ':' + sum;
   }
 
+
+  // ---- 預載 ----
+  //
+  // 和單人那邊同一套（理由寫在 app.js）：試聽一首約 1 MB、要抓兩三秒，
+  // 不先抓的話換題時會有一段沒有聲音的空白。
+  // 房間裡更值得做——單人只有自己在等，房間是全場一起等。
+  var PREFETCH_AHEAD = 2;
+
+  var prefetched = {};
+
+  function prefetch(url) {
+    if (!url || prefetched[url]) return;
+
+    var audio = new Audio();
+    audio.preload = 'auto';
+    audio.muted = true;
+    audio.src = url;
+    audio.load();
+
+    prefetched[url] = audio;
+  }
+
+  function dropPrefetched() {
+    Object.keys(prefetched).forEach(function (url) {
+      prefetched[url].removeAttribute('src');
+      prefetched[url].load();
+    });
+
+    prefetched = {};
+  }
+
+  /**
+   * 預先生接下來幾題並抓它們的音檔。
+   *
+   * 房間裡每個人都用同一顆種子各自出題，所以預生**不能**改變出題順序——
+   * prepare() 走的是和 nextQuestion() 同一條生成路徑，rng 的呼叫次數一樣，
+   * 所以有沒有預生都會得到同一批題目（tests.html 有一條測試釘著這件事）。
+   */
+  function prefetchAhead() {
+    if (!state.game) return;
+
+    for (var i = 0; i < PREFETCH_AHEAD; i++) {
+      var coming = state.game.prepare();
+      if (!coming) break;
+      prefetch(coming.answer.previewUrl);
+    }
+  }
+
   function beginQuestion(view) {
     state.index++;
     state.locked = false;
@@ -726,6 +774,9 @@
       state.shownAt = performance.now();
     };
     player.addEventListener('playing', playingHook, { once: true });
+
+    // 這一題開始播了就去抓後面幾題的音檔。
+    prefetchAhead();
 
     var playing = player.play();
     if (playing && playing.catch) {
@@ -1130,6 +1181,7 @@
 
   function leaveRoom() {
     stopTimer();
+    dropPrefetched();
     clearTimeout(state.revealTimer);
     clearTimeout(state.joinTimer);
     player.pause();
