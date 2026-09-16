@@ -129,6 +129,55 @@
   /** 目前掛在 <audio> 上的「開始播了」監聽。一次只能有一個。 */
   var playingHook = null;
 
+  // ---- 預載 ----
+  //
+  // 問題：Apple 的試聽一首約 1 MB，抓下來要兩三秒。等按下「下一題」才開始抓，
+  // 中間就是兩三秒沒有聲音的空白——那是整個遊戲體感最差的地方。
+  //
+  // 做法：當題一開始播，就先把接下來一兩題的音檔抓下來。當題有十二秒，
+  // 抓兩三秒綽綽有餘。試聽檔的 Cache-Control 是 public, max-age=25407205（294 天），
+  // 所以正式播放時瀏覽器直接從快取拿，不會再連一次。
+  //
+  // 為什麼要留著 Audio 物件而不是抓完就丟：丟掉的話瀏覽器可以連同已下載的部分
+  // 一起回收，快取沒命中就白抓了。
+  //
+  // **為什麼不乾脆拿預載的那顆 Audio 直接當播放器**（那樣就不必靠快取）：
+  // iOS 的音訊要先被使用者手勢「解鎖」才播得出來。頁面上那一顆 <audio> 是在
+  // 按下「開始」那一下解鎖的；用 new Audio() 生出來的沒有，之後 play() 會被拒絕。
+  // 也就是說「直接用預載的那顆」在桌機更穩，在 iOS 反而會讓整個遊戲沒有聲音——
+  // 而 iOS 是這個站的主要場景。所以維持「一顆播放器 ＋ 靠 HTTP 快取」。
+  //
+  // 這個做法成立的前提是試聽檔真的可以快取。實測過：
+  //   Cache-Control: public, max-age=25407205
+  // 約 294 天，而且有 ETag 與 Accept-Ranges。
+  var PREFETCH_AHEAD = 2;
+
+  var prefetched = {};
+
+  function prefetch(url) {
+    if (!url || prefetched[url]) return;
+
+    var audio = new Audio();
+    audio.preload = 'auto';
+    // 保險：萬一哪天不小心被 play()，也不該有聲音跑出來。
+    audio.muted = true;
+    audio.src = url;
+    audio.load();
+
+    prefetched[url] = audio;
+  }
+
+  /** 一場結束就放掉。留著只是佔記憶體，而且下一場的題目不一樣。 */
+  function dropPrefetched() {
+    Object.keys(prefetched).forEach(function (url) {
+      // 不要設成空字串：某些瀏覽器會把它當成相對網址，再對頁面本身發一次請求。
+      prefetched[url].removeAttribute('src');
+      prefetched[url].load();
+    });
+
+    prefetched = {};
+  }
+
   function playPreview(url, offset, onPlaying) {
 
     var seeked = false;
@@ -251,7 +300,12 @@
 
     availableLanguages.forEach(function (language) {
       var on = setup.languages.indexOf(language) !== -1;
-      var label = Rules.nameOf(language) + ' ' + bankCounts[language];
+      // 只放語種名，不放首數。
+      // 以前每個語種的首數不一樣（華語 160、台語 80…），那個數字幫得上忙；
+      // 現在題庫每個語種都撈到同樣的上限，五顆膠囊會顯示五個一樣的數字——
+      // 不提供任何資訊，只是讓每一顆變長。
+      // 題庫夠不夠這一場，下面那行警告會講（Rules.capacityFor）。
+      var label = Rules.nameOf(language);
 
       box.append(chip(label, on, function () {
         toggleLanguage(language);
@@ -296,7 +350,15 @@
     });
   }
 
-  /** 每個模式按鈕下面那行小字：這個設定在這個模式底下的實際後果。 */
+  /**
+   * 每個模式按鈕下面那行小字。
+   *
+   * 只放**這個模式和別的模式不一樣的那個數字**，而且只在沒被選到時顯示。
+   *
+   * 分工：這一行是「選之前拿來比較三個模式」，摘要那一行是「選好之後確認」。
+   * 原本兩邊都寫「6 關 × 每關 10 題」「滿分 10,000」，同一句話相隔二十幾個
+   * 像素出現兩次，看起來像畫面出錯。
+   */
   function modeNote(mode) {
     // 每個模式各自的題數清單不同，所以預覽要用「這個模式真的能挑到的那個題數」，
     // 否則在闖關模式下會看到積分那格寫「5 題」，而積分根本沒有 5 題這個選項。
@@ -304,14 +366,10 @@
 
     if (mode === 'stage') {
       var stages = Rules.stagesFor(setup.languages, count, mode);
-      return stages.length + ' 關 × 每關 ' + count + ' 題，共 ' + (stages.length * count) + ' 題';
+      return '共 ' + (stages.length * count) + ' 題';
     }
 
-    if (mode === 'combo') {
-      return count + ' 題，滿分 ' + num(Rules.perfectScoreFor(mode, count));
-    }
-
-    return count + ' 題，滿分 ' + num(Rules.perfectScoreFor(mode, count));
+    return '滿分 ' + num(Rules.perfectScoreFor(mode, count));
   }
 
   /** 按下開始之前的最後確認：設定要在畫面上看得出後果。 */
@@ -359,7 +417,11 @@
       var button = modeButtons[i];
       var on = button.dataset.mode === setup.mode;
       button.setAttribute('aria-pressed', on ? 'true' : 'false');
-      button.querySelector('[data-note]').textContent = bankReady ? modeNote(button.dataset.mode) : '';
+      // 只有**沒被選到**的模式才顯示那行小字。
+      // 選到的那一個，底下的摘要已經把同樣的數字講了一次——
+      // 兩句一樣的話相隔二十幾個像素，看起來像畫面出錯。
+      // 這一行的用途是「選之前比較三個模式」，選好之後它的任務就結束了。
+      button.querySelector('[data-note]').textContent = (bankReady && !on) ? modeNote(button.dataset.mode) : '';
     }
 
     renderLanguageChips();
@@ -458,6 +520,8 @@
     el('result-best').textContent = '';
     el('result-note').textContent = '';
     el('hud-target').textContent = '';
+
+    dropPrefetched();
   }
 
 
@@ -515,6 +579,14 @@
     // 載不動也不能無限等。三秒是上限：超過就照常開始，
     // 玩家至少看得到倒數，而不是對著一個不動的畫面。
     state.startGuard = setTimeout(function () { begin('還在載入…先開始計時了'); }, 3000);
+
+    // 當題一開始播就去抓後面幾題的音檔。這一題有十二秒，抓兩三秒綽綽有餘，
+    // 按下「下一題」時就不會再有那段沒有聲音的空白。
+    for (var ahead = 0; ahead < PREFETCH_AHEAD; ahead++) {
+      var coming = state.game.prepare();
+      if (!coming) break;
+      prefetch(coming.answer.previewUrl);
+    }
 
     state.answering = false;
   }

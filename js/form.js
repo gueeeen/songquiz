@@ -495,12 +495,21 @@
     return config.provider === 'supabase' && !!config.url && !!config.anonKey;
   }
 
-  function say(text, kind) {
-    ['state', 'state-bottom'].forEach(function (id) {
-      var node = el(id);
-      node.className = 'form-state' + (kind ? ' ' + kind : '');
-      node.textContent = text;
-    });
+  /**
+   * 顯示狀態。
+   *
+   * 預設頁首與頁尾各寫一次，因為這份表單很長——出錯的時候不知道人捲到哪裡，
+   * 只寫一個位置很可能在畫面外。
+   *
+   * 但**送出成功之後只留一個**：那時整份表單已經被清空，兩句一模一樣的
+   * 「收到了，謝謝」會上下緊貼著出現，看起來像壞掉。
+   */
+  function say(text, kind, onlyTop) {
+    el('state').className = 'form-state' + (kind ? ' ' + kind : '');
+    el('state').textContent = text;
+
+    el('state-bottom').className = 'form-state' + (kind ? ' ' + kind : '');
+    el('state-bottom').textContent = onlyTop ? '' : text;
   }
 
   function device() {
@@ -586,7 +595,7 @@
       el('sections').replaceChildren();
       el('btn-clear').hidden = true;
       button.hidden = true;
-      say('收到了，謝謝你花這些時間。回遊戲的連結在右上角。', 'ok');
+      say('收到了，謝謝你花這些時間。回遊戲的連結在右上角。', 'ok', true);
       window.scrollTo(0, 0);
     }).catch(function (error) {
       button.disabled = false;

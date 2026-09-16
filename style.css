@@ -1068,3 +1068,7 @@ body.has-dock .mailbox { bottom: calc(150px + env(safe-area-inset-bottom)); }
 @media (min-width: 900px) {
   .star { font-size: 2.1rem; }
 }
+
+/* 題庫那一行平常是空的（只有題庫沒建好才有字）。
+   空的元素照樣佔著 margin，首頁會多出一段說不出原因的空白。 */
+.bank:empty { display: none; }
