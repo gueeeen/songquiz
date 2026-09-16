@@ -79,7 +79,9 @@ public sealed class SongBank
                 track.Artist,
                 languageIndex[track.Language],
                 Shorten(track.PreviewUrl),
+                track.Tier,
             })
+
             .ToList();
 
         var decoyRows = Decoys
@@ -107,7 +109,7 @@ public sealed class SongBank
                    + "function u(s){return s.charCodeAt(0)===104?s:b.urlPrefix+s+b.urlSuffix;}"
                    + "window.SONG_BANK={generatedAt:b.generatedAt,"
                    + "tracks:b.tracks.map(function(r){"
-                   + "return {id:r[0],title:r[1],artist:r[2],language:b.languages[r[3]],previewUrl:u(r[4])};}),"
+                   + "return {id:r[0],title:r[1],artist:r[2],language:b.languages[r[3]],previewUrl:u(r[4]),tier:r[5]};}),"
                    + "decoys:b.decoys.map(function(r){"
                    + "return {title:r[0],artist:r[1],language:b.languages[r[2]]};})};})();\n";
 

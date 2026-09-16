@@ -44,13 +44,20 @@ var client = new ItunesClient(http, options.Country, options.Delay);
 
 Console.WriteLine("── 排行榜 ──");
 
-var roster = new Dictionary<Language, List<string>>();
+// 名單要連「這個人有多紅」一起記：那是難度分級的一半訊號（另一半是歌在他歌裡的順序）。
+// 榜上的人用名次；備源名單的人沒有名次，給該語種榜單人數的一半——
+// 他們是長青歌手，不是當紅也不是冷門，硬給最後一名會把周杰倫判成「困難」。
+var roster = new Dictionary<Language, List<(string Name, int Rank)>>();
 var inRoster = new Dictionary<Language, HashSet<string>>();
+var chartCount = new Dictionary<Language, int>();
+
 
 foreach (var language in Languages.InBank)
 {
     roster[language] = [];
     inRoster[language] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    chartCount[language] = 0;
+
 }
 
 foreach (var channel in Charts.All)
@@ -70,10 +77,14 @@ foreach (var channel in Charts.All)
     {
         if (inRoster[channel.Language].Add(artist))
         {
-            roster[channel.Language].Add(artist);
+            // 名次就是它在名單裡的位置：同一個語種可能有好幾條管道，
+            // 先進來的（比較前面的榜、比較前面的名次）名次比較好。
+            roster[channel.Language].Add((artist, roster[channel.Language].Count));
+            chartCount[channel.Language]++;
             added++;
         }
     }
+
 
     Console.WriteLine(artists.Count == 0
         ? $"  {channel.Note}：0 位——這條管道可能壞了，看看網址還通不通"
@@ -87,15 +98,17 @@ foreach (var (language, artists) in Artists.ByLanguage)
     if (!Languages.IsInBank(language)) continue;
 
     var added = 0;
+    var classicRank = Math.Max(1, chartCount[language] / 2);
 
     foreach (var artist in artists)
     {
         if (inRoster[language].Add(artist))
         {
-            roster[language].Add(artist);
+            roster[language].Add((artist, classicRank));
             added++;
         }
     }
+
 
     Console.WriteLine($"  {Names.Of(language)}：名單 {artists.Length} 位，新加入 {added} 位"
                       + $"（合計 {roster[language].Count} 位）");
@@ -125,7 +138,16 @@ foreach (var language in Languages.InBank)
     var decoyCount = 0;
     var touched = 0;
 
-    foreach (var artist in roster[language])
+    // 每位演出者查回來的結果留著，第二輪要用。
+    //
+    // 為什麼要留：每人只取 5 首（前 5 首才是有名的），但有些語種的榜上
+    // 只有五十幾位演出者，五十幾乘五撈不滿一個語種——台語實測只有 240 首。
+    // 這時候要嘛加手挑名單（那是明確要降低的東西），要嘛回頭在同一批
+    // 演出者身上挖深一層。後者不用多打一次 API，而且挖出來的歌本來就比較冷門，
+    // 難度分級會自動把它們歸到較難那一級，只佔一成的題目。
+    var cache = new List<(int Rank, List<PickedSong> Songs, int Used)>();
+
+    foreach (var (artist, artistRank) in roster[language])
     {
         // 兩個額度都滿了就不用再問了。省下來的不只是時間，
         // 也是對方伺服器的請求數——這支工具沒有理由多打。
@@ -139,14 +161,12 @@ foreach (var language in Languages.InBank)
             .Where(t => t.Kind == "song")
             .Where(t => t.TrackId != 0 && !string.IsNullOrWhiteSpace(t.TrackName))
             .Where(t => !string.IsNullOrWhiteSpace(t.ArtistName))
-            .Select(t => new
-            {
+            .Select(t => new PickedSong(
                 t.TrackId,
-                Title = TitleCleaner.Clean(t.TrackName!),
-                Artist = t.ArtistName!,
-                t.PreviewUrl,
-            })
-            .Where(t => seenIds.Add(t.TrackId))
+                TitleCleaner.Clean(t.TrackName!),
+                t.ArtistName!,
+                t.PreviewUrl))
+            .Where(t => seenIds.Add(t.Id))
             .Where(t => seenTitles.Add($"{t.Title}|{t.Artist}"))
             .ToList();
 
@@ -156,8 +176,18 @@ foreach (var language in Languages.InBank)
         var room = Math.Max(0, options.TracksPerLanguage - trackCount);
         var picked = playable.Take(Math.Min(options.PerArtist, room)).ToList();
 
-        tracks.AddRange(picked.Select(t => new Track(t.TrackId, t.Title, t.Artist, language, t.PreviewUrl!)));
+        // 留給第二輪：這位演出者還有哪些可播的歌、已經用掉幾首。
+        cache.Add((artistRank, playable, picked.Count));
+
+        // Fame 越小越有名。歌手名次乘一個大於「每人取幾首」的係數，
+        // 讓歌手的紅度主導、歌在他歌裡的順序當細分。
+        tracks.AddRange(picked.Select((t, index) =>
+            new Track(t.Id, t.Title, t.Artist, language, t.PreviewUrl!)
+            {
+                Fame = artistRank * 100 + index,
+            }));
         trackCount += picked.Count;
+
 
         var decoyRoom = Math.Max(0, options.DecoysPerLanguage - decoyCount);
         var leftovers = usable
@@ -175,10 +205,50 @@ foreach (var language in Languages.InBank)
     Console.WriteLine($"  ▸ {Names.Of(language)}：問了 {touched} 位演出者，"
                       + $"{trackCount} 首可出題、{decoyCount} 個誘餌");
 
+    // ── 第二輪：名單用完了還不夠，就在同一批演出者身上挖深一層 ──
+    //
+    // 一輪挖一首（每位的第 6 首、然後第 7 首…），而不是一次把某個人挖到底——
+    // 那樣會變成「台語有一百首都是同一個人的」。
+    var deeper = 0;
+
+    while (trackCount < options.TracksPerLanguage)
+    {
+        var addedThisRound = 0;
+
+        for (var i = 0; i < cache.Count && trackCount < options.TracksPerLanguage; i++)
+        {
+            var (rank, songs, used) = cache[i];
+            if (used >= songs.Count) continue;
+
+            var song = songs[used];
+            tracks.Add(new Track(song.Id, song.Title, song.Artist, language, song.PreviewUrl!)
+            {
+                // 挖越深、Fame 越大（越不有名）。用 used 當細分，
+                // 第 6 首就會排在所有人的第 5 首之後——那正確反映「這是他比較冷門的歌」。
+                Fame = rank * 100 + used,
+            });
+
+            cache[i] = (rank, songs, used + 1);
+            trackCount++;
+            deeper++;
+            addedThisRound++;
+        }
+
+        // 一整輪都加不到東西，表示所有人的歌都用完了。
+        if (addedThisRound == 0) break;
+    }
+
+    if (deeper > 0)
+    {
+        Console.WriteLine($"    名單只夠 {trackCount - deeper} 首，"
+                          + $"回頭在同一批演出者身上多挖了 {deeper} 首（都會落在較難的那一級）");
+    }
+
     if (trackCount < options.TracksPerLanguage)
     {
-        Console.WriteLine($"    （沒撈滿 {options.TracksPerLanguage} 首——"
-                          + "名單裡的人用完了。到 Artists.cs 加幾位，或多開一條管道。）");
+        Console.WriteLine($"    （挖完還是只有 {trackCount} 首，少了 "
+                          + $"{options.TracksPerLanguage - trackCount}。這個語種的榜就是比較小，"
+                          + "要更多就得多開一條管道，或把 --tracks 調低。）");
     }
 }
 
@@ -267,8 +337,12 @@ if (options.Carry > 0)
 
 // ── 收工 ──────────────────────────────────────────────────────
 
+// 難度是「在同語種裡的相對位置」，所以要等全部收完才算得出來。
+tracks = Difficulty.Assign(tracks);
+
 var bank = new SongBank { Tracks = tracks, Decoys = decoys };
 bank.Save(options.Output);
+
 
 
 var size = new FileInfo(options.Output).Length;
@@ -282,8 +356,10 @@ foreach (var language in Languages.InBank)
 {
     var t = tracks.Count(x => x.Language == language);
     var d = decoys.Count(x => x.Language == language);
-    Console.WriteLine($"  {Names.Of(language)}：{t} 首 ＋ {d} 誘餌"
+    var byTier = Difficulty.Describe(tracks.Where(x => x.Language == language));
+    Console.WriteLine($"  {Names.Of(language)}：{t} 首（{byTier}）＋ {d} 誘餌"
                       + (t == 0 ? "　← 一首都沒有，這個語種會開不了場" : ""));
+
 }
 
 if (tracks.Count < 90)
@@ -296,6 +372,14 @@ if (size > 600 * 1024)
     Console.WriteLine($"\n（提醒：題庫 {size / 1024} KB，每個玩家一進站就要下載它。"
                       + "攤位現場多半是手機網路，這個大小會讓開場等很久。）");
 }
+
+/// <summary>
+/// 查回來、清洗過、還沒決定要當題目還是誘餌的一首歌。
+/// </summary>
+/// <remarks>
+/// 原本是匿名型別，但第二輪要把它存進 List 跨迴圈用，匿名型別做不到。
+/// </remarks>
+internal sealed record PickedSong(long Id, string Title, string Artist, string? PreviewUrl);
 
 /// <summary>語種的中文名。只有這支工具的輸出用得到。</summary>
 internal static class Names
@@ -329,7 +413,9 @@ internal static class CommandLine
     public static BuilderOptions Parse(string[] args)
     {
         var output = DefaultOutput();
-        var perArtist = 15;          // 一位演出者取幾首進題庫
+        // 5 而不是 15：Search API 的前幾首是最有名的，第 6 首之後多半是
+        // 專輯裡的冷門歌。抽到那些的話玩家「大部分題目沒聽過」，那是難度失控而不是難。
+        var perArtist = 5;           // 一位演出者取幾首進題庫
         var decoysPerArtist = 14;    // 同一位再取幾首當誘餌
         var tracks = 450;            // 每個語種的題庫上限
         var decoys = 500;            // 每個語種的誘餌上限
