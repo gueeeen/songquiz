@@ -1,6 +1,6 @@
 # QA 清單
 
-三套自動測試（`web/tests.html` 74 項、`web/layout-tests.html` 50 項、
+三套自動測試（`web/tests.html` 81 項、`web/layout-tests.html` 55 項、
 `web/playthrough.html` 14 項）全部是**無頭瀏覽器在這台 Windows 上**跑的。
 它們驗得到規則、版面、和「一整場走不走得完」，但有一整類東西驗不到：
 
@@ -64,6 +64,10 @@
 
 - [ ] 用 Safari 的開發者工具（或把手機調成 3G）限速 → 開一場
 - [ ] 音檔載超過三秒時，畫面會顯示「還在載入…先開始計時了」而不是卡在「載入中」
+- [ ] **第二題之後幾乎不會再看到「載入中」** ——當題在播的時候已經先抓好後面兩題了。
+      這一項是這份清單裡最重要的：預載靠的是 HTTP 快取（試聽檔的 Cache-Control 是 294 天），
+      而無頭瀏覽器連不到 Apple，所以自動測試只驗得到「請求有發出去」，驗不到「真的變快」。
+- [ ] 用開發者工具的 Network 看：第二題的音檔應該標示成 from disk cache 或 from memory cache
 - [ ] 音樂終於出聲之後，那句「還在載入」會換掉
 
 ---
@@ -79,11 +83,11 @@
 ## 自動測試怎麼跑
 
 ```
-:: 規則（74 項）
+:: 規則（81 項）
 msedge --headless=new --disable-gpu --virtual-time-budget=5000 ^
        --dump-dom "file:///…/web/tests.html"
 
-:: 版面（50 項）
+:: 版面（55 項）
 msedge --headless=new --disable-gpu --allow-file-access-from-files ^
        --virtual-time-budget=20000 --dump-dom "file:///…/web/layout-tests.html"
 
