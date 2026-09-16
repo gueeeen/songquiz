@@ -35,21 +35,46 @@ public static class Charts
     /// 它目前不寫進題庫檔（見 Languages.InBank），但管道、分類、名稱都已經備好，
     /// 要開放時改一行就行。
     ///
-    /// **韓語有兩條管道。** 韓國商店（kr）的 RSS 實測是空的，
-    /// 所以只剩台灣商店的韓國流行榜（56 位），比其他語種少。
-    /// 不夠的部分靠 Artists.cs 那份手打名單補——那正是它現在的用途。
+    /// **韓語用三個商店的 K-Pop 榜聯集。**
+    /// 曲風 id 是 51，不是 1252——踩過一次：1252 叫「韓國流行」，聽起來很對，
+    /// 但它撈到的全是獨立與抒情的長尾（Mingginyu、Nahee、Scenery Of Riding Bicycle…），
+    /// 六個商店試過都一樣，沒有任何一個大團。51 才是 K-Pop 主榜：
+    /// BTS、BLACKPINK、TWICE、IU、NewJeans、SEVENTEEN、Stray Kids、aespa 都在裡面。
     ///
-    /// **西洋用美國總榜。** 曲風榜（us/14 Pop）會漏掉嘻哈與鄉村，
-    /// 而那兩類在美國榜上占比不低。
+    /// 為什麼要三個商店：一個榜只有四十幾位，而且各地聽的不完全一樣——
+    /// 台灣榜有 IU 和 ATEEZ、美國榜有 ROSÉ & Bruno Mars、日本榜有 Stray Kids。
+    /// 三家聯集是 95 位，那就是「全球韓文歌」最接近的東西（Apple 沒有全球榜）。
+    /// 台灣排最前面：玩的人在台灣，這裡紅的對他們最好認，而名次就是難度。
+    ///
+    /// 1252 留在最後面當深度補充。它的歌手是真的，只是小眾——排在後面表示
+    /// Fame 比較差，難度分級會自動把它們放進中等與困難那兩級。
+    ///
+    /// 韓國商店（kr）的 RSS 不管哪個曲風都是空的，所以沒有它。
+    ///
+    /// **日語台灣榜排在日本榜前面。** 日本本地榜是傑尼斯與偶像團
+    /// （なにわ男子、M!LK、Aぇ! group），台灣人多半不認得；台灣的 J-Pop 榜
+    /// 是宇多田光、米津玄師、SixTONES——那才是這裡的玩家聽過的。
+    /// 日本榜留在後面補深度。
+    ///
+    /// **西洋用 Pop 曲風榜，不用總榜。** 美國總榜有一大半是鄉村
+    /// （Ella Langley、Dolly Parton、Chad Prather），那些在台灣幾乎沒人認得。
+    /// us/14 與 gb/14 兩個 Pop 榜給的是 Miley Cyrus、Olivia Rodrigo、
+    /// Dua Lipa、Shakira 這種跨市場的。
+    /// 代價是會漏掉嘻哈——那是刻意的取捨，這個遊戲要的是「認得出來」。
     /// </remarks>
     public static readonly ChartChannel[] All =
     [
         new("tw", 1253, Language.Mandarin, "台灣・華語流行樂"),
         new("tw", 1251, Language.Cantonese, "台灣・粵語流行"),
         new("tw", 1254, Language.Taiwanese, "台灣・台灣流行樂"),
-        new("tw", 1252, Language.Korean, "台灣・韓國流行"),
-        new("jp", 27, Language.Japanese, "日本・J-Pop"),
-        new("us", null, Language.Western, "美國・總榜"),
+        new("tw", 51, Language.Korean, "台灣・K-Pop"),
+        new("us", 51, Language.Korean, "美國・K-Pop"),
+        new("jp", 51, Language.Korean, "日本・K-Pop"),
+        new("tw", 1252, Language.Korean, "台灣・韓國流行（補深度，多半是獨立與抒情）"),
+        new("tw", 27, Language.Japanese, "台灣・J-Pop"),
+        new("jp", 27, Language.Japanese, "日本・J-Pop（補深度）"),
+        new("us", 14, Language.Western, "美國・Pop"),
+        new("gb", 14, Language.Western, "英國・Pop"),
     ];
 
     /// <summary>
@@ -67,6 +92,16 @@ public static class Charts
     }
 }
 
+
+/// <summary>榜單上的一首歌。名次就是它的知名度訊號。</summary>
+/// <param name="Rank">在這條管道裡排第幾（從 0 開始）。</param>
+public sealed record ChartSong(
+    int Rank,
+    long Id,
+    string Title,
+    string Artist,
+    string PreviewUrl,
+    string? Genre);
 /// <summary>排行榜用戶端。只讀一份 JSON，把上面的演出者依名次取出來。</summary>
 public sealed class ChartClient(HttpClient http)
 {
@@ -116,4 +151,115 @@ public sealed class ChartClient(HttpClient http)
             return [];
         }
     }
+
+    /// <summary>
+    /// 榜上的歌本身，依名次。
+    /// </summary>
+    /// <remarks>
+    /// 一開始只拿演出者、不拿歌，理由是「一份榜只有 100 首，當題庫太少」。
+    /// 那個理由對，但漏了一件事：**這 100 首是整個題庫裡唯一有真實名次的歌**。
+    /// 拿它們當「簡單」那一級的頭幾十名，題庫每個月就會自動換一批——
+    /// 光靠經典歌單的話，簡單那一級是固定的，玩久了就背起來了。
+    ///
+    /// 每一筆都自帶試聽網址，所以不用再打一次 Search API。
+    /// </remarks>
+    public async Task<IReadOnlyList<ChartSong>> SongsAsync(ChartChannel channel, int limit, CancellationToken token)
+    {
+        var url = Charts.UrlOf(channel, limit);
+
+        try
+        {
+            using var stream = await http.GetStreamAsync(url, token);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: token);
+
+            if (!document.RootElement.TryGetProperty("feed", out var feed) ||
+                !feed.TryGetProperty("entry", out var entries) ||
+                entries.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            var songs = new List<ChartSong>();
+            var rank = 0;
+
+            foreach (var entry in entries.EnumerateArray())
+            {
+                var title = Text(entry, "im:name");
+                var artist = Text(entry, "im:artist");
+                var preview = PreviewOf(entry);
+
+                // 沒有試聽網址的出不了題。榜上偶爾會有這種（多半是剛上架的）。
+                if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(artist)
+                    || string.IsNullOrWhiteSpace(preview))
+                {
+                    rank++;
+                    continue;
+                }
+
+                songs.Add(new ChartSong(rank, IdOf(entry), TitleCleaner.Clean(title), artist, preview!, GenreOf(entry)));
+                rank++;
+            }
+
+            return songs;
+        }
+        catch (Exception error) when (error is HttpRequestException or JsonException or TaskCanceledException)
+        {
+            Console.WriteLine($"  · 榜單讀不到（{channel.Note}）：{error.Message}");
+            return [];
+        }
+    }
+
+    private static string? Text(JsonElement entry, string property) =>
+        entry.TryGetProperty(property, out var node) && node.TryGetProperty("label", out var label)
+            ? label.GetString()
+            : null;
+
+    /// <summary>
+    /// 榜單的 id 是字串。解不出來就給 0——那只會讓它在去重時被當成新的一首，
+    /// 不會壞掉（歌名＋歌手那一層還會擋）。
+    /// </summary>
+    private static long IdOf(JsonElement entry) =>
+        entry.TryGetProperty("id", out var id)
+        && id.TryGetProperty("attributes", out var attributes)
+        && attributes.TryGetProperty("im:id", out var value)
+        && long.TryParse(value.GetString(), out var parsed)
+            ? parsed
+            : 0;
+
+    private static string? GenreOf(JsonElement entry) =>
+        entry.TryGetProperty("category", out var category)
+        && category.TryGetProperty("attributes", out var attributes)
+        && attributes.TryGetProperty("term", out var term)
+            ? term.GetString()
+            : null;
+
+    /// <summary>
+    /// 試聽網址。link 可能是陣列也可能是單一物件（只有一個連結的時候），
+    /// 兩種都要接——只處理陣列的話，偶爾會整筆拿不到網址。
+    /// </summary>
+    private static string? PreviewOf(JsonElement entry)
+    {
+        if (!entry.TryGetProperty("link", out var link)) return null;
+
+        if (link.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var one in link.EnumerateArray())
+            {
+                var href = AudioHref(one);
+                if (href is not null) return href;
+            }
+
+            return null;
+        }
+
+        return AudioHref(link);
+    }
+
+    private static string? AudioHref(JsonElement link) =>
+        link.TryGetProperty("attributes", out var attributes)
+        && attributes.TryGetProperty("type", out var type)
+        && type.GetString() == "audio/x-m4a"
+        && attributes.TryGetProperty("href", out var href)
+            ? href.GetString()
+            : null;
 }
