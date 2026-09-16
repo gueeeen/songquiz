@@ -63,6 +63,15 @@
     this.current = null;
     this.issuedAt = 0;
 
+    /**
+     * 已經生出來、還沒輪到的題目。
+     *
+     * 存在的理由是音檔：Apple 的試聽一首約 1 MB，抓下來要兩三秒。
+     * 等按下「下一題」才知道要放哪一首的話，中間就是一段沒有聲音的空白。
+     * 先把題目生出來，畫面層就能在當題還在播的時候去預載下一題的音檔。
+     */
+    this.queue = [];
+
     this.prepareRound();
   }
 
@@ -85,10 +94,29 @@
     if (this.status === Status.FINISHED || this.status === Status.STAGE_FAILED) return null;
     if (this.answered >= this.questionCount) return null;
 
-    // 這一關新解鎖的語種要保證出現：剩餘題數不夠塞的時候就先塞它。
+    // 先用排隊中的。沒有就現生——預載只是加速，不是必要條件。
+    var question = this.queue.shift() || this.makeQuestion();
+    if (!question) return null;
+
+    this.current = question;
+    this.issuedAt = this.now();
+    this.status = Status.AWAITING_ANSWER;
+    return this.view(question);
+  };
+
+  /**
+   * 生一題出來並記帳（用過的歌、保證出現的語種），但**不**開始計時。
+   *
+   * 記帳必須在生的時候做，不能等到輪到它才做：否則排隊中的兩題可能是同一首歌。
+   */
+  Game.prototype.makeQuestion = function () {
+    // 已經生出來的題數（答完的 ＋ 排隊中的）。保證出現的語種要照這個算，
+    // 用 answered 的話會把排隊中的那幾題當成還沒出，然後太早塞保證題。
+    var issued = this.answered + this.queue.length;
+
     var mustBe = null;
     if (this.guaranteed.length > 0 &&
-        this.questionCount - this.answered <= this.guaranteed.length) {
+        this.questionCount - issued <= this.guaranteed.length) {
       mustBe = this.guaranteed[0];
     }
 
@@ -96,15 +124,33 @@
                    this.maker.next(this.activeLanguages(), this.used, null);
     if (!question) return null;
 
-    this.current = question;
-    this.issuedAt = this.now();
     this.used[question.answer.id] = true;
 
     var at = this.guaranteed.indexOf(question.answer.language);
     if (at !== -1) this.guaranteed.splice(at, 1);
 
-    this.status = Status.AWAITING_ANSWER;
-    return this.view(question);
+    return question;
+  };
+
+  /**
+   * 預先生一題放進隊伍，回傳它（畫面層只拿 answer.previewUrl 去預載音檔）。
+   * 不能預生的時候回 null。
+   */
+  Game.prototype.prepare = function () {
+    if (this.status !== Status.AWAITING_ANSWER) return null;
+    if (this.answered + 1 + this.queue.length >= this.questionCount) return null;
+
+    // **這一關的最後一題不預生下一題。**
+    // 答完它可能過關，而過關會換一組語種、重設「保證出現」的清單——
+    // 先生出來的那一題屬於上一關，語種是錯的。
+    // 判斷寫成 answered + 1：現在這一題還沒答，answered 還沒加上它。
+    if (this.mode === 'stage' && this.answered + 1 >= this.questionCount) return null;
+
+    var question = this.makeQuestion();
+    if (!question) return null;
+
+    this.queue.push(question);
+    return question;
   };
 
   /**
@@ -212,6 +258,10 @@
     this.answered = 0;
     this.roundScore = 0;
     this.guaranteed = [];
+
+    // 換關的時候把排隊中的清掉。照 prepare() 的規則這裡本來就該是空的
+    // （最後一題不預生），但萬一哪天規則改了，留著上一關的題目是最難查的那種錯。
+    this.queue = [];
 
     var stage = this.currentStage();
     if (stage && stage.unlocks) this.guaranteed.push(stage.unlocks);

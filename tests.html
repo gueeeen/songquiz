@@ -1026,6 +1026,104 @@
 
   // ------------------------------------------------------------ 自選題數
 
+  group('預先生題（音檔預載用）');
+
+  test('預生出來的題目不會和已經出過的重複', function () {
+    // 記帳（用過的歌）必須在「生」的時候做，不是「輪到它」才做——
+    // 否則排隊中的兩題可能是同一首歌。
+    var it = newGame({ mode: 'speed', questionCount: 10, seed: 5 });
+
+    it.game.nextQuestion();
+    var a = it.game.prepare();
+    var b = it.game.prepare();
+
+    assertTrue(a !== null && b !== null, '預生不出來');
+    assertTrue(a.answer.id !== b.answer.id, '兩題預生的是同一首');
+    assertTrue(a.answer.id !== it.game.current.answer.id, '預生的和當題重複');
+  });
+
+  test('預生的題目會照順序被真的用到', function () {
+    var it = newGame({ mode: 'speed', questionCount: 10, seed: 6 });
+
+    it.game.nextQuestion();
+    var queued = it.game.prepare();
+
+    it.game.answer(null);
+    it.game.nextQuestion();
+
+    assertEqual(queued.answer.id, it.game.current.answer.id, '出到的不是剛剛預生的那一題');
+  });
+
+  test('預生不會多出題數', function () {
+    // 三題的一場，出了第一題之後最多只能再預生兩題。
+    var it = newGame({ mode: 'speed', questionCount: 3, seed: 7 });
+
+    it.game.nextQuestion();
+
+    assertTrue(it.game.prepare() !== null, '第二題該預生得出來');
+    assertTrue(it.game.prepare() !== null, '第三題該預生得出來');
+    assertEqual(null, it.game.prepare(), '第四題不該存在');
+  });
+
+  test('闖關模式的最後一題不預生下一題', function () {
+    // 答完最後一題可能過關，而過關會換一組語種、重設「保證出現」的清單。
+    // 先生出來的那一題屬於上一關，語種是錯的——而且從外面完全看不出來。
+    var it = newGame({ mode: 'stage', languages: ['mandarin', 'japanese'], questionCount: 3, seed: 8 });
+
+    it.game.nextQuestion();
+    assertTrue(it.game.prepare() !== null, '第一題之後該預生得出來');
+
+    it.game.answer(null);
+    it.game.nextQuestion();      // 第二題
+    it.game.answer(null);
+    it.game.nextQuestion();      // 第三題＝這一關的最後一題
+
+    assertEqual(null, it.game.prepare(), '最後一題不該預生下一題');
+  });
+
+  test('換關的時候排隊中的會被清掉', function () {
+    var it = newGame({ mode: 'stage', languages: ['mandarin', 'japanese'], questionCount: 3, seed: 9 });
+
+    it.game.nextQuestion();
+    it.game.prepare();
+    assertEqual(1, it.game.queue.length);
+
+    // 換關時 answer() 會呼叫 prepareRound()。
+    it.game.prepareRound();
+    assertEqual(0, it.game.queue.length, '換關之後還留著上一關的題目');
+  });
+
+  test('從來沒預生過也照樣出得了題', function () {
+    // 預載只是加速，不是必要條件。
+    var it = newGame({ mode: 'speed', questionCount: 5, seed: 10 });
+
+    for (var i = 0; i < 5; i++) {
+      assertTrue(it.game.nextQuestion() !== null, '第 ' + (i + 1) + ' 題出不來');
+      it.game.answer(null);
+    }
+  });
+
+  test('預生不會改變題目的順序', function () {
+    // 多人房間所有人用同一顆種子各自出題，順序必須一致。
+    // 有人先預生、有人沒有的話，兩邊的 rng 呼叫次數一樣，題目就會一樣——
+    // 這一條就是在釘那件事。
+    function play(withPrepare) {
+      var it = newGame({ mode: 'speed', questionCount: 6, seed: 42 });
+      var ids = [];
+
+      for (var i = 0; i < 6; i++) {
+        it.game.nextQuestion();
+        if (withPrepare) it.game.prepare();
+        ids.push(it.game.current.answer.id);
+        it.game.answer(null);
+      }
+
+      return ids.join(',');
+    }
+
+    assertEqual(play(false), play(true), '有沒有預生會出到不同的題目');
+  });
+
   group('難度分級');
 
   test('比例加起來剛好是一', function () {

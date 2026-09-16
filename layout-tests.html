@@ -599,6 +599,67 @@
 
     // ------------------------------------------------------ 兩邊互不干擾
 
+    group('不要重複說同一件事');
+
+    test('選中的模式不再重述摘要已經講過的數字', function () {
+      // 原本模式卡寫「6 關 × 每關 10 題，共 60 題」，底下摘要又寫
+      // 「6 關 × 每關 10 題」——同一句話相隔二十幾個像素出現兩次。
+      var cards = phone.doc.querySelectorAll('#screen-home .mode');
+      var summary = phone.one('#setup-summary').textContent;
+
+      for (var i = 0; i < cards.length; i++) {
+        var note = cards[i].querySelector('em').textContent.trim();
+        var picked = cards[i].getAttribute('aria-pressed') === 'true';
+
+        if (picked) {
+          assertEqual('', note, '選中的模式卡不該再寫一次數字');
+        } else {
+          assertTrue(note.length > 0, '沒選中的模式卡要有比較用的數字');
+          assertTrue(summary.indexOf(note) === -1,
+            '「' + note + '」在摘要裡已經出現過了');
+        }
+      }
+    });
+
+    test('三張模式卡等高，切換時不會跳動', function () {
+      // 註記只在沒選中時顯示，所以卡片內容會變——高度不一致的話，
+      // 每按一次模式整個版面都會跳。
+      var cards = phone.doc.querySelectorAll('#screen-home .mode');
+      var first = Math.round(cards[0].getBoundingClientRect().height);
+
+      for (var i = 1; i < cards.length; i++) {
+        assertEqual(first, Math.round(cards[i].getBoundingClientRect().height), '第 ' + (i + 1) + ' 張卡的高度');
+      }
+    });
+
+    test('語種膠囊不放首數', function () {
+      // 以前每個語種的首數不一樣（華語 160、台語 80…），那個數字幫得上忙；
+      // 現在題庫每個語種都撈到同樣的上限，五顆膠囊會顯示五個一樣的數字。
+      var chips = phone.doc.querySelectorAll('#lang-chips .chip');
+      assertTrue(chips.length > 0, '沒有語種膠囊');
+
+      for (var i = 0; i < chips.length; i++) {
+        assertTrue(!/\d/.test(chips[i].textContent),
+          '「' + chips[i].textContent + '」裡有數字');
+      }
+    });
+
+    test('題庫那一行沒話說的時候不佔位置', function () {
+      // 空的元素照樣佔著 margin，首頁會多一段說不出原因的空白。
+      var bank = phone.one('.bank');
+      if (bank.textContent.trim() === '') {
+        assertEqual(0, Math.round(bank.getBoundingClientRect().height), '空的題庫行還佔著高度');
+      }
+    });
+
+    test('大廳的提示用房間自己的詞彙', function () {
+      // 房間是「計分方式 × 出題方式」兩個軸，沒有「闖關模式」這種東西——
+      // 用單人版的詞彙會讓人對不上畫面上的按鈕。
+      var hint = phone.one('#r-screen-lobby fieldset:nth-of-type(2) legend').textContent;
+      assertTrue(hint.indexOf('逐關解鎖語種') !== -1 || hint.indexOf('隨機出題') !== -1,
+        '題數的提示是「' + hint + '」，沒有用房間的詞彙');
+    });
+
     group('意見箱');
 
     test('左下角有信箱，和右上角的齒輪對角', function () {
