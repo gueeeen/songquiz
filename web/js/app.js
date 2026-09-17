@@ -264,15 +264,20 @@
   /**
    * 把頻寬讓給正在播的那一首。
    *
-   * 每換一題就先停掉手上的預載：新的一題要馬上有聲音，而預載和它搶的是
-   * 同一條線。抓到一半的會丟掉重來，但那是划算的——使用者等的是現在這一首，
-   * 不是下一首。等這一首載得夠順（canplaythrough）再繼續。
+   * 換題的時候，正在抓的下一首和現在要播的這一首搶同一條線。使用者等的是
+   * 現在這一首，所以中止預載、抓到一半的丟掉重來。
+   *
+   * **但只在當題真的需要網路的時候才讓。** 當題已經抓好了就是從本機的 blob 播的，
+   * 一個位元組都不用下載，沒有人跟誰搶——這時候中止預載反而有害：
+   * 秒答的人每一題都會中止一次，同一首歌抓到一半就被丟掉、重排、再被丟掉，
+   * 永遠抓不完。（非限速下實測跑出 5, 26, 25, 1848——第四題就是這樣餓死的。）
    */
-  function yieldPrefetch() {
+  function yieldPrefetch(nowPlaying) {
     clearTimeout(state.prefetchTimer);
     state.prefetchTimer = null;
 
     if (!loading) return;
+    if (nowPlaying && prefetched[nowPlaying]) return;
 
     var url = loading.url;
     if (loading.controller) loading.controller.abort();
@@ -808,7 +813,7 @@
     state.startGuard = setTimeout(function () { begin('還在載入…先開始計時了'); }, 3000);
 
     // 先把頻寬讓給這一題：上一題排的預載可能還在抓，那會拖慢現在要播的這一首。
-    yieldPrefetch();
+    yieldPrefetch(question.previewUrl);
 
     // 把後面幾題生出來排隊，但**還不要開始抓**。
     for (var ahead = 0; ahead < PREFETCH_AHEAD; ahead++) {

@@ -739,17 +739,29 @@
     return prefetched[url] || url;
   }
 
-  /** 把頻寬讓給正在播的那一首（理由寫在 app.js 的同名函式）。 */
-  function yieldPrefetch() {
+  /**
+   * 把頻寬讓給正在播的那一首。
+   *
+   * 換題的時候，正在抓的下一首和現在要播的這一首搶同一條線。使用者等的是
+   * 現在這一首，所以中止預載、抓到一半的丟掉重來。
+   *
+   * **但只在當題真的需要網路的時候才讓。** 當題已經抓好了就是從本機的 blob 播的，
+   * 一個位元組都不用下載，沒有人跟誰搶——這時候中止預載反而有害：
+   * 秒答的人每一題都會中止一次，同一首歌抓到一半就被丟掉、重排、再被丟掉，
+   * 永遠抓不完。（非限速下實測跑出 5, 26, 25, 1848——第四題就是這樣餓死的。）
+   */
+  function yieldPrefetch(nowPlaying) {
     clearTimeout(prefetchTimer);
     prefetchTimer = null;
 
     if (!loading) return;
+    if (nowPlaying && prefetched[nowPlaying]) return;
 
     var url = loading.url;
     if (loading.controller) loading.controller.abort();
     loading = null;
 
+    // 退回隊伍最前面，等一下再抓。
     if (url && !prefetched[url] && pending.indexOf(url) === -1) pending.unshift(url);
   }
 
@@ -878,11 +890,11 @@
    * prepare() 走的是和 nextQuestion() 同一條生成路徑，rng 的呼叫次數一樣，
    * 所以有沒有預生都會得到同一批題目（tests.html 有一條測試釘著這件事）。
    */
-  function prefetchAhead() {
+  function prefetchAhead(nowPlaying) {
     if (!state.game) return;
 
     // 先把頻寬讓給這一題。
-    yieldPrefetch();
+    yieldPrefetch(nowPlaying);
 
     for (var i = 0; i < PREFETCH_AHEAD; i++) {
       var coming = state.game.prepare();
@@ -975,7 +987,7 @@
     player.addEventListener('playing', playingHook, { once: true });
 
     // 這一題開始播了就去抓後面幾題的音檔。
-    prefetchAhead();
+    prefetchAhead(view.previewUrl);
 
     var playing = player.play();
     if (playing && playing.catch) {
