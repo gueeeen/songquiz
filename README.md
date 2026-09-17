@@ -170,7 +170,12 @@
 
 ## 測試
 
-**遊戲規則**（81 項）：打開 `web\tests.html`，最上面會顯示 `RESULT PASS 81/81`。
+測試分兩層：無頭 Edge 那一層跑得快、不用網路；Playwright 那一層真的開瀏覽器、
+真的連 Apple 和 Supabase。
+
+### 第一層：無頭 Edge
+
+**遊戲規則**（86 項）：打開 `web\tests.html`，最上面會顯示 `RESULT PASS 86/86`。
 
 **版面**（55 項）：打開 `web\layout-tests.html`。它把 `index.html` 分別用 390px 和
 1200px 的寬度載進兩個 iframe，量實際排出來的尺寸——開始鈕有沒有釘在底部、出處會不會
@@ -204,8 +209,36 @@ iframe 算跨來源，沒有這個旗標就讀不到裡面的文件，測試會�
 其中一條是跨語言的：C# 的 `Languages.InBank` 必須和 `webjsules.js` 的 `LANGUAGES` 一致——
 那條線兩邊不同步的話，不是白下載一整個語種，就是首頁多一顆選了會開不了場的膠囊。
 
-以上全部是無頭瀏覽器在桌機上跑的。**真機、真的發得出聲音、兩台裝置連不連得上——
-那些自動測試驗不到**，清單在 [QA清單.md](QA清單.md)，要拿著手機一項一項做。
+### 第二層：Playwright（`tools\qa`）
+
+第一層有一整類東西驗不到：無頭 Edge 沒有音效裝置，也連不到 Apple，
+所以測試裡的音訊一律走「放不出來」那條路。第二層補的就是這些——
+iPhone/WebKit、Android/Chromium、桌機三組，各跑真的一場：
+
+* **真的發得出聲音嗎**：`currentTime` 有沒有在前進。
+* **慢網路下會不會卡**：用 Chrome DevTools Protocol 把頻寬壓到 2 Mbps，
+  量每一題從「畫面出現」到「音樂響起」之間的毫秒數。
+  這一條抓到過兩個真正的缺陷：並行預載會把正在播的那一首餓死；
+  以及 `<audio>` 的 `canplaythrough` 根本是估的——限速下它 585 毫秒就回報
+  「可以一路播完」，那時候只抓到 1.1 秒（整首 30 秒）。
+* **兩台機器看到同一題嗎**：兩個瀏覽器 context 各開一條 Supabase 連線，
+  比對九個選項逐字相同、順序相同。
+
+```
+cd tools\qa
+npm install && npx playwright install chromium webkit   :: 第一次
+npm test
+```
+
+預設測的是**工作目錄裡的版本**（`serve.js` 把 `web/` 端成 HTTP）。
+要驗線上：`set QA_BASE_URL=https://gueeeen.github.io/songquiz/ && npm test`。
+一輪正常是 21 通過、3 跳過（WebKit 沒有 CDP）。細節在 `tools/qa/README.md`。
+
+### 還是要拿手機做的
+
+Playwright 的 WebKit **不是** iOS Safari：真機的自動播放規則更嚴，還有鎖屏、
+切 App、來電中斷，以及兩台真的在不同網路上的裝置。
+清單在 [QA清單.md](QA清單.md)，要拿著手機一項一項做。
 
 ---
 
@@ -249,7 +282,7 @@ web/                  這就是網站本體
   js/game.js          回合狀態機：闖關／競速／積分
   js/app.js           唯一碰 DOM 與音訊的檔案
   data/bank.js        題庫（window.SONG_BANK）
-  tests.html          規則測試，打開就跑
+  tests.html          規則測試，打開就跑（86 項）
   room.html           轉址到 index.html#room（舊網址還在流傳）
   js/shell.js         單人／多人的切換（同一頁，不跳頁）
   js/realtime.js      即時層：同機／區域網路／Supabase 三個 adapter 共用一組介面
@@ -259,13 +292,14 @@ web/                  這就是網站本體
 tools/
   SongQuiz.BankBuilder/   C# 離線工具：產生 data/bank.js
   SongQuiz.LanServer/     C# 區域網路伺服器：靜態檔 ＋ WebSocket 中繼，不懂遊戲
+  qa/                     Playwright：真的開瀏覽器、真的連外網的那一層測試
   supabase-排行榜.sql     建排行榜的表（只跑一次）
   supabase-意見箱.sql     建意見箱的表（只跑一次；只給寫不給讀）
 tests/
   SongQuiz.BankBuilder.Tests/
 架構.md               為什麼是靜態站、答案在瀏覽器裡的取捨
 多人房間.md           三條連線路徑、房間協定、怎麼驗
-QA清單.md             自動測試驗不到的那些，要拿著手機做
+QA清單.md             兩層自動測試涵蓋到哪，以及剩下要拿著手機做的
 
 代辦清單.md           做到哪、下一步做什麼
 ```

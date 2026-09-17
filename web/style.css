@@ -1072,3 +1072,43 @@ body.has-dock .mailbox { bottom: calc(150px + env(safe-area-inset-bottom)); }
 /* 題庫那一行平常是空的（只有題庫沒建好才有字）。
    空的元素照樣佔著 margin，首頁會多出一段說不出原因的空白。 */
 .bank:empty { display: none; }
+
+/* ---- 開場預備 ---- */
+/* 把等待搬到玩家願意等的地方。題與題之間的空白最難忍受（剛按完答案，
+   期待馬上聽到下一首）；開場的進度條則是大家都習慣的等待。 */
+.warmup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 16px;
+}
+
+.warmup strong {
+  font-size: 1.15rem;
+  letter-spacing: .08em;
+  color: var(--ink);
+}
+
+.warmup-bar {
+  width: min(320px, 80%);
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.warmup-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width .25s ease;
+}
+
+.warmup-note {
+  font-size: .85rem;
+  color: var(--ink-dim);
+  text-align: center;
+}

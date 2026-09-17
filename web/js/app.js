@@ -53,6 +53,9 @@
     testTimer: null,
     /** 「等音樂響」的上限計時器。載不動的時候靠它把這一題開下去。 */
     startGuard: null,
+    warmTimer: null,
+    /** 「當題載夠了沒」的上限計時器。等不到 canplaythrough 就靠它開始預載。 */
+    prefetchTimer: null,
   };
 
   /** 開場挑的設定。開一場遊戲就是把這三個值交給 Game。 */
@@ -134,48 +137,163 @@
   // 問題：Apple 的試聽一首約 1 MB，抓下來要兩三秒。等按下「下一題」才開始抓，
   // 中間就是兩三秒沒有聲音的空白——那是整個遊戲體感最差的地方。
   //
-  // 做法：當題一開始播，就先把接下來一兩題的音檔抓下來。當題有十二秒，
-  // 抓兩三秒綽綽有餘。試聽檔的 Cache-Control 是 public, max-age=25407205（294 天），
-  // 所以正式播放時瀏覽器直接從快取拿，不會再連一次。
+  // 做法：當題**已經載得夠順**之後，才一首一首去抓後面的。
   //
-  // 為什麼要留著 Audio 物件而不是抓完就丟：丟掉的話瀏覽器可以連同已下載的部分
-  // 一起回收，快取沒命中就白抓了。
+  // **這裡有兩個先做錯過的地方，都只有在慢網路下才看得出來：**
+  //
+  // 一、原本當題一開始播就同時抓後面兩首。頻寬是共用的，三個 1 MB 的檔搶同一條線，
+  //     結果當題自己都還沒載完。限速到 2 Mbps 實測：每一題都等滿三秒守門計時器
+  //     （1827, 3364, 3378, 3359 ms）——等於完全沒有預載。
+  // 二、所以改成排隊：一次只抓一首，前一首抓完才抓下一首。
+  //     而且要等**當題**載得夠順（canplaythrough）才開始，正在播的那一首優先。
+  //
+  // 試聽檔的 Cache-Control 是 public, max-age=25407205（294 天），
+  // 所以正式播放時瀏覽器直接從快取拿。
   //
   // **為什麼不乾脆拿預載的那顆 Audio 直接當播放器**（那樣就不必靠快取）：
   // iOS 的音訊要先被使用者手勢「解鎖」才播得出來。頁面上那一顆 <audio> 是在
   // 按下「開始」那一下解鎖的；用 new Audio() 生出來的沒有，之後 play() 會被拒絕。
   // 也就是說「直接用預載的那顆」在桌機更穩，在 iOS 反而會讓整個遊戲沒有聲音——
   // 而 iOS 是這個站的主要場景。所以維持「一顆播放器 ＋ 靠 HTTP 快取」。
-  //
-  // 這個做法成立的前提是試聽檔真的可以快取。實測過：
-  //   Cache-Control: public, max-age=25407205
-  // 約 294 天，而且有 ETag 與 Accept-Ranges。
   var PREFETCH_AHEAD = 2;
 
+  /** 當題載到這個程度還沒回報，就不等了直接開始預載。 */
+  var PREFETCH_START_MS = 4000;
+
+  /** 已經抓好的：原始網址 → 本機的 blob 網址。 */
   var prefetched = {};
 
-  function prefetch(url) {
-    if (!url || prefetched[url]) return;
+  /** 抓好的先後順序。太舊的要放掉，否則一場二十題會囤二十 MB。 */
+  var order = [];
+  var KEEP = 8;
 
-    var audio = new Audio();
-    audio.preload = 'auto';
-    // 保險：萬一哪天不小心被 play()，也不該有聲音跑出來。
-    audio.muted = true;
-    audio.src = url;
-    audio.load();
+  /** 排隊等著抓的網址。 */
+  var pending = [];
 
-    prefetched[url] = audio;
+  /** 正在抓的那一個。一次只抓一首——並行會互相搶頻寬。 */
+  var loading = null;
+
+  /**
+   * 開場先囤幾首再開始。
+   *
+   * 光靠「邊播邊抓下一首」在慢網路下救不了秒答的人：翻牌只有一秒，
+   * 而一首 1 MB 的試聽在 2 Mbps 上要四秒，差額只能事先補起來。
+   *
+   * 取這一場題數的兩成（十題囤兩首、二十題囤四首），夾在 2～5 之間：
+   * 少於兩首等於沒囤；多於五首會讓開場等太久，而且囤再多也擋不住
+   * 「抓的速度跟不上玩的速度」——那是網速的問題，不是囤貨量的問題。
+   */
+  var WARM_SHARE = 0.2;
+  var WARM_MIN = 2;
+  var WARM_MAX = 5;
+
+  /** 預備最多等這麼久。網路真的爛的時候不能讓人永遠開不了場。 */
+  var WARM_LIMIT_MS = 12000;
+
+  /** 抓完一首就叫一次，給開場的進度條用。 */
+  var onPrefetched = null;
+
+  function queuePrefetch(url) {
+    if (!url || prefetched[url] || pending.indexOf(url) !== -1) return;
+    if (loading && loading.url === url) return;
+    pending.push(url);
+  }
+
+  /**
+   * 用 fetch 抓整個檔案，不要用 <audio> 預載。
+   *
+   * 原本這裡是 new Audio() ＋ preload='auto'，等 canplaythrough。**那是錯的，
+   * 而且錯得很難看出來**：限速到 2 Mbps 實測，canplaythrough 在 585 毫秒就發了，
+   * 但那時候 buffered 只有 1.1 秒（整首 30 秒）——瀏覽器是拿「目前的下載速率」
+   * 去估「應該播得完」，不是真的抓完。所以預備看起來成功，實際只囤了一秒鐘的歌。
+   *
+   * 換成 fetch 之後，「抓完」就真的是抓完；而且拿到整份資料可以直接做成 blob
+   * 餵給播放器，連第二個問題一起解掉——題目是從歌曲中段開始播的，播放器會發
+   * `Range: bytes=458752-` 去要中間那一段，那個位元組範圍原本根本沒被預載到。
+   *
+   * Apple 的 CDN 給 `Access-Control-Allow-Origin: *`，所以 fetch 讀得到內容。
+   * 讀不到（哪天他們改了）也不會壞：抓失敗就照原本的網址播，回到改動前的行為。
+   */
+  function pumpPrefetch() {
+    if (loading || pending.length === 0) return;
+
+    var url = pending.shift();
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var mine = { url: url, controller: controller };
+
+    loading = mine;
+
+    function settle(blobUrl) {
+      if (loading !== mine) return;
+      loading = null;
+
+      if (blobUrl) {
+        prefetched[url] = blobUrl;
+        order.push(url);
+        forget();
+      }
+
+      if (onPrefetched) onPrefetched(url, !!blobUrl);
+      pumpPrefetch();
+    }
+
+    fetch(url, controller ? { signal: controller.signal } : undefined)
+      .then(function (response) { return response.ok ? response.blob() : null; })
+      .then(function (blob) { settle(blob ? URL.createObjectURL(blob) : null); })
+      .catch(function () {
+        // 被 yieldPrefetch 中止的不算數：它已經把網址排回隊伍了，別再往下走。
+        if (controller && controller.signal.aborted) return;
+        settle(null);
+      });
+  }
+
+  /** 只留最近幾首。放掉的是已經播過的，不會再用到。 */
+  function forget() {
+    while (order.length > KEEP) {
+      var old = order.shift();
+      if (prefetched[old]) URL.revokeObjectURL(prefetched[old]);
+      delete prefetched[old];
+    }
+  }
+
+  /** 這首歌要從哪裡播：抓好了就用本機的，沒抓好就照原網址。 */
+  function sourceFor(url) {
+    return prefetched[url] || url;
+  }
+
+  /**
+   * 把頻寬讓給正在播的那一首。
+   *
+   * 每換一題就先停掉手上的預載：新的一題要馬上有聲音，而預載和它搶的是
+   * 同一條線。抓到一半的會丟掉重來，但那是划算的——使用者等的是現在這一首，
+   * 不是下一首。等這一首載得夠順（canplaythrough）再繼續。
+   */
+  function yieldPrefetch() {
+    clearTimeout(state.prefetchTimer);
+    state.prefetchTimer = null;
+
+    if (!loading) return;
+
+    var url = loading.url;
+    if (loading.controller) loading.controller.abort();
+    loading = null;
+
+    // 退回隊伍最前面，等一下再抓。
+    if (url && !prefetched[url] && pending.indexOf(url) === -1) pending.unshift(url);
   }
 
   /** 一場結束就放掉。留著只是佔記憶體，而且下一場的題目不一樣。 */
   function dropPrefetched() {
+    if (loading && loading.controller) loading.controller.abort();
+
     Object.keys(prefetched).forEach(function (url) {
-      // 不要設成空字串：某些瀏覽器會把它當成相對網址，再對頁面本身發一次請求。
-      prefetched[url].removeAttribute('src');
-      prefetched[url].load();
+      URL.revokeObjectURL(prefetched[url]);
     });
 
     prefetched = {};
+    order = [];
+    pending = [];
+    loading = null;
   }
 
   function playPreview(url, offset, onPlaying) {
@@ -480,6 +598,18 @@
   // ---- 開一場 ----
   el('btn-start').addEventListener('click', startGame);
 
+  /**
+   * 一段真的沒有聲音的 WAV（標頭 44 bytes，零個取樣）。
+   *
+   * iOS 的 <audio> 要在使用者手勢裡成功播過一次才會被「解鎖」，之後才准
+   * 程式自己呼叫 play()。原本開始鍵是直接播第一題，手勢鏈是連著的；
+   * 現在中間插了開場預備，等預備完再 play() 就已經離開手勢了，iOS 會擋下來——
+   * **整場沒有聲音**，而 iOS 是這個站的主場景。
+   *
+   * 所以在按下去的那一瞬間先播這段靜音：播放器就解鎖了，預備要花多久都沒關係。
+   */
+  var SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=';
+
   function startGame() {
     clearLastRound();
 
@@ -491,7 +621,96 @@
     });
 
     el('hud-score').textContent = '0';
+
+    // 預備期間也要顯示這一場的進度。
+    // 不設的話，「再來一場」會在準備中一直掛著上一場的「第 10 / 10 題」——
+    // 看起來像是按了沒反應。
+    el('hud-progress').textContent = '第 1 / ' + setup.questionCount + ' 題';
+    el('timer-text').textContent = Rules.QUESTION_SECONDS.toFixed(1);
+
     show('play');
+
+    // 還在手勢裡：先解鎖播放器。
+    unlockPlayer();
+
+    warmUp(startFirstQuestion);
+  }
+
+  function unlockPlayer() {
+    player.muted = true;
+    player.src = SILENCE;
+
+    var played = player.play();
+    if (played && played.catch) played.catch(function () {
+      // 被擋掉也沒關係：那表示這個瀏覽器本來就不用解鎖，或者這一下不算手勢。
+      // 兩種情況下面照常走，最壞就是回到改動前的行為。
+    });
+  }
+
+  /**
+   * 開場預備：先把前幾題的音檔抓進快取，再開始計時。
+   *
+   * 這是使用者自己提的解法，而且是對的——慢網路下的空白本來就消不掉，
+   * 能做的是把它搬到玩家願意等的位置。題與題之間的三秒空白最難忍受
+   * （剛按完答案，期待馬上聽到下一首）；開場的進度條則是大家都習慣的等待。
+   * 網路快的時候整段只花零點幾秒，沒人會注意到。
+   */
+  function warmUp(then) {
+    var want = Math.min(WARM_MAX, Math.max(WARM_MIN, Math.ceil(setup.questionCount * WARM_SHARE)));
+
+    // 第一題也要囤。它原本是「邊播邊等」的，那一下等待同樣算在玩家頭上。
+    var urls = state.game.peek(want).map(function (question) {
+      return question.answer.previewUrl;
+    });
+
+    // 已經抓好的不用再等（同一首歌在上一場出現過）。
+    urls = urls.filter(function (url) { return url && !prefetched[url]; });
+
+    if (urls.length === 0) return then();
+
+    el('warmup').hidden = false;
+    el('choices').hidden = true;
+    el('play-hint').hidden = true;
+    progressWarm(0, urls.length);
+
+    var done = 0;
+    var finished = false;
+
+    function finish() {
+      if (finished) return;
+      finished = true;
+
+      clearTimeout(state.warmTimer);
+      state.warmTimer = null;
+      onPrefetched = null;
+
+      el('warmup').hidden = true;
+      el('choices').hidden = false;
+      el('play-hint').hidden = false;
+
+      then();
+    }
+
+    onPrefetched = function () {
+      done += 1;
+      progressWarm(done, urls.length);
+      if (done >= urls.length) finish();
+    };
+
+    urls.forEach(queuePrefetch);
+    pumpPrefetch();
+
+    // 逾時就開始。囤到幾首算幾首，剩下的在遊戲中繼續抓。
+    state.warmTimer = setTimeout(finish, WARM_LIMIT_MS);
+  }
+
+  function progressWarm(done, total) {
+    el('warmup-fill').style.width = Math.round((done / total) * 100) + '%';
+    el('warmup-text').textContent = '先下載 ' + total + ' 首，開始之後就不會中斷（' + done + ' / ' + total + '）';
+  }
+
+  function startFirstQuestion() {
+    player.muted = false;
     nextQuestion();
   }
 
@@ -521,6 +740,14 @@
     el('result-note').textContent = '';
     el('hud-target').textContent = '';
 
+    clearTimeout(state.prefetchTimer);
+    state.prefetchTimer = null;
+    clearTimeout(state.warmTimer);
+    state.warmTimer = null;
+    onPrefetched = null;
+    el('warmup').hidden = true;
+    el('choices').hidden = false;
+    el('play-hint').hidden = false;
     dropPrefetched();
   }
 
@@ -561,7 +788,7 @@
     }
 
     // 每一題的起點由出題時決定（見 questions.js），所以同一首歌每次聽到的段落不同。
-    playPreview(question.previewUrl, question.offset, function () {
+    playPreview(sourceFor(question.previewUrl), question.offset, function () {
       // 守門計時器已經先開場、音樂才姍姍來遲的情況：不能重開計時器（那會變兩個），
       // 但要把「還在載入」那句換掉，否則它會一直掛在畫面上，看起來像壞了。
       if (begun) {
@@ -580,13 +807,23 @@
     // 玩家至少看得到倒數，而不是對著一個不動的畫面。
     state.startGuard = setTimeout(function () { begin('還在載入…先開始計時了'); }, 3000);
 
-    // 當題一開始播就去抓後面幾題的音檔。這一題有十二秒，抓兩三秒綽綽有餘，
-    // 按下「下一題」時就不會再有那段沒有聲音的空白。
+    // 先把頻寬讓給這一題：上一題排的預載可能還在抓，那會拖慢現在要播的這一首。
+    yieldPrefetch();
+
+    // 把後面幾題生出來排隊，但**還不要開始抓**。
     for (var ahead = 0; ahead < PREFETCH_AHEAD; ahead++) {
       var coming = state.game.prepare();
       if (!coming) break;
-      prefetch(coming.answer.previewUrl);
+      queuePrefetch(coming.answer.previewUrl);
     }
+
+    // 等當題載得夠順才開始抓後面的：頻寬是共用的，一起抓的話
+    // 正在播的這一首會被拖慢（限速實測過，每題都卡滿三秒）。
+    player.addEventListener('canplaythrough', pumpPrefetch, { once: true });
+
+    // canplaythrough 不一定會來（有些瀏覽器在檔案夠大時不發），所以加一個上限。
+    clearTimeout(state.prefetchTimer);
+    state.prefetchTimer = setTimeout(pumpPrefetch, PREFETCH_START_MS);
 
     state.answering = false;
   }

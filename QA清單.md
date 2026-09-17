@@ -1,15 +1,30 @@
 # QA 清單
 
-三套自動測試（`web/tests.html` 81 項、`web/layout-tests.html` 55 項、
-`web/playthrough.html` 14 項）全部是**無頭瀏覽器在這台 Windows 上**跑的。
-它們驗得到規則、版面、和「一整場走不走得完」，但有一整類東西驗不到：
+自動測試分兩層。**先看第二層有沒有涵蓋，再決定要不要拿手機出來。**
 
-- **真的發得出聲音嗎。** 無頭環境沒有音效裝置，測試裡的音訊一律走「放不出來」那條路。
-- **iOS Safari。** 它的自動播放限制和桌機 Chromium 不是同一套規則，而這個遊戲整個
-  建立在「按下開始的那一下手勢，可以帶著後面九題的播放」這個假設上。
-- **真的兩台裝置連得上嗎。** 多人房的同機測試用的是 BroadcastChannel，
-  跨裝置走的是 Supabase Realtime，那是完全不同的一條路。
-- **現場的網路。** Apple 的試聽是從 Apple 的伺服器直接串的，攤位的 Wi-Fi 下要多久才出聲。
+**第一層──無頭 Edge，快、不連外網**（`web/tests.html` 86 項、
+`web/layout-tests.html` 55 項、`web/playthrough.html` 14 項）。
+驗規則、版面、和「一整場走不走得完」。
+
+**第二層──Playwright，真的開瀏覽器、真的連 Apple 和 Supabase**（`tools/qa/`，
+iPhone/WebKit ＋ Android/Chromium ＋ 桌機三組）。它補上第一層驗不到的：
+
+| 原本只能實機驗的 | 現在自動驗得到 |
+| --- | --- |
+| 真的發得出聲音嗎 | `currentTime` 真的在前進（三組瀏覽器） |
+| 慢網路下會不會卡 | CDP 限速到 2 Mbps，量每一題的等待毫秒數 |
+| 預載有沒有真的生效 | 看真實的網路請求，而且比對限速前後的數字 |
+| 兩台裝置連不連得上 | 兩個瀏覽器 context 各開一條 Supabase，比對九個選項逐字相同 |
+| WebKit 上會怎樣 | iPhone 13 尺寸的 WebKit 跑完整場 |
+
+**剩下這些自動化永遠取代不了，還是要拿手機做**：
+
+- **iOS Safari 的自動播放。** Playwright 的 WebKit 不是 iOS Safari：真機的手勢規則更嚴。
+  這個遊戲整個建立在「按下開始的那一下手勢，可以帶著後面九題的播放」這個假設上，
+  而且開場預備會在手勢和第一次播放之間插入好幾秒（`app.js` 的 `unlockPlayer` 就是為了這個）。
+- **鎖屏、切 App、來電中斷。**
+- **兩台真的在不同網路上的裝置**（一台 Wi-Fi、一台行動網路）。
+- **現場的網路。** 攤位的 Wi-Fi 比模擬的 2 Mbps 更難預測。
 
 底下每一項都要**真的用手拿著手機做一次**。做完在前面打勾，並把發現寫在最後。
 
@@ -62,12 +77,22 @@
 
 ## 六、慢網路
 
+> 這一節**已經自動化**：`tools/qa/specs/audio.spec.js` 會把頻寬限到 2 Mbps
+> 再量每一題的等待。實機做這一節是為了驗「真的 3G」和「iOS Safari」，
+> 不是為了重做自動測試已經做過的事。
+
 - [ ] 用 Safari 的開發者工具（或把手機調成 3G）限速 → 開一場
-- [ ] 音檔載超過三秒時，畫面會顯示「還在載入…先開始計時了」而不是卡在「載入中」
-- [ ] **第二題之後幾乎不會再看到「載入中」** ——當題在播的時候已經先抓好後面兩題了。
-      這一項是這份清單裡最重要的：預載靠的是 HTTP 快取（試聽檔的 Cache-Control 是 294 天），
-      而無頭瀏覽器連不到 Apple，所以自動測試只驗得到「請求有發出去」，驗不到「真的變快」。
-- [ ] 用開發者工具的 Network 看：第二題的音檔應該標示成 from disk cache 或 from memory cache
+- [ ] **開場會出現「準備中」的進度條**，把前幾首先抓下來（十題抓兩首、二十題抓四首）。
+      這是刻意的：慢網路下的等待消不掉，只能搬到玩家願意等的位置——
+      題與題之間的空白最難忍受，開場的進度條大家都習慣。
+- [ ] 準備中最多停 12 秒。網路再爛也會開場，沒抓完的在遊戲中繼續抓。
+- [ ] **開始之後，前幾題完全不用等**。限速 2 Mbps 實測（秒答，最惡劣的情況）：
+      改之前 `1827, 3364, 3378, 3359`；現在 `3, 43, 1346, 809`。
+      正常速度作答（聽五秒才按）則是 `4, 27, 27, 25`——整場都不會卡。
+- [ ] 一直秒答的話，第三、四題之後可能又開始等。**那是頻寬的物理上限**：
+      2 Mbps 抓得動一首要四點四秒，秒答的人每題只花一秒多。
+      十題全部囤完要等四十四秒的開場，那個沒有人要等。
+- [ ] 真的等到了的時候，畫面會顯示「還在載入…先開始計時了」而不是卡在「載入中」
 - [ ] 音樂終於出聲之後，那句「還在載入」會換掉
 
 ---
@@ -82,14 +107,16 @@
 
 ## 自動測試怎麼跑
 
+### 第一層：無頭 Edge（快，不用網路）
+
 ```
-:: 規則（81 項）
-msedge --headless=new --disable-gpu --virtual-time-budget=5000 ^
-       --dump-dom "file:///…/web/tests.html"
+:: 規則（86 項）
+msedge --headless=new --disable-gpu --allow-file-access-from-files ^
+       --virtual-time-budget=25000 --dump-dom "file:///…/web/tests.html"
 
 :: 版面（55 項）
 msedge --headless=new --disable-gpu --allow-file-access-from-files ^
-       --virtual-time-budget=20000 --dump-dom "file:///…/web/layout-tests.html"
+       --virtual-time-budget=25000 --dump-dom "file:///…/web/layout-tests.html"
 
 :: 整場（14 項）
 msedge --headless=new --disable-gpu --allow-file-access-from-files ^
@@ -99,3 +126,32 @@ msedge --headless=new --disable-gpu --allow-file-access-from-files ^
 
 三頁都會把 `RESULT PASS n/n` 畫進 DOM，所以 `--dump-dom` 抓得到。
 題庫產生器那半邊是 `dotnet test`（44 項）。
+
+### 第二層：Playwright（真的連外網，慢）
+
+```
+cd tools\qa
+npm test                      :: 三組瀏覽器全跑
+npm test -- --project=desktop :: 只跑桌機（開發時最常用）
+npm run test:headed           :: 看得到畫面
+npm run report                :: 打開上一次的報告
+```
+
+**預設測的是工作目錄裡的版本**——`serve.js` 會把 `web/` 端在
+`http://localhost:4173/`，Playwright 自己啟動它。開發時要驗的是手上改的東西，
+不是已經發佈的版本。要驗線上：
+
+```
+set QA_BASE_URL=https://gueeeen.github.io/songquiz/ && npm test
+```
+
+第一次要先裝：`npm install && npx playwright install chromium webkit`。
+Node 沒在 PATH 上的話在
+`%LOCALAPPDATA%\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_*\node-v*-win-x64`。
+
+**跳過是正常的**：WebKit 沒有 CDP，所以限速那兩條和多人那條只在 Chromium 上跑
+（一輪應該是 21 通過、3 跳過）。
+
+`tools/qa/diag.js` 不是測試，是查問題用的：它會限速跑一場，
+把每一個音檔請求和播放器事件按時間印出來。當初就是靠它才看出
+`canplaythrough` 在騙人（585 毫秒就回報「可以播完」，實際只抓到 1.1 秒）。

@@ -1026,6 +1026,68 @@
 
   // ------------------------------------------------------------ 自選題數
 
+  group('開場預備（peek）');
+
+  test('peek 生得出要求的題數', function () {
+    var it = newGame({ mode: 'speed', questionCount: 10, seed: 7 });
+    var few = it.game.peek(3);
+
+    assertEqual(few.length, 3, '囤的數量不對');
+    assertTrue(few[0].answer.id !== few[1].answer.id &&
+               few[1].answer.id !== few[2].answer.id, '囤到同一首歌');
+  });
+
+  test('peek 不會超過這一場的題數', function () {
+    // 十題的場要求囤二十首，只能給十首——多出來的會是下一場的歌。
+    var it = newGame({ mode: 'speed', questionCount: 4, seed: 7 });
+    assertEqual(it.game.peek(20).length, 4, '囤超過整場的題數');
+  });
+
+  test('peek 過的題目就是接下來會出的題目', function () {
+    // 囤的是 A、B，結果出的是 C、D 的話，預載全白做。
+    var it = newGame({ mode: 'speed', questionCount: 10, seed: 11 });
+    var few = it.game.peek(2);
+
+    assertEqual(it.game.nextQuestion().choices.length, 9, '出不了題');
+    var first = it.game.current.answer.id;
+    it.game.answer(0);
+    it.game.nextQuestion();
+    var second = it.game.current.answer.id;
+
+    assertEqual(first, few[0].answer.id, '第一題不是囤好的那一首');
+    assertEqual(second, few[1].answer.id, '第二題不是囤好的那一首');
+  });
+
+  test('peek 不會改變出題順序', function () {
+    // **多人靠這個。** 房間裡每個人各自用同一顆種子出題，
+    // 只要有人多呼叫一次 rng，之後大家就會猜到不同的歌。
+    // 開場預備是所有人都會跑的，但萬一哪天變成「只有房主跑」也不能出事。
+    function ids(usePeek) {
+      var it = newGame({ mode: 'speed', questionCount: 6, seed: 23 });
+      if (usePeek) it.game.peek(4);
+
+      var out = [];
+      for (var i = 0; i < 6; i++) {
+        var view = it.game.nextQuestion();
+        if (!view) break;
+        out.push(it.game.current.answer.id);
+        it.game.answer(0);
+      }
+      return out.join(',');
+    }
+
+    assertEqual(ids(true), ids(false), '預備過的和沒預備過的出題順序不同');
+  });
+
+  test('peek 兩次不會重複囤', function () {
+    var it = newGame({ mode: 'speed', questionCount: 10, seed: 3 });
+    var a = it.game.peek(2);
+    var b = it.game.peek(2);
+
+    assertEqual(a[0].answer.id, b[0].answer.id, '第二次 peek 換了一批題目');
+    assertEqual(a[1].answer.id, b[1].answer.id, '第二次 peek 換了一批題目');
+  });
+
   group('預先生題（音檔預載用）');
 
   test('預生出來的題目不會和已經出過的重複', function () {
