@@ -187,8 +187,29 @@
   var WARM_MIN = 2;
   var WARM_MAX = 5;
 
-  /** 預備最多等這麼久。網路真的爛的時候不能讓人永遠開不了場。 */
-  var WARM_LIMIT_MS = 12000;
+  /**
+   * 預備的上限是**時間，不是首數**。
+   *
+   * 實測五首歌（合計 4.94 MB）在各種網速下要等多久：
+   *
+   *     好的 Wi-Fi 10 Mbps    4.3 秒
+   *     普通 4G     4 Mbps   10.5 秒
+   *     攤位 Wi-Fi  2 Mbps   21.4 秒
+   *     很慢        1 Mbps   41.3 秒
+   *     慢速 3G   400 Kbps  103.4 秒   ← 只有這一格爆掉
+   *
+   * 用「幾首」當上限的話，同一個數字在快網路上是四秒、在慢速 3G 上是一分四十秒。
+   * 所以看時間：抓到六十秒為止，抓得到幾首算幾首，剩下的在遊戲中繼續抓。
+   */
+  var WARM_LIMIT_MS = 60000;
+
+  /**
+   * 囤到這個數就讓人選擇不等了。
+   *
+   * 兩首是「開始之後不會馬上卡住」的最低限度。再往上是錦上添花，
+   * 而錦上添花不該用一分鐘的等待去換——所以給一顆鈕，要不要繼續等由玩家決定。
+   */
+  var WARM_ENOUGH = 2;
 
   /** 抓完一首就叫一次，給開場的進度條用。 */
   var onPrefetched = null;
@@ -676,10 +697,12 @@
     el('warmup').hidden = false;
     el('choices').hidden = true;
     el('play-hint').hidden = true;
-    progressWarm(0, urls.length);
 
+    var startedAt = Date.now();
     var done = 0;
     var finished = false;
+
+    progressWarm(done, urls.length, startedAt);
 
     function finish() {
       if (finished) return;
@@ -690,6 +713,7 @@
       onPrefetched = null;
 
       el('warmup').hidden = true;
+      el('btn-warmup-skip').hidden = true;
       el('choices').hidden = false;
       el('play-hint').hidden = false;
 
@@ -698,9 +722,15 @@
 
     onPrefetched = function () {
       done += 1;
-      progressWarm(done, urls.length);
+      progressWarm(done, urls.length, startedAt);
+
+      // 夠玩了就讓人自己決定要不要繼續等。
+      if (done >= WARM_ENOUGH) el('btn-warmup-skip').hidden = false;
+
       if (done >= urls.length) finish();
     };
+
+    el('btn-warmup-skip').onclick = finish;
 
     urls.forEach(queuePrefetch);
     pumpPrefetch();
@@ -709,9 +739,25 @@
     state.warmTimer = setTimeout(finish, WARM_LIMIT_MS);
   }
 
-  function progressWarm(done, total) {
+  /**
+   * 進度條、還剩幾首、大概還要多久。
+   *
+   * 預估是拿「已經抓好的平均速度」去推剩下的，抓完第一首才有得推——
+   * 在那之前只說進度，不說時間。**寧可不說，也不要說一個錯的數字**：
+   * 講了「還要 5 秒」結果等了三十秒，比什麼都不講更讓人火大。
+   */
+  function progressWarm(done, total, startedAt) {
     el('warmup-fill').style.width = Math.round((done / total) * 100) + '%';
-    el('warmup-text').textContent = '先下載 ' + total + ' 首，開始之後就不會中斷（' + done + ' / ' + total + '）';
+
+    var line = '先下載 ' + total + ' 首，開始之後就不會中斷（' + done + ' / ' + total + '）';
+
+    if (done > 0 && done < total) {
+      var each = (Date.now() - startedAt) / done;
+      var left = Math.round((each * (total - done)) / 1000);
+      if (left > 0) line += '・大約還要 ' + left + ' 秒';
+    }
+
+    el('warmup-text').textContent = line;
   }
 
   function startFirstQuestion() {
@@ -751,6 +797,7 @@
     state.warmTimer = null;
     onPrefetched = null;
     el('warmup').hidden = true;
+    el('btn-warmup-skip').hidden = true;
     el('choices').hidden = false;
     el('play-hint').hidden = false;
     dropPrefetched();
