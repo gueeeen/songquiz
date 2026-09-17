@@ -1,0 +1,13 @@
+{
+  "name": "songquiz-qa",
+  "private": true,
+  "description": "實機那一類的自動化驗證。玩法與版面的測試在 web/*.html，這裡只做那兩份驗不到的事。",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}
