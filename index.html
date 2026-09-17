@@ -8,8 +8,8 @@
      不加版本號的話，改完要等十分鐘（或使用者自己強制重新整理）才看得到新版——
      實際踩過：修好的 CSS 已經上線，但畫面還是舊的。
      發佈前把這個號碼加一，發佈流程寫在 代辦清單.md。 -->
-<link rel="stylesheet" href="style.css?v=18">
-<link rel="stylesheet" href="room.css?v=18">
+<link rel="stylesheet" href="style.css?v=19">
+<link rel="stylesheet" href="room.css?v=19">
 <!-- 主題要在第一次繪製之前就定下來。
      交給 shell.js（在 </body> 前）會先閃一下夜間版才變成日間版，
      那一下在白色房間裡特別刺眼。所以這一小段刻意內嵌在 head 裡。 -->
@@ -138,6 +138,13 @@
     <span class="timer-text" id="timer-text">12.0</span>
 
     <p class="hint" id="play-hint">正在播放…選出你聽到的那一首</p>
+
+    <!-- 開場預備：先把前幾題的音檔抓下來，之後就不會在題與題之間卡住。 -->
+    <div class="warmup" id="warmup" hidden>
+      <strong>準備中</strong>
+      <div class="warmup-bar"><i id="warmup-fill"></i></div>
+      <span class="warmup-note" id="warmup-text">先下載前幾首，開始之後就不會中斷</span>
+    </div>
 
     <div class="choices" id="choices"></div>
 
@@ -300,6 +307,13 @@
 
     <p class="hint" id="r-play-hint">正在播放…最快答對的人拿一分</p>
 
+    <!-- 開場預備：全場一起囤前幾首，房主等大家都好了才發第一題。 -->
+    <div class="warmup" id="r-warmup" hidden>
+      <strong>準備中</strong>
+      <div class="warmup-bar"><i id="r-warmup-fill"></i></div>
+      <span class="warmup-note" id="r-warmup-text">先下載前幾首，開始之後就不會中斷</span>
+    </div>
+
     <div class="choices" id="r-choices"></div>
 
     <div class="verdict" id="r-verdict" hidden>
@@ -423,18 +437,18 @@
      不然「只想一個人玩」的人要白付那 218 KB。
      shell.js 最後，因為它要呼叫前面兩邊掛出來的停止函式。
      全部都是傳統 script（不是 module），這樣從 file:// 雙擊開也能玩。 -->
-<script src="js/rules.js?v=18"></script>
-<script src="js/questions.js?v=18"></script>
-<script src="js/game.js?v=18"></script>
-<script src="data/bank.js?v=18"></script>
-<script src="realtime-config.js?v=18"></script>
-<script src="js/realtime.js?v=18"></script>
-<script src="js/feedback.js?v=18"></script>
-<script src="js/leaderboard.js?v=18"></script>
-<script src="js/boardui.js?v=18"></script>
-<script src="js/app.js?v=18"></script>
-<script src="js/room.js?v=18"></script>
-<script src="js/feedbackui.js?v=18"></script>
-<script src="js/shell.js?v=18"></script>
+<script src="js/rules.js?v=19"></script>
+<script src="js/questions.js?v=19"></script>
+<script src="js/game.js?v=19"></script>
+<script src="data/bank.js?v=19"></script>
+<script src="realtime-config.js?v=19"></script>
+<script src="js/realtime.js?v=19"></script>
+<script src="js/feedback.js?v=19"></script>
+<script src="js/leaderboard.js?v=19"></script>
+<script src="js/boardui.js?v=19"></script>
+<script src="js/app.js?v=19"></script>
+<script src="js/room.js?v=19"></script>
+<script src="js/feedbackui.js?v=19"></script>
+<script src="js/shell.js?v=19"></script>
 </body>
 </html>
