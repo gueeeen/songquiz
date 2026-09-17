@@ -40,7 +40,8 @@ async function start(page, options = {}) {
   await expect(page.locator('#screen-play')).toBeVisible();
 
   // 開場預備：先囤幾首才開始。這一段的等待是刻意的，不算在每一題的等待裡。
-  await expect(page.locator('#warmup')).toBeHidden({ timeout: 40_000 });
+  // 預備的上限是六十秒（app.js 的 WARM_LIMIT_MS），等它等滿還要留餘裕。
+  await expect(page.locator('#warmup')).toBeHidden({ timeout: 75_000 });
 }
 
 /**

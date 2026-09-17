@@ -1112,3 +1112,10 @@ body.has-dock .mailbox { bottom: calc(150px + env(safe-area-inset-bottom)); }
   color: var(--ink-dim);
   text-align: center;
 }
+
+/* 「不等了」只在囤夠兩首之後才出現——在那之前按下去是壞的體驗，不是選擇。 */
+.warmup .ghost {
+  margin-top: 4px;
+  min-height: 40px;
+  padding: 0 18px;
+}

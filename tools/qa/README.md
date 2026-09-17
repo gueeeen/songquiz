@@ -21,7 +21,7 @@ npm run test:headed            # 看得到畫面
 npm run report                 # 打開上一次的報告
 ```
 
-一輪正常的結果是 **21 通過、3 跳過**。跳過的是限速那兩條和多人那條——
+一輪正常的結果是 **25 通過、3 跳過**。跳過的是限速那兩條和多人那條——
 它們用 Chrome DevTools Protocol，WebKit 沒有。
 
 ## 測的是哪一份程式
