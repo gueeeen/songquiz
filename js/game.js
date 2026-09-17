@@ -154,6 +154,28 @@
   };
 
   /**
+   * 先把接下來的幾題生出來，但**都不要開始**。
+   *
+   * 給開場預備用：要先知道是哪幾首才抓得到音檔，但這時候還不能起算作答時間。
+   * 生出來的排在隊伍裡，nextQuestion() 會照順序拿到同樣這幾題。
+   *
+   * 和 prepare() 的差別：prepare() 是「這一題在播的時候順手多生一題」，
+   * 所以它要求狀態是「等作答中」——開場時還沒有任何一題，狀態不符，它會回 null。
+   * 開場預備一度只囤到一首就是因為誤用了它。
+   */
+  Game.prototype.peek = function (count) {
+    var want = Math.min(count || 1, this.questionCount - this.answered);
+
+    while (this.queue.length < want) {
+      var question = this.makeQuestion();
+      if (!question) break;
+      this.queue.push(question);
+    }
+
+    return this.queue.slice(0, want);
+  };
+
+  /**
    * 把這一題的碼表歸零。
    *
    * 出題的當下就起算，等於把「音檔從 Apple 載下來的時間」算進玩家的作答時間——
