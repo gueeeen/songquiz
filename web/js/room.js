@@ -791,8 +791,11 @@
    *
    * 房主會等所有人回報「囤好了」才發第一題（見 noteReady），
    * 但最多等 WARM_LIMIT_MS：房間的開始時間不能被一個人的網路無限拖住。
+   *
+   * 上限是**時間不是首數**，理由和實測數字寫在 app.js 的同名常數。
    */
-  var WARM_LIMIT_MS = 12000;
+  var WARM_LIMIT_MS = 60000;
+  var WARM_ENOUGH = 2;
 
   function warmUp(then) {
     if (!state.game) return then();
@@ -811,10 +814,12 @@
     el('warmup').hidden = false;
     el('choices').hidden = true;
     el('play-hint').hidden = true;
-    showWarm(0, urls.length);
 
+    var startedAt = Date.now();
     var done = 0;
     var finished = false;
+
+    showWarm(done, urls.length, startedAt);
 
     function finish() {
       if (finished) return;
@@ -823,15 +828,23 @@
       clearTimeout(state.warmTimer);
       state.warmTimer = null;
       onPrefetched = null;
+      el('btn-warmup-skip').hidden = true;
 
       then();
     }
 
     onPrefetched = function () {
       done += 1;
-      showWarm(done, urls.length);
+      showWarm(done, urls.length, startedAt);
+
+      // 夠玩了就可以說「我不等了」。房間裡這一下的意思是**回報自己好了**，
+      // 房主就不必再等你——所以它同時解放的是全場，不只是自己。
+      if (done >= WARM_ENOUGH) el('btn-warmup-skip').hidden = false;
+
       if (done >= urls.length) finish();
     };
+
+    el('btn-warmup-skip').onclick = finish;
 
     urls.forEach(queuePrefetch);
     pumpPrefetch();
@@ -839,10 +852,19 @@
     state.warmTimer = setTimeout(finish, WARM_LIMIT_MS);
   }
 
-  function showWarm(done, total) {
+  /** 進度條、還剩幾首、大概還要多久（估法寫在 app.js 的 progressWarm）。 */
+  function showWarm(done, total, startedAt) {
     el('warmup-fill').style.width = Math.round((done / total) * 100) + '%';
-    el('warmup-text').textContent = '先下載 ' + total + ' 首，開始之後就不會中斷（' +
-      done + ' / ' + total + '）';
+
+    var line = '先下載 ' + total + ' 首，開始之後就不會中斷（' + done + ' / ' + total + '）';
+
+    if (done > 0 && done < total) {
+      var each = (Date.now() - startedAt) / done;
+      var left = Math.round((each * (total - done)) / 1000);
+      if (left > 0) line += '・大約還要 ' + left + ' 秒';
+    }
+
+    el('warmup-text').textContent = line;
   }
 
   /** 預備結束，回到正常的遊戲畫面。 */
@@ -851,6 +873,7 @@
     state.warmTimer = null;
 
     el('warmup').hidden = true;
+    el('btn-warmup-skip').hidden = true;
     el('choices').hidden = false;
     el('play-hint').hidden = false;
   }

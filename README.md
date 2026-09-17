@@ -232,7 +232,7 @@ npm test
 
 預設測的是**工作目錄裡的版本**（`serve.js` 把 `web/` 端成 HTTP）。
 要驗線上：`set QA_BASE_URL=https://gueeeen.github.io/songquiz/ && npm test`。
-一輪正常是 21 通過、3 跳過（WebKit 沒有 CDP）。細節在 `tools/qa/README.md`。
+一輪正常是 25 通過、3 跳過（WebKit 沒有 CDP）。細節在 `tools/qa/README.md`。
 
 ### 還是要拿手機做的
 
