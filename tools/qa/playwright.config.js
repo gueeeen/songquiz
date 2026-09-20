@@ -22,6 +22,9 @@ const { defineConfig, devices } = require('@playwright/test');
 module.exports = defineConfig({
   testDir: './specs',
 
+  // 先探一下 WebKit 起不起得來（理由寫在那一支裡）。
+  globalSetup: './webkit-check.js',
+
   // 這些測試會真的去 Apple 抓音檔，慢是正常的。
   timeout: 90_000,
   expect: { timeout: 15_000 },

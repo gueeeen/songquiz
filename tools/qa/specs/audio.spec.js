@@ -7,6 +7,13 @@ const { test, expect } = require('@playwright/test');
 const { start, waitForQuestionStart, answerAndAdvance, watchAudio } = require('./game');
 
 test.describe('音訊', () => {
+  // WebKit 起不來的機器上，整組明確地跳過並說出原因——
+  // 不然每一條都會回一樣的 launch 失敗，把真正的失敗埋掉（見 webkit-check.js）。
+  test.skip(
+    ({ browserName }) => browserName === 'webkit' && process.env.QA_WEBKIT_OK !== '1',
+    'WebKit 在這台機器上起不來（Smart App Control 擋掉未簽章的 jxl.dll）',
+  );
+
   /**
    * 把頻寬壓到攤位 Wi-Fi 的等級。
    *
@@ -133,6 +140,76 @@ test.describe('音訊', () => {
     ).toBeLessThan(1500);
   });
 
+  test('整場每一題都從本機播，而且 blob 都有被放掉', async ({ page }) => {
+    // **這一條是補漏的，而且是照著一個真實的 bug 寫的。**
+    //
+    // 原本所有預載測試都只打四題就結束，那個 bug 從第六題左右才發作：
+    // 推進預載的迴圈每題固定 prepare() 兩次、卻只消耗一題，隊伍每題淨增一格，
+    // 下載一路跑到播放前面去，而 forget() 是按「最舊的一筆」淘汰的——
+    // 最舊的不保證播過，還沒播到的 blob 就被 revoke 掉了。
+    // 二十題一場實測（正常作答速度）**七題**抓好了又回去連遠端，
+    // 慢網路上那七題就是三秒空白。
+    //
+    // 量的是 player.src：吃到預載就是 blob:，沒吃到就是 https:。這比看網路請求
+    // 可靠——被 AbortController 中止的下載，位元組已經到了，Playwright 照樣報
+    // requestfinished，從外面看會誤判成「我們有了」。
+    //
+    // 給一點作答時間（1.5 秒，比人還快）：秒答的話頻寬本來就追不上，
+    // 會有幾題還沒抓完就輪到了，那是物理不是 bug（另外兩條測試管那件事）。
+    // 這一條要釘的是「該吃到的都吃到了」。
+    await page.addInitScript(() => {
+      window.__qaSrc = [];
+      window.__qaRevoked = 0;
+
+      const revoke = URL.revokeObjectURL.bind(URL);
+      URL.revokeObjectURL = function (url) { window.__qaRevoked += 1; return revoke(url); };
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const player = document.getElementById('player');
+        const real = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+
+        Object.defineProperty(player, 'src', {
+          get() { return real.get.call(this); },
+          set(value) { window.__qaSrc.push(String(value).slice(0, 12)); return real.set.call(this, value); },
+        });
+      });
+    });
+
+    await start(page, { mode: 'speed', questionCount: 15 });
+
+    const numbers = [];
+
+    for (let i = 0; i < 15; i++) {
+      await waitForQuestionStart(page);
+      if (await page.locator('#screen-result').isVisible()) break;
+
+      const hud = await page.locator('#hud-progress').textContent();
+      numbers.push(Number((hud.match(/第\s*(\d+)/) || [])[1]));
+
+      await answerAndAdvance(page, { think: 1500 });
+    }
+
+    const sources = await page.evaluate(() => window.__qaSrc);
+    const revoked = await page.evaluate(() => window.__qaRevoked);
+
+    const blobs = sources.filter((s) => s.startsWith('blob:')).length;
+    const remote = sources.filter((s) => s.startsWith('https:')).length;
+
+    test.info().annotations.push({
+      type: '十五題一場',
+      description: `從 blob 播 ${blobs} 次、從遠端播 ${remote} 次、放掉 ${revoked} 個 blob`,
+    });
+
+    // 題號不能跳。跳號表示有一題被消耗掉卻沒播——那會連著把它的 blob 也放掉。
+    expect(numbers, '題號跳掉了，有一題被吃掉').toEqual([...Array(numbers.length).keys()].map((n) => n + 1));
+
+    expect(remote, `有 ${remote} 題是直接連遠端播的——那幾題沒吃到預載`).toBe(0);
+    expect(blobs, '從 blob 播的次數和題數不合').toBe(numbers.length);
+
+    // 記憶體要放得掉。一場八十題的連段模式如果都不放，會囤到八十 MB。
+    expect(revoked, 'blob 沒有被放掉').toBeGreaterThanOrEqual(numbers.length);
+  });
+
   test('換下一題的時候不會出現「還在載入」', async ({ page }) => {
     // 上一條量的是時間，這一條量的是使用者真正看到的那句話。
     await start(page, { mode: 'speed', questionCount: 10 });
@@ -199,8 +276,18 @@ test.describe('音訊', () => {
     await throttle(context, page);
 
     // 連段模式的四十題會囤滿五首（WARM_MAX）。一般的十題只囤兩首。
+    //
+    // 要從**預備畫面出現**開始量，不是從按下開始。限速之下光是載入頁面就
+    // 好幾秒，算進去的話量到的是「頁面載入 ＋ 預備」，而被測的上限只管預備。
+    await page.goto('./');
+    await expect(page.locator('#lang-chips .chip').first()).toBeVisible();
+    await page.locator('#screen-home .mode[data-mode="combo"]').click();
+    await page.locator('#count-chips .chip', { hasText: '40 題' }).first().click();
+    await page.locator('#btn-start').click();
+
+    await expect(page.locator('#warmup')).toBeVisible();
     const clicked = Date.now();
-    await start(page, { mode: 'combo', questionCount: 40 });
+    await expect(page.locator('#warmup')).toBeHidden({ timeout: 75_000 });
     const waited = Date.now() - clicked;
 
     test.info().annotations.push({ type: '囤五首卡了(ms)', description: String(waited) });

@@ -30,7 +30,9 @@ http.createServer((request, response) => {
 
   // 不准跳出 web/。這支只在本機跑，但「路徑穿越」是那種寫的時候順手擋、
   // 沒擋就會在某天變成新聞的東西。
-  if (!file.startsWith(root)) {
+  // 要比到分隔符為止。只比 startsWith(root) 的話，隔壁一個叫 web-backup 的
+  // 目錄也會通過——這支只在本機跑，但這種錯沒有「只是小事」的版本。
+  if (file !== root && !file.startsWith(root + path.sep)) {
     response.writeHead(403).end('no');
     return;
   }

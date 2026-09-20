@@ -164,7 +164,8 @@ Node 沒在 PATH 上的話在
 `%LOCALAPPDATA%\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_*\node-v*-win-x64`。
 
 **跳過是正常的**：WebKit 沒有 CDP，所以限速那兩條和多人那條只在 Chromium 上跑
-（一輪應該是 25 通過、3 跳過）。
+（一輪應該是 28 通過、5 跳過；WebKit 起不來的機器上是 22 通過、11 跳過，
+開頭會印一段警告）。
 
 `tools/qa/diag.js` 不是測試，是查問題用的：它會限速跑一場，
 把每一個音檔請求和播放器事件按時間印出來。當初就是靠它才看出

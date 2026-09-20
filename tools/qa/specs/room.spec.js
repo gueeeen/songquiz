@@ -24,6 +24,13 @@ async function choicesOf(page) {
 }
 
 test.describe('多人房', () => {
+  // WebKit 起不來的機器上，整組明確地跳過並說出原因——
+  // 不然每一條都會回一樣的 launch 失敗，把真正的失敗埋掉（見 webkit-check.js）。
+  test.skip(
+    ({ browserName }) => browserName === 'webkit' && process.env.QA_WEBKIT_OK !== '1',
+    'WebKit 在這台機器上起不來（Smart App Control 擋掉未簽章的 jxl.dll）',
+  );
+
   // 兩條 Supabase 連線加上開場預備，比單人那幾條慢。
   test.setTimeout(150_000);
 
