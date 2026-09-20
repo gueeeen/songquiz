@@ -623,6 +623,12 @@
     state.ready = {};
     state.asked = false;
 
+    // 上一局的預載狀態要清掉。單人那邊是 clearLastRound() 做的，房間原本只在
+    // leaveRoom 做——上一局結束時還在抓的那一首會沉澱到這一局的 onPrefetched，
+    // done 就多算一首不在 urls 裡的歌：進度條可能超過 100%、
+    // 「不等了」立刻冒出來、甚至在這一局一首都沒抓好之前就開場。
+    dropPrefetched();
+
     // 全場一起預備。房主等大家回報再發第一題，最多等 WARM_LIMIT_MS。
     if (isHost()) {
       clearTimeout(state.readyTimer);
@@ -682,8 +688,14 @@
 
   var prefetched = {};
   var order = [];
-  var KEEP = 8;
+
+  /** 已經播過的，可以放掉了。 */
+  var played = {};
+  var KEEP = 8;   // 開場最多囤 5 ＋ 前面備 2 ＋ 正在播的 1
   var pending = [];
+
+  /** 已經被讓出去一次的網址（理由寫在 app.js 的同名變數）。 */
+  var yielded = {};
   var loading = null;
   var prefetchTimer = null;
   var onPrefetched = null;
@@ -703,32 +715,41 @@
 
     loading = mine;
 
-    function settle(blobUrl) {
+    // blob 網址要在守門之後才生（理由寫在 app.js）。
+    function settle(blob) {
       if (loading !== mine) return;
       loading = null;
 
-      if (blobUrl) {
-        prefetched[url] = blobUrl;
+      if (blob) {
+        prefetched[url] = URL.createObjectURL(blob);
         order.push(url);
         forget();
       }
 
-      if (onPrefetched) onPrefetched(url, !!blobUrl);
+      if (onPrefetched) onPrefetched(url, !!blob);
       pumpPrefetch();
     }
 
     fetch(url, controller ? { signal: controller.signal } : undefined)
       .then(function (response) { return response.ok ? response.blob() : null; })
-      .then(function (blob) { settle(blob ? URL.createObjectURL(blob) : null); })
+      .then(settle)
       .catch(function () {
         if (controller && controller.signal.aborted) return;
         settle(null);
       });
   }
 
+  /** 只放掉播過的，不然還沒播到的 blob 會被回收（理由寫在 app.js 的同名函式）。 */
   function forget() {
     while (order.length > KEEP) {
-      var old = order.shift();
+      var at = -1;
+      for (var i = 0; i < order.length; i++) {
+        if (played[order[i]]) { at = i; break; }
+      }
+
+      if (at === -1) return;
+
+      var old = order.splice(at, 1)[0];
       if (prefetched[old]) URL.revokeObjectURL(prefetched[old]);
       delete prefetched[old];
     }
@@ -756,8 +777,10 @@
 
     if (!loading) return;
     if (nowPlaying && prefetched[nowPlaying]) return;
+    if (yielded[loading.url]) return;
 
     var url = loading.url;
+    yielded[url] = true;
     if (loading.controller) loading.controller.abort();
     loading = null;
 
@@ -773,14 +796,52 @@
     });
 
     prefetched = {};
+    played = {};
     order = [];
     pending = [];
     loading = null;
+    yielded = {};
     onPrefetched = null;
 
     clearTimeout(prefetchTimer);
     prefetchTimer = null;
   }
+
+  /**
+   * 一段真的沒有聲音的 WAV（和 app.js 同一段）。
+   *
+   * iOS 的 <audio> 要在使用者手勢裡成功播過一次才會被解鎖。房間原本是靠
+   * 「按下開始 → startWithSettings → askNext → play()」這條同步鏈剛好落在手勢裡；
+   * 開場預備插進中間之後那條鏈就斷了，房主在 iOS 上會整場沒有聲音。
+   *
+   * **客人更早就沒有手勢**：他的第一次 play() 是收到房主的 ask 訊息才發的，
+   * 那從來不在手勢裡。所以不綁在某一顆鈕上，改成「在房間裡第一次碰到畫面
+   * 就解鎖」——房主按開始、客人按加入，都算。
+   */
+  var SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=';
+
+  var unlocked = false;
+
+  function unlockPlayer() {
+    if (unlocked) return;
+    unlocked = true;
+
+    // 已經在播真的歌就別碰——那會把聲音切斷。
+    if (player.src && !player.paused) return;
+
+    player.muted = true;
+    player.src = SILENCE;
+
+    var started = player.play();
+    if (started && started.catch) started.catch(function () {
+      // 被擋掉也沒關係：那表示這個瀏覽器本來就不用解鎖，或這一下不算手勢。
+      // 兩種情況下面照常走，最壞就是回到改動前的行為。
+    });
+
+    player.muted = false;
+  }
+
+  if (root) root.addEventListener('pointerdown', unlockPlayer, { capture: true });
 
   /**
    * 開場預備：開始之前全場一起把前幾題抓下來。
@@ -796,6 +857,9 @@
    */
   var WARM_LIMIT_MS = 60000;
   var WARM_ENOUGH = 2;
+
+  /** 就算一首都還沒抓完，等這麼久也要讓人看得到出口。 */
+  var WARM_SKIP_AFTER_MS = 15000;
 
   function warmUp(then) {
     if (!state.game) return then();
@@ -817,6 +881,7 @@
 
     var startedAt = Date.now();
     var done = 0;
+    var failed = 0;
     var finished = false;
 
     showWarm(done, urls.length, startedAt);
@@ -827,24 +892,43 @@
 
       clearTimeout(state.warmTimer);
       state.warmTimer = null;
+      clearTimeout(state.skipTimer);
+      state.skipTimer = null;
       onPrefetched = null;
       el('btn-warmup-skip').hidden = true;
+
+      // 房主按下去會直接開場（noteReady → startAsking），客人不會——
+      // 他還要等房主發第一題。鈕上寫「直接開始」但畫面沒動，看起來像壞了，
+      // 所以把話說清楚。
+      if (!isHost()) {
+        el('warmup-text').textContent = '你這邊準備好了，等其他人…';
+        el('warmup-fill').style.width = '100%';
+      }
 
       then();
     }
 
-    onPrefetched = function () {
-      done += 1;
+    onPrefetched = function (url, ok) {
+      // 抓失敗的不算進度（理由寫在 app.js）。房間裡算錯的代價更高：
+      // 會回報 ready，房主就開一場每題都卡的局。
+      if (ok) done += 1;
+      else failed += 1;
+
       showWarm(done, urls.length, startedAt);
 
       // 夠玩了就可以說「我不等了」。房間裡這一下的意思是**回報自己好了**，
       // 房主就不必再等你——所以它同時解放的是全場，不只是自己。
       if (done >= WARM_ENOUGH) el('btn-warmup-skip').hidden = false;
 
-      if (done >= urls.length) finish();
+      if (done + failed >= urls.length) finish();
     };
 
     el('btn-warmup-skip').onclick = finish;
+
+    // 抓得特別慢的時候，不要讓人乾等到第二首才看得到出口。
+    state.skipTimer = setTimeout(function () {
+      if (!finished) el('btn-warmup-skip').hidden = false;
+    }, WARM_SKIP_AFTER_MS);
 
     urls.forEach(queuePrefetch);
     pumpPrefetch();
@@ -871,6 +955,8 @@
   function hideWarm() {
     clearTimeout(state.warmTimer);
     state.warmTimer = null;
+    clearTimeout(state.skipTimer);
+    state.skipTimer = null;
 
     el('warmup').hidden = true;
     el('btn-warmup-skip').hidden = true;
@@ -919,7 +1005,9 @@
     // 先把頻寬讓給這一題。
     yieldPrefetch(nowPlaying);
 
-    for (var i = 0; i < PREFETCH_AHEAD; i++) {
+    // 補到「前面有 PREFETCH_AHEAD 題備著」為止，不是每題固定生兩題
+    // （理由和實測寫在 app.js 與 game.js 的 pendingCount）。
+    while (state.game.pendingCount() < PREFETCH_AHEAD) {
       var coming = state.game.prepare();
       if (!coming) break;
       queuePrefetch(coming.answer.previewUrl);
@@ -1008,6 +1096,12 @@
       state.shownAt = performance.now();
     };
     player.addEventListener('playing', playingHook, { once: true });
+
+    // 上一題可以放掉了（理由寫在 app.js 的 forget）。
+    if (state.nowPlaying && state.nowPlaying !== view.previewUrl) {
+      played[state.nowPlaying] = true;
+    }
+    state.nowPlaying = view.previewUrl;
 
     // 這一題開始播了就去抓後面幾題的音檔。
     prefetchAhead(view.previewUrl);
