@@ -21,8 +21,29 @@ npm run test:headed            # 看得到畫面
 npm run report                 # 打開上一次的報告
 ```
 
-一輪正常的結果是 **25 通過、3 跳過**。跳過的是限速那兩條和多人那條——
-它們用 Chrome DevTools Protocol，WebKit 沒有。
+一輪正常的結果是 **28 通過、5 跳過**。跳過的那五條用 Chrome DevTools Protocol
+（限速兩條、囤五首、不等了、多人房），WebKit 沒有。
+
+## WebKit 起不來的時候
+
+開頭印出「WebKit 在這台機器上起不來」就是這個狀況，`iphone` 那一組會整組
+明確跳過（**22 通過、11 跳過**），Chromium 兩組照跑。
+
+原因幾乎都是 Windows 的 Smart App Control：它擋掉沒有簽章的執行檔，而 Playwright
+的 WebKit 附的 `jxl.dll` 沒有簽章——DLL 載不進去，瀏覽器以 `0xC0000142` 死掉。
+確認方式：
+
+```powershell
+(Get-ItemProperty 'HKLM:SYSTEMCurrentControlSetControlCIPolicy').VerifiedAndReputablePolicyState
+# 1 = Smart App Control 開著
+Get-AuthenticodeSignature "$env:LOCALAPPDATAms-playwrightwebkit-*jxl.dll"
+# NotSigned
+```
+
+**不要為了這個去關 Smart App Control。** 那是整台機器的安全降級，而且 Windows
+只讓你關、不讓你開回來。WebKit 這一組本來就只是「最接近 iOS 的東西」，
+不等於 iOS Safari；跳過它的代價是回到原本的狀態——iOS 那一側靠實機驗，
+清單在 `QA清單.md`。要真的跑 WebKit 就換一台沒開 SAC 的機器或 CI。
 
 ## 測的是哪一份程式
 
