@@ -54,6 +54,8 @@
     /** 「等音樂響」的上限計時器。載不動的時候靠它把這一題開下去。 */
     startGuard: null,
     warmTimer: null,
+    nowPlaying: null,
+    skipTimer: null,
     /** 「當題載夠了沒」的上限計時器。等不到 canplaythrough 就靠它開始預載。 */
     prefetchTimer: null,
   };
@@ -165,10 +167,26 @@
 
   /** 抓好的先後順序。太舊的要放掉，否則一場二十題會囤二十 MB。 */
   var order = [];
+
+  /** 已經播過的，可以放掉了。 */
+  var played = {};
+
+  /** 最多留幾首 blob。開場最多囤 5、前面備 2、加上正在播的那一首。 */
+  // 5 ＋ 2 ＋ 1 ＝ 8。寫成字面值：WARM_MAX 在下面才宣告，這裡讀到的會是 undefined。
   var KEEP = 8;
 
   /** 排隊等著抓的網址。 */
   var pending = [];
+
+  /**
+   * 已經被讓出去一次的網址。
+   *
+   * yieldPrefetch 中止的下載是從第零個位元組重來的（fetch 沒有續傳）。
+   * 網路很慢的時候，一題的時間抓不完一首，於是每換一題就中止一次、重抓一次，
+   * 同一首歌永遠抓不完。所以同一個網址只讓一次，第二次就讓它抓完——
+   * 那一題可能會慢一點，但總比永遠都慢好。
+   */
+  var yielded = {};
 
   /** 正在抓的那一個。一次只抓一首——並行會互相搶頻寬。 */
   var loading = null;
@@ -211,6 +229,9 @@
    */
   var WARM_ENOUGH = 2;
 
+  /** 就算一首都還沒抓完，等這麼久也要讓人看得到出口。 */
+  var WARM_SKIP_AFTER_MS = 15000;
+
   /** 抓完一首就叫一次，給開場的進度條用。 */
   var onPrefetched = null;
 
@@ -244,34 +265,53 @@
 
     loading = mine;
 
-    function settle(blobUrl) {
+    // blob 網址要在守門**之後**才生。先生的話，被 yieldPrefetch 讓出去的那一份
+    // 會生出一個一 MB 的 blob 然後沒人 revoke——洩漏得無聲無息。
+    function settle(blob) {
       if (loading !== mine) return;
       loading = null;
 
-      if (blobUrl) {
-        prefetched[url] = blobUrl;
+      if (blob) {
+        prefetched[url] = URL.createObjectURL(blob);
         order.push(url);
         forget();
       }
 
-      if (onPrefetched) onPrefetched(url, !!blobUrl);
+      if (onPrefetched) onPrefetched(url, !!blob);
       pumpPrefetch();
     }
 
     fetch(url, controller ? { signal: controller.signal } : undefined)
       .then(function (response) { return response.ok ? response.blob() : null; })
-      .then(function (blob) { settle(blob ? URL.createObjectURL(blob) : null); })
+      .then(settle)
       .catch(function () {
         // 被 yieldPrefetch 中止的不算數：它已經把網址排回隊伍了，別再往下走。
         if (controller && controller.signal.aborted) return;
         settle(null);
       });
   }
-
-  /** 只留最近幾首。放掉的是已經播過的，不會再用到。 */
+  /**
+   * 放掉已經播過的，把記憶體壓住。
+   *
+   * **只放播過的。** 原本是按數量淘汰「最舊的一筆」，那個規則在這裡是錯的：
+   * 下載跑在播放前面，最舊的一筆不保證已經播過，於是還沒播到的 blob 被 revoke
+   * 掉，那一題就回退去連遠端——預載等於沒做。二十題一場實測，正常作答速度下
+   * 有七題中獎（修好之前）。
+   *
+   * 改成看「播過了沒」之後，這個錯就從「要小心別寫錯」變成「寫不出來」。
+   * 代價是沒播過的一律留著，但那個量本來就封頂了（開場最多 5 ＋ 前面備 2）。
+   */
   function forget() {
     while (order.length > KEEP) {
-      var old = order.shift();
+      var at = -1;
+      for (var i = 0; i < order.length; i++) {
+        if (played[order[i]]) { at = i; break; }
+      }
+
+      // 一首播過的都還沒抓好＝全部都還用得到，先留著。
+      if (at === -1) return;
+
+      var old = order.splice(at, 1)[0];
       if (prefetched[old]) URL.revokeObjectURL(prefetched[old]);
       delete prefetched[old];
     }
@@ -299,8 +339,10 @@
 
     if (!loading) return;
     if (nowPlaying && prefetched[nowPlaying]) return;
+    if (yielded[loading.url]) return;
 
     var url = loading.url;
+    yielded[url] = true;
     if (loading.controller) loading.controller.abort();
     loading = null;
 
@@ -318,8 +360,10 @@
 
     prefetched = {};
     order = [];
+    played = {};
     pending = [];
     loading = null;
+    yielded = {};
   }
 
   function playPreview(url, offset, onPlaying) {
@@ -666,8 +710,8 @@
     player.muted = true;
     player.src = SILENCE;
 
-    var played = player.play();
-    if (played && played.catch) played.catch(function () {
+    var started = player.play();
+    if (started && started.catch) started.catch(function () {
       // 被擋掉也沒關係：那表示這個瀏覽器本來就不用解鎖，或者這一下不算手勢。
       // 兩種情況下面照常走，最壞就是回到改動前的行為。
     });
@@ -700,6 +744,7 @@
 
     var startedAt = Date.now();
     var done = 0;
+    var failed = 0;
     var finished = false;
 
     progressWarm(done, urls.length, startedAt);
@@ -710,6 +755,8 @@
 
       clearTimeout(state.warmTimer);
       state.warmTimer = null;
+      clearTimeout(state.skipTimer);
+      state.skipTimer = null;
       onPrefetched = null;
 
       el('warmup').hidden = true;
@@ -720,17 +767,28 @@
       then();
     }
 
-    onPrefetched = function () {
-      done += 1;
-      progressWarm(done, urls.length, startedAt);
+    onPrefetched = function (url, ok) {
+      // **抓失敗的不算進度。** 算進去的話，音檔全部 404（或 Apple 哪天收掉
+      // Access-Control-Allow-Origin）的時候，進度條會在幾百毫秒內衝到 100%、
+      // 「不等了」馬上冒出來說兩首備好了，而手上其實一首都沒有。
+      // 房間裡更糟：會回報 ready，房主就開一場每題都卡的局。
+      if (ok) done += 1;
+      else failed += 1;
 
-      // 夠玩了就讓人自己決定要不要繼續等。
+      progressWarm(done, urls.length, startedAt);
       if (done >= WARM_ENOUGH) el('btn-warmup-skip').hidden = false;
 
-      if (done >= urls.length) finish();
+      // 全部有結果了就走——都失敗也要走，不然會卡到逾時。
+      if (done + failed >= urls.length) finish();
     };
 
     el('btn-warmup-skip').onclick = finish;
+
+    // 抓得特別慢的時候，不要讓人乾等到第二首才看得到出口。
+    // 400 Kbps 下第一首要二十秒、第二首四十秒——那一分鐘裡他沒有任何選擇。
+    state.skipTimer = setTimeout(function () {
+      if (!finished) el('btn-warmup-skip').hidden = false;
+    }, WARM_SKIP_AFTER_MS);
 
     urls.forEach(queuePrefetch);
     pumpPrefetch();
@@ -795,6 +853,8 @@
     state.prefetchTimer = null;
     clearTimeout(state.warmTimer);
     state.warmTimer = null;
+    clearTimeout(state.skipTimer);
+    state.skipTimer = null;
     onPrefetched = null;
     el('warmup').hidden = true;
     el('btn-warmup-skip').hidden = true;
@@ -859,11 +919,21 @@
     // 玩家至少看得到倒數，而不是對著一個不動的畫面。
     state.startGuard = setTimeout(function () { begin('還在載入…先開始計時了'); }, 3000);
 
+    // 上一題可以放掉了。標記要在**這一題開始之前**做，forget() 才永遠碰不到
+    // 還沒播的那幾首。
+    if (state.nowPlaying && state.nowPlaying !== question.previewUrl) {
+      played[state.nowPlaying] = true;
+    }
+    state.nowPlaying = question.previewUrl;
+
     // 先把頻寬讓給這一題：上一題排的預載可能還在抓，那會拖慢現在要播的這一首。
     yieldPrefetch(question.previewUrl);
 
     // 把後面幾題生出來排隊，但**還不要開始抓**。
-    for (var ahead = 0; ahead < PREFETCH_AHEAD; ahead++) {
+    // 補到「前面有 PREFETCH_AHEAD 題備著」為止——不是每題固定生兩題。
+    // 固定兩題的話，一題只消耗一題，隊伍每題淨增一格：視窗會一路漂到
+    // 整場的最後一題，下載跑到播放前面去，KEEP 就把還沒播的 blob 回收掉。
+    while (state.game.pendingCount() < PREFETCH_AHEAD) {
       var coming = state.game.prepare();
       if (!coming) break;
       queuePrefetch(coming.answer.previewUrl);
@@ -1045,6 +1115,12 @@
   function showResult() {
     stopTimer();
     player.pause();
+
+    // 一場結束就別再抓了。留著的話，結算頁按「聽」的時候還在跟排隊中的
+    // 下載搶頻寬，而那些歌這一場已經用不到了。
+    clearTimeout(state.prefetchTimer);
+    state.prefetchTimer = null;
+    dropPrefetched();
 
     var game = state.game;
     var stageMode = game.mode === 'stage';
