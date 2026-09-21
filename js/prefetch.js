@@ -125,6 +125,19 @@
     /** 預備期間用來數進度；平常是 null。 */
     var onSettled = null;
 
+    /**
+     * 停掉正在跑的開場預備。
+     *
+     * drop() 和 hideWarm() 都必須經過這裡。只清計時器不夠：預備的 onSettled 還掛著
+     * 的話，之後每抓好一首都會去寫預備畫面的進度條（那時候畫面已經收起來了），
+     * 最後一首抓完還會叫 finish() → then()，在房間裡就是為一局早就開始的遊戲
+     * 送出一個過期的 ready。
+     *
+     * 兩段預備重疊也靠這個：warmUp 開頭先取消上一段，不然上一段的計時器會在
+     * 這一段跑到一半的時候把它的狀態清掉。
+     */
+    var cancelWarm = function () {};
+
     var unlocked = false;
 
     /** 這首歌要從哪裡播：抓好了就用本機的，沒抓好就照原網址。 */
@@ -271,7 +284,8 @@
       loading = null;
       yielded = {};
       nowPlaying = null;
-      onSettled = null;
+
+      cancelWarm();
 
       clearTimeout(startTimer);
       startTimer = null;
@@ -307,6 +321,9 @@
      * 房間是回報自己準備好了、然後等房主發題。
      */
     function warmUp(then) {
+      // 上一段預備如果還在跑，先停掉——它的計時器會誤傷這一段。
+      cancelWarm();
+
       var game = gameOf();
       if (!game) return then();
 
@@ -326,15 +343,16 @@
       el('warmup').hidden = false;
       el('choices').hidden = true;
       el('play-hint').hidden = true;
-      showProgress(0, urls.length, Date.now());
 
       var startedAt = Date.now();
       var done = 0;
       var failed = 0;
       var finished = false;
 
-      function finish() {
-        if (finished) return;
+      showProgress(done, urls.length, startedAt);
+
+      /** 收乾淨，但不呼叫 then()——從外面取消的時候不該當成「好了」。 */
+      cancelWarm = function () {
         finished = true;
 
         clearTimeout(warmTimer);
@@ -343,7 +361,11 @@
         skipTimer = null;
         onSettled = null;
         el('btn-warmup-skip').hidden = true;
+      };
 
+      function finish() {
+        if (finished) return;
+        cancelWarm();
         then();
       }
 
@@ -411,10 +433,9 @@
      * HTML 裡的預設值」的空窗，那一格會讓人（和測試）以為這一題已經開始了。
      */
     function hideWarm(hint) {
-      clearTimeout(warmTimer);
-      warmTimer = null;
-      clearTimeout(skipTimer);
-      skipTimer = null;
+      // 從外面收起畫面就等於這一段預備結束了（房間：房主發題了）。
+      // 不停掉的話它會繼續在收起來的畫面上寫進度，最後還送出過期的 ready。
+      cancelWarm();
 
       if (hint) el('play-hint').textContent = hint;
 
@@ -424,9 +445,18 @@
       el('play-hint').hidden = false;
     }
 
-    // 頁面上第一次碰到就解鎖。capture 讓它跑在任何按鈕的處理器之前，
-    // 所以那一下手勢還沒結束，iOS 會認。
-    document.addEventListener('pointerdown', unlock, { capture: true, once: true });
+    // 頁面上第一次互動就解鎖，當作保險。
+    //
+    // **pointerdown 一個不夠**：鍵盤按 Enter 啟動按鈕不會發 pointerdown，
+    // 而 iOS 12 以前沒有 Pointer Events。click 補上這兩種。
+    // capture 讓它跑在按鈕自己的處理器之前，所以那一下手勢還沒結束，iOS 會認。
+    //
+    // 但**不要只靠這個**：真正該解鎖的時機是「接下來就要 play() 了」，
+    // 所以 app.js／room.js 在開始的那一下也直接叫 unlock()。
+    // 只留監聽的版本一度讓 app.js 失去了「在手勢裡同步解鎖」這件事。
+    ['pointerdown', 'click'].forEach(function (event) {
+      document.addEventListener(event, unlock, { capture: true, once: true });
+    });
 
     return {
       sourceFor: sourceFor,
