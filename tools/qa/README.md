@@ -21,7 +21,7 @@ npm run test:headed            # 看得到畫面
 npm run report                 # 打開上一次的報告
 ```
 
-一輪正常的結果是 **30 通過、9 跳過**。跳過的分兩類：
+一輪正常的結果是 **33 通過、9 跳過**。跳過的分兩類：
 
 * **五條只有 Chromium 跑**（限速兩條、囤五首、不等了、多人房）——它們用
   Chrome DevTools Protocol，WebKit 沒有。

@@ -28,10 +28,9 @@ http.createServer((request, response) => {
   const relative = asked === '/' ? 'index.html' : asked.replace(/^\/+/, '');
   const file = path.join(root, relative);
 
-  // 不准跳出 web/。這支只在本機跑，但「路徑穿越」是那種寫的時候順手擋、
-  // 沒擋就會在某天變成新聞的東西。
-  // 要比到分隔符為止。只比 startsWith(root) 的話，隔壁一個叫 web-backup 的
-  // 目錄也會通過——這支只在本機跑，但這種錯沒有「只是小事」的版本。
+  // 不准跳出 web/，而且要比到分隔符為止——只比 startsWith(root) 的話，
+  // 隔壁一個叫 web-backup 的目錄也會通過。這支只在本機跑，但「路徑穿越」
+  // 是那種寫的時候順手擋、沒擋就會在某天變成新聞的東西。
   if (file !== root && !file.startsWith(root + path.sep)) {
     response.writeHead(403).end('no');
     return;
@@ -51,8 +50,7 @@ http.createServer((request, response) => {
     });
     response.end(data);
   });
-// 只綁 127.0.0.1。綁全部介面的話，同一個 Wi-Fi 上的人就看得到這個資料夾——
-// 這支只是給測試用的，沒有任何理由對外開。
+// 只綁 127.0.0.1：綁全部介面的話，同一個 Wi-Fi 上的人就看得到這個資料夾。
 }).listen(port, '127.0.0.1', () => {
   console.log(`web/ 端在 http://localhost:${port}/`);
 });

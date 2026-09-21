@@ -40,20 +40,15 @@ async function start(page, options = {}) {
   await expect(page.locator('#screen-play')).toBeVisible();
 
   // 開場預備：先囤幾首才開始。這一段的等待是刻意的，不算在每一題的等待裡。
-  // 預備的上限是六十秒（app.js 的 WARM_LIMIT_MS），等它等滿還要留餘裕。
+  // 預備畫面本身就是被測的東西時，不要等它消失。
+  if (options.waitForWarmup === false) return;
+
+  // 預備的上限是六十秒（prefetch.js 的 WARM_LIMIT_MS），等它等滿還要留餘裕。
   await expect(page.locator('#warmup')).toBeHidden({ timeout: 75_000 });
 }
 
-/**
- * 等這一題真的「開始」——不是選項出現，是計時開始跑。
- *
- * 這個分別是整組測試的關鍵：選項在音檔還沒來的時候就畫好了，
- * 用選項出現當基準的話，量到的永遠是 0 毫秒。
- * app.js 是在音樂真的響（或三秒守門到期）才開始計時的，所以看提示文字。
- */
+/** 等這一題真的「開始」——不是選項出現，是計時開始跑。 */
 async function waitForQuestionStart(page) {
-  // 等這一題真的「開始」——不是選項出現，是計時開始跑。
-  //
   // app.js 在出題時把提示設成「載入中…」，等音樂真的響（或三秒守門到期）
   // 才換掉它。所以「提示不再是載入中」＝這一題開始了。
   //
@@ -103,4 +98,79 @@ function watchAudio(page) {
   return requests;
 }
 
-module.exports = { start, waitForQuestionStart, questionNumber, answerAndAdvance, watchAudio };
+
+/**
+ * 盯著 #player.src：吃到預載就是 blob:，沒吃到就是 https:。順便數 revokeObjectURL。
+ *
+ * 為什麼看 src 而不看網路請求：被 AbortController 中止的下載，位元組已經到了，
+ * Playwright 照樣報 requestfinished——從外面看會誤判成「我們有了」。
+ * player.src 是頁面自己的選擇，騙不了人。
+ *
+ * 要在 goto 之前叫。
+ */
+async function watchPlayer(page) {
+  await page.addInitScript(() => {
+    window.__qaSrc = [];
+    window.__qaRevoked = 0;
+
+    const revoke = URL.revokeObjectURL.bind(URL);
+    URL.revokeObjectURL = function (url) { window.__qaRevoked += 1; return revoke(url); };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const player = document.getElementById('player');
+      const real = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+
+      Object.defineProperty(player, 'src', {
+        get() { return real.get.call(this); },
+        set(value) { window.__qaSrc.push(String(value).slice(0, 12)); return real.set.call(this, value); },
+      });
+    });
+  });
+
+  return {
+    async read() {
+      const raw = await page.evaluate(() => ({ src: window.__qaSrc, revoked: window.__qaRevoked }));
+      return {
+        blobs: raw.src.filter((s) => s.startsWith('blob:')).length,
+        remote: raw.src.filter((s) => s.startsWith('https:')).length,
+        revoked: raw.revoked,
+      };
+    },
+    reset() { return page.evaluate(() => { window.__qaSrc = []; }); },
+  };
+}
+
+/**
+ * 打完 count 題（或打到結算為止），回傳每一題的等待毫秒數與題號。
+ *
+ * `think` 是「聽幾秒才按」。預設 0（秒答），量載入時間的時候一定要給它一個
+ * 真實的值——0 秒作答等於要求預載在翻牌的那一秒內把整首歌抓完，
+ * 慢網路下那是做不到的，測到的會是頻寬不是程式。
+ */
+async function playThrough(page, count, { think = 0 } = {}) {
+  const waits = [];
+  const numbers = [];
+
+  for (let i = 0; i < count; i++) {
+    const shown = Date.now();
+    await waitForQuestionStart(page);
+    waits.push(Date.now() - shown);
+
+    if (await page.locator('#screen-result').isVisible()) break;
+
+    numbers.push(await questionNumber(page));
+    await answerAndAdvance(page, { think });
+  }
+
+  return { waits, numbers };
+}
+
+module.exports = {
+  start,
+  waitForQuestionStart,
+  questionNumber,
+  answerAndAdvance,
+  watchAudio,
+  watchPlayer,
+  playThrough,
+};
