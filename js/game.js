@@ -144,6 +144,11 @@
     // 答完它可能過關，而過關會換一組語種、重設「保證出現」的清單——
     // 先生出來的那一題屬於上一關，語種是錯的。
     // 判斷寫成 answered + 1：現在這一題還沒答，answered 還沒加上它。
+    //
+    // 目前這一行其實碰不到：上面那道 `answered + 1 + queue.length >= questionCount`
+    // 已經先攔掉了（queue.length 不會是負的）。留著是因為它攔的是**不同的理由**
+    // ——上面那道管「總題數」，這一道管「關卡邊界」。哪天上面那道放寬了
+    // （例如允許跨題數預生），這一道就是唯一的防線。
     if (this.mode === 'stage' && this.answered + 1 >= this.questionCount) return null;
 
     var question = this.makeQuestion();

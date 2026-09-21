@@ -796,7 +796,10 @@
     });
 
     prefetched = {};
+
+    // played 和 state.nowPlaying 一定要一起清（理由寫在 app.js 的同名函式）。
     played = {};
+    state.nowPlaying = null;
     order = [];
     pending = [];
     loading = null;
@@ -1013,10 +1016,15 @@
       queuePrefetch(coming.answer.previewUrl);
     }
 
-    player.addEventListener('canplaythrough', pumpPrefetch, { once: true });
+    // 當題是從本機 blob 播的話直接開始抓（理由寫在 app.js 的同一段）。
+    if (nowPlaying && prefetched[nowPlaying]) {
+      pumpPrefetch();
+    } else {
+      player.addEventListener('canplaythrough', pumpPrefetch, { once: true });
 
-    clearTimeout(prefetchTimer);
-    prefetchTimer = setTimeout(pumpPrefetch, PREFETCH_START_MS);
+      clearTimeout(prefetchTimer);
+      prefetchTimer = setTimeout(pumpPrefetch, PREFETCH_START_MS);
+    }
   }
 
   function beginQuestion(view) {

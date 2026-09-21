@@ -360,7 +360,13 @@
 
     prefetched = {};
     order = [];
+
+    // played 和 state.nowPlaying 一定要一起清。
+    // 只清 played 的話，下一場的第一題會把「上一場最後那首」標成播過了——
+    // 而 Game 的 used 是每場重置的，同一首歌是可以出現在下一場的。
+    // 那首歌這場又出現時，它的 blob 就會被當成播過的提早放掉。
     played = {};
+    state.nowPlaying = null;
     pending = [];
     loading = null;
     yielded = {};
@@ -759,6 +765,11 @@
       state.skipTimer = null;
       onPrefetched = null;
 
+      // 提示要在收起預備畫面**之前**就設好。
+      // 不然中間有一格「預備畫面沒了、提示還是 HTML 裡的預設值」的空窗，
+      // 那一格會讓人（和測試）以為這一題已經開始了，其實還沒。
+      el('play-hint').textContent = '載入中…';
+
       el('warmup').hidden = true;
       el('btn-warmup-skip').hidden = true;
       el('choices').hidden = false;
@@ -868,8 +879,6 @@
   function nextQuestion() {
     stopTimer();
     el('verdict').hidden = true;
-    el('play-hint').textContent = '正在播放…選出你聽到的那一首';
-
     var question = state.game.nextQuestion();
     if (!question) return showResult();
 
@@ -939,13 +948,25 @@
       queuePrefetch(coming.answer.previewUrl);
     }
 
-    // 等當題載得夠順才開始抓後面的：頻寬是共用的，一起抓的話
-    // 正在播的這一首會被拖慢（限速實測過，每題都卡滿三秒）。
-    player.addEventListener('canplaythrough', pumpPrefetch, { once: true });
+    // **當題是從本機 blob 播的話，直接開始抓，不用等。**
+    // 它一個位元組都不用下載，沒有人跟誰搶頻寬，等是白等。
+    //
+    // 這一段原本無條件掛在 canplaythrough 上，那是個會靜靜失效的依賴：
+    // WebKit（至少 Playwright 的無頭版）從頭到尾不發 canplay／canplaythrough／
+    // playing，只發 loadstart。於是預載的鏈條被讓出去一次之後就再也沒有恢復，
+    // 十五題一場實測有四題回退去連遠端——而 iOS 正是這個站的主場景。
+    if (prefetched[question.previewUrl]) {
+      pumpPrefetch();
+    } else {
+      // 當題要走網路：等它載得夠順再抓後面的。頻寬是共用的，
+      // 一起抓的話正在播的這一首會被拖慢（限速實測過，每題都卡滿三秒）。
+      player.addEventListener('canplaythrough', pumpPrefetch, { once: true });
 
-    // canplaythrough 不一定會來（有些瀏覽器在檔案夠大時不發），所以加一個上限。
-    clearTimeout(state.prefetchTimer);
-    state.prefetchTimer = setTimeout(pumpPrefetch, PREFETCH_START_MS);
+      // canplaythrough 不一定會來（有些瀏覽器檔案夠大就不發，WebKit 根本不發），
+      // 所以一定要有這個上限。
+      clearTimeout(state.prefetchTimer);
+      state.prefetchTimer = setTimeout(pumpPrefetch, PREFETCH_START_MS);
+    }
 
     state.answering = false;
   }
