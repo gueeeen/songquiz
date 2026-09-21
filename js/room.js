@@ -584,6 +584,11 @@
   });
 
   function beginRound() {
+    // 還在手勢裡：先解鎖播放器。房主的第一次 play() 要等預備結束，
+    // 那時候已經離開手勢了。客人沒有這一下（他的 play() 是收到 ask 才發的），
+    // 靠 prefetch.js 那個「第一次互動就解鎖」的監聽——他至少按過「加入」。
+    prefetch.unlock();
+
     state.adapter.send('start', { settings: state.settings });
     startWithSettings(state.settings);
   }
