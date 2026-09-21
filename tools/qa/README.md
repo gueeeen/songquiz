@@ -21,8 +21,18 @@ npm run test:headed            # 看得到畫面
 npm run report                 # 打開上一次的報告
 ```
 
-一輪正常的結果是 **28 通過、5 跳過**。跳過的那五條用 Chrome DevTools Protocol
-（限速兩條、囤五首、不等了、多人房），WebKit 沒有。
+一輪正常的結果是 **30 通過、9 跳過**。跳過的分兩類：
+
+* **五條只有 Chromium 跑**（限速兩條、囤五首、不等了、多人房）——它們用
+  Chrome DevTools Protocol，WebKit 沒有。
+* **四條在 WebKit 上跳過**：headless WebKit 沒有音效裝置，實測它從頭到尾只發
+  `loadstart`，不發 `canplay` / `canplaythrough` / `playing`。「音樂什麼時候響」
+  在那上面根本不存在，量時間的測試驗不到東西——而**假通過比跳過更糟**。
+
+WebKit 上仍然有效、而且真的抓到過 bug 的是「從 blob 播還是從遠端播」那兩條：
+它們看 `player.src`，和有沒有聲音無關。那兩條抓到的是預載的恢復掛在
+`canplaythrough` 上——那個事件在 WebKit 永遠不來，於是十五題一場有四題
+回退去連遠端，而 iOS 正是這個站的主場景。Chromium 兩組完全看不到這個問題。
 
 ## WebKit 起不來的時候
 

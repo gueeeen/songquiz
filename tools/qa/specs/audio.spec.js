@@ -14,6 +14,15 @@ test.describe('音訊', () => {
     'WebKit 在這台機器上起不來（Smart App Control 擋掉未簽章的 jxl.dll）',
   );
 
+  // **headless WebKit 沒有音效裝置**：它從頭到尾不發 canplay／canplaythrough／
+  // playing（實測只有 loadstart），所以「音樂什麼時候響」在那上面根本不存在，
+  // 每一題都得等三秒守門計時器。量時間的那幾條在 WebKit 上驗不到東西——
+  // 而**假通過比跳過更糟**，所以明確跳掉並說清楚。
+  //
+  // 剩下能在 WebKit 上驗的（而且真的驗到過 bug 的）是「從 blob 播還是從遠端播」：
+  // 那個看 player.src，和有沒有聲音無關。
+  const needsAudioClock = () => process.env.QA_WEBKIT_CLOCK !== '1';
+
   /**
    * 把頻寬壓到攤位 Wi-Fi 的等級。
    *
@@ -71,7 +80,10 @@ test.describe('音訊', () => {
     ).toBeGreaterThan(0);
   });
 
-  test('十二秒是從音樂響起才算的', async ({ page }) => {
+  test('十二秒是從音樂響起才算的', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit' && needsAudioClock(),
+      'headless WebKit 沒有音效裝置，量不到「音樂什麼時候響」');
+
     // 從出題就起算的話，音檔載入的時間會被算進玩家的作答時間——
     // 排行榜是跨裝置比的，那就變成拿網速當實力。
     await start(page, { mode: 'speed', questionCount: 5 });
@@ -97,7 +109,10 @@ test.describe('音訊', () => {
     expect(distinct.size, '三個請求指向同一個檔，那不是預載').toBeGreaterThanOrEqual(3);
   });
 
-  test('預載有效：正常速度作答時，整場都不用等', async ({ page }) => {
+  test('預載有效：正常速度作答時，整場都不用等', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit' && needsAudioClock(),
+      'headless WebKit 沒有音效裝置，量不到「音樂什麼時候響」');
+
     // 「正常速度」＝聽個三秒才按。十二秒的題目，這是玩家的常態。
     //
     // 這一條是整份 QA 最重要的：它說的是絕大多數人實際會遇到的體驗。
@@ -116,7 +131,10 @@ test.describe('音訊', () => {
     ).toBeLessThan(1500);
   });
 
-  test('預載有效：秒答時，開場囤的那幾題一定不用等', async ({ page }) => {
+  test('預載有效：秒答時，開場囤的那幾題一定不用等', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit' && needsAudioClock(),
+      'headless WebKit 沒有音效裝置，量不到「音樂什麼時候響」');
+
     // 秒答正是使用者抱怨的那個操作（「猜完第一首後直接按下一首」）。
     //
     // **這裡只保證開場囤的那幾題，而且那是物理上限，不是妥協。**
@@ -210,7 +228,66 @@ test.describe('音訊', () => {
     expect(revoked, 'blob 沒有被放掉').toBeGreaterThanOrEqual(numbers.length);
   });
 
-  test('換下一題的時候不會出現「還在載入」', async ({ page }) => {
+  test('「再來一場」也整場都從本機播', async ({ page }) => {
+    // 測的是「第二場的預載還會不會動」。第一場結束會 dropPrefetched() 把整個
+    // 預載狀態清掉，而開場預備、預生、blob 都是那之後重新長出來的——
+    // 這條路以前沒有任何測試走過。
+    //
+    // **它抓不到 state.nowPlaying 跨場沒清那個漏洞**（那個是看程式看出來、
+    // 直接修掉的）。要觸發它得同時湊到兩件事：同一首歌在下一場重現
+    // （Game 的 used 是每場重置的，所以有可能，但兩千首裡抽二十首，機率很低），
+    // 而且那一場完成的下載數要超過 KEEP 才會叫到 forget()。
+    // 五題的場兩個條件都不成立，寫成二十題也只是把機率從很低變成低。
+    // 拿修正前的程式跑過這一條，它是通過的——所以不要以為它在守那件事。
+    await page.addInitScript(() => {
+      window.__qaSrc = [];
+      document.addEventListener('DOMContentLoaded', () => {
+        const player = document.getElementById('player');
+        const real = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+        Object.defineProperty(player, 'src', {
+          get() { return real.get.call(this); },
+          set(value) { window.__qaSrc.push(String(value).slice(0, 12)); return real.set.call(this, value); },
+        });
+      });
+    });
+
+    await start(page, { mode: 'speed', questionCount: 5 });
+
+    for (let i = 0; i < 5; i++) {
+      await waitForQuestionStart(page);
+      if (await page.locator('#screen-result').isVisible()) break;
+      await answerAndAdvance(page, { think: 1200 });
+    }
+
+    await expect(page.locator('#screen-result')).toBeVisible({ timeout: 30_000 });
+
+    // 第一場的計數歸零，只看第二場。
+    await page.evaluate(() => { window.__qaSrc = []; });
+
+    await page.locator('#btn-again').click();
+    await expect(page.locator('#warmup')).toBeHidden({ timeout: 75_000 });
+
+    for (let i = 0; i < 5; i++) {
+      await waitForQuestionStart(page);
+      if (await page.locator('#screen-result').isVisible()) break;
+      await answerAndAdvance(page, { think: 1200 });
+    }
+
+    const sources = await page.evaluate(() => window.__qaSrc);
+    const remote = sources.filter((s) => s.startsWith('https:')).length;
+
+    test.info().annotations.push({
+      type: '第二場',
+      description: `從 blob 播 ${sources.filter((s) => s.startsWith('blob:')).length} 次、從遠端播 ${remote} 次`,
+    });
+
+    expect(remote, `第二場有 ${remote} 題是直接連遠端播的`).toBe(0);
+  });
+
+  test('換下一題的時候不會出現「還在載入」', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit' && needsAudioClock(),
+      'headless WebKit 沒有音效裝置，量不到「音樂什麼時候響」');
+
     // 上一條量的是時間，這一條量的是使用者真正看到的那句話。
     await start(page, { mode: 'speed', questionCount: 10 });
     await waitForQuestionStart(page);
