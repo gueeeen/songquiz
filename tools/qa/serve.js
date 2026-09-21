@@ -51,6 +51,8 @@ http.createServer((request, response) => {
     });
     response.end(data);
   });
-}).listen(port, () => {
+// 只綁 127.0.0.1。綁全部介面的話，同一個 Wi-Fi 上的人就看得到這個資料夾——
+// 這支只是給測試用的，沒有任何理由對外開。
+}).listen(port, '127.0.0.1', () => {
   console.log(`web/ 端在 http://localhost:${port}/`);
 });
