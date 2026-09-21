@@ -229,10 +229,8 @@ test.describe('音訊', () => {
     // 那一格列在 QA清單.md 的實機項目裡。
     const played = await watchPlayer(page);
 
-    await page.goto('./');
-    await expect(page.locator('#lang-chips .chip').first()).toBeVisible();
-    await page.locator('#screen-home .mode[data-mode="stage"]').click();
-    await page.locator('#btn-start').click();
+    // waitForWarmup: false ＝ 不要幫我等預備消失，預備本身就是要看的東西。
+    await start(page, { mode: 'stage', waitForWarmup: false });
 
     await expect(page.locator('#warmup')).toBeVisible();
     await expect(page.locator('#warmup')).toBeHidden({ timeout: 75_000 });

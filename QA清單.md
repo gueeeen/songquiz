@@ -168,7 +168,8 @@ Node 沒在 PATH 上的話在
 `%LOCALAPPDATA%\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_*\node-v*-win-x64`。
 
 **跳過是正常的**：WebKit 沒有 CDP，所以限速那兩條和多人那條只在 Chromium 上跑
-（一輪應該是 33 通過、9 跳過；WebKit 整個起不來的機器上是 22 通過、11 跳過，
+（一輪應該是 33 通過、9 跳過；WebKit 整個起不來的機器上 iphone 那 14 條會全部
+跳過，變成 28 通過、14 跳過，
 開頭會印一段警告）。
 
 `tools/qa/diag.js` 不是測試，是查問題用的：它會限速跑一場，

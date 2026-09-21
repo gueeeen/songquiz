@@ -456,13 +456,12 @@
 
     el('hud-score').textContent = '0';
 
-    // 預備期間也要顯示這一場的進度。
-    // 不設的話，「再來一場」會在準備中一直掛著上一場的「第 10 / 10 題」——
-    // 看起來像是按了沒反應。
-    el('hud-progress').textContent = '第 1 / ' + setup.questionCount + ' 題';
-    el('timer-text').textContent = Rules.QUESTION_SECONDS.toFixed(1);
-
     show('play');
+
+    // 還在手勢裡：先解鎖播放器。預備會讓第一次 play() 離開手勢好幾秒，
+    // iOS 不認就整場沒有聲音。
+    prefetch.unlock();
+
     warmThenPlay();
   }
 
@@ -477,10 +476,29 @@
   function warmThenPlay() {
     el('verdict').hidden = true;
 
+    // **先把上一段的預載狀態清掉。** 過關的那一刻可能還有一首在抓（屬於上一關，
+    // 而上一關的題目已經被 prepareRound() 丟掉了）。不清的話那一首會沉澱到這一關的
+    // 進度計數裡：done 多算一首不在清單裡的歌，進度條可能直接跳到 2/2、
+    // 「不等了」立刻冒出來，而手上其實只有一首。房間那邊同一個地方也是這樣做的。
+    prefetch.drop();
+
+    // 預備期間也要顯示這一關的進度。
+    // 不設的話，畫面會在準備中一直掛著上一關的關數、進度和分數——
+    // 看起來像是按了沒反應。
+    el('hud-stage').textContent = stageLabelFor(state.game);
+    el('hud-progress').textContent = '第 1 / ' + state.game.questionCount + ' 題';
+    el('hud-target').textContent = '';
+    el('timer-text').textContent = Rules.QUESTION_SECONDS.toFixed(1);
+
     prefetch.warmUp(function () {
       prefetch.hideWarm('載入中…');
       nextQuestion();
     });
+  }
+
+  /** 預備畫面上的關卡標籤。nextQuestion 會用題目自己的 stageLabel 蓋掉它。 */
+  function stageLabelFor(game) {
+    return game.mode === 'stage' ? '第 ' + game.stage + ' 關' : '';
   }
 
   /**
