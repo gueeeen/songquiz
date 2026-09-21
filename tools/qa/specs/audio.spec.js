@@ -4,7 +4,35 @@
 // 而且連不到 Apple，所以那邊的音訊一律走「放不出來」那條路。
 
 const { test, expect } = require('@playwright/test');
-const { start, waitForQuestionStart, answerAndAdvance, watchAudio } = require('./game');
+const {
+  start, waitForQuestionStart, answerAndAdvance, watchAudio, watchPlayer, playThrough,
+} = require('./game');
+const { throttle } = require('./net');
+
+/**
+ * 超過這個就算「卡了」。
+ *
+ * 三秒是 app.js 那個守門計時器的期限：屆時畫面會顯示「還在載入…先開始計時了」，
+ * 那正是使用者抱怨的那個空白。留一點餘裕抓在 1.5 秒。
+ * 要防的是回到改動前——那時候第一題等 1827ms、後面三題全部撞上守門線
+ * （3364, 3378, 3359）。
+ */
+const STALL_MS = 1500;
+
+/**
+ * **headless WebKit 沒有音效裝置。**
+ *
+ * 它從頭到尾不發 canplay／canplaythrough／playing（實測只有 loadstart），
+ * 所以「音樂什麼時候響」在那上面根本不存在，每一題都得等三秒守門計時器。
+ * 量時間的測試在那上面驗不到東西——而**假通過比跳過更糟**。
+ *
+ * 剩下能在 WebKit 上驗、而且真的驗到過 bug 的是「從 blob 播還是從遠端播」：
+ * 那個看 player.src，和有沒有聲音無關。
+ */
+const NO_CLOCK = 'headless WebKit 沒有音效裝置，量不到「音樂什麼時候響」';
+
+/** 限速走 CDP，WebKit 沒有。 */
+const NO_CDP = 'CDP 限速只有 Chromium 支援';
 
 test.describe('音訊', () => {
   // WebKit 起不來的機器上，整組明確地跳過並說出原因——
@@ -14,45 +42,9 @@ test.describe('音訊', () => {
     'WebKit 在這台機器上起不來（Smart App Control 擋掉未簽章的 jxl.dll）',
   );
 
-  // **headless WebKit 沒有音效裝置**：它從頭到尾不發 canplay／canplaythrough／
-  // playing（實測只有 loadstart），所以「音樂什麼時候響」在那上面根本不存在，
-  // 每一題都得等三秒守門計時器。量時間的那幾條在 WebKit 上驗不到東西——
-  // 而**假通過比跳過更糟**，所以明確跳掉並說清楚。
-  //
-  // 剩下能在 WebKit 上驗的（而且真的驗到過 bug 的）是「從 blob 播還是從遠端播」：
-  // 那個看 player.src，和有沒有聲音無關。
-  const needsAudioClock = () => process.env.QA_WEBKIT_CLOCK !== '1';
-
-  /**
-   * 把頻寬壓到攤位 Wi-Fi 的等級。
-   *
-   * 這台機器連 Apple 太快（冷啟動只要一兩百毫秒），量不到使用者遇到的狀況。
-   * 2 Mbps 下一首 1 MB 的試聽要抓四秒多，超過 app.js 那個三秒守門計時器——
-   * 沒有預載的話每一題都會卡。限速用 Chrome DevTools Protocol，WebKit 沒有。
-   */
-  async function throttle(context, page) {
-    const cdp = await context.newCDPSession(page);
-    await cdp.send('Network.enable');
-    await cdp.send('Network.emulateNetworkConditions', {
-      offline: false,
-      latency: 300,
-      downloadThroughput: (2 * 1024 * 1024) / 8,   // 2 Mbps
-      uploadThroughput: (1 * 1024 * 1024) / 8,
-    });
-  }
-
   /** 連答四題，回傳每一題「畫面出現」到「音樂響起」之間的等待。 */
-  async function measure(page, { think = 0 } = {}) {
-    const waits = [];
-
-    for (let i = 0; i < 4; i++) {
-      const shown = Date.now();
-      await waitForQuestionStart(page);
-      waits.push(Date.now() - shown);
-      await answerAndAdvance(page, { think });
-    }
-
-    return waits;
+  async function measure(page, options) {
+    return (await playThrough(page, 4, options)).waits;
   }
 
   test('第一題真的播得出聲音', async ({ page }) => {
@@ -81,8 +73,7 @@ test.describe('音訊', () => {
   });
 
   test('十二秒是從音樂響起才算的', async ({ page, browserName }) => {
-    test.skip(browserName === 'webkit' && needsAudioClock(),
-      'headless WebKit 沒有音效裝置，量不到「音樂什麼時候響」');
+    test.skip(browserName === 'webkit', NO_CLOCK);
 
     // 從出題就起算的話，音檔載入的時間會被算進玩家的作答時間——
     // 排行榜是跨裝置比的，那就變成拿網速當實力。
@@ -110,8 +101,7 @@ test.describe('音訊', () => {
   });
 
   test('預載有效：正常速度作答時，整場都不用等', async ({ page, browserName }) => {
-    test.skip(browserName === 'webkit' && needsAudioClock(),
-      'headless WebKit 沒有音效裝置，量不到「音樂什麼時候響」');
+    test.skip(browserName === 'webkit', NO_CLOCK);
 
     // 「正常速度」＝聽個三秒才按。十二秒的題目，這是玩家的常態。
     //
@@ -128,12 +118,11 @@ test.describe('音訊', () => {
     expect(
       Math.max(...waits),
       `正常速度作答還是會卡：${waits.join(', ')}`,
-    ).toBeLessThan(1500);
+    ).toBeLessThan(STALL_MS);
   });
 
   test('預載有效：秒答時，開場囤的那幾題一定不用等', async ({ page, browserName }) => {
-    test.skip(browserName === 'webkit' && needsAudioClock(),
-      'headless WebKit 沒有音效裝置，量不到「音樂什麼時候響」');
+    test.skip(browserName === 'webkit', NO_CLOCK);
 
     // 秒答正是使用者抱怨的那個操作（「猜完第一首後直接按下一首」）。
     //
@@ -155,7 +144,7 @@ test.describe('音訊', () => {
     expect(
       Math.max(...covered),
       `開場預備囤的前兩題還是卡了：${waits.join(', ')}`,
-    ).toBeLessThan(1500);
+    ).toBeLessThan(STALL_MS);
   });
 
   test('整場每一題都從本機播，而且 blob 都有被放掉', async ({ page }) => {
@@ -175,43 +164,12 @@ test.describe('音訊', () => {
     // 給一點作答時間（1.5 秒，比人還快）：秒答的話頻寬本來就追不上，
     // 會有幾題還沒抓完就輪到了，那是物理不是 bug（另外兩條測試管那件事）。
     // 這一條要釘的是「該吃到的都吃到了」。
-    await page.addInitScript(() => {
-      window.__qaSrc = [];
-      window.__qaRevoked = 0;
-
-      const revoke = URL.revokeObjectURL.bind(URL);
-      URL.revokeObjectURL = function (url) { window.__qaRevoked += 1; return revoke(url); };
-
-      document.addEventListener('DOMContentLoaded', () => {
-        const player = document.getElementById('player');
-        const real = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
-
-        Object.defineProperty(player, 'src', {
-          get() { return real.get.call(this); },
-          set(value) { window.__qaSrc.push(String(value).slice(0, 12)); return real.set.call(this, value); },
-        });
-      });
-    });
+    const played = await watchPlayer(page);
 
     await start(page, { mode: 'speed', questionCount: 15 });
 
-    const numbers = [];
-
-    for (let i = 0; i < 15; i++) {
-      await waitForQuestionStart(page);
-      if (await page.locator('#screen-result').isVisible()) break;
-
-      const hud = await page.locator('#hud-progress').textContent();
-      numbers.push(Number((hud.match(/第\s*(\d+)/) || [])[1]));
-
-      await answerAndAdvance(page, { think: 1500 });
-    }
-
-    const sources = await page.evaluate(() => window.__qaSrc);
-    const revoked = await page.evaluate(() => window.__qaRevoked);
-
-    const blobs = sources.filter((s) => s.startsWith('blob:')).length;
-    const remote = sources.filter((s) => s.startsWith('https:')).length;
+    const { numbers } = await playThrough(page, 15, { think: 1500 });
+    const { blobs, remote, revoked } = await played.read();
 
     test.info().annotations.push({
       type: '十五題一場',
@@ -239,54 +197,60 @@ test.describe('音訊', () => {
     // 而且那一場完成的下載數要超過 KEEP 才會叫到 forget()。
     // 五題的場兩個條件都不成立，寫成二十題也只是把機率從很低變成低。
     // 拿修正前的程式跑過這一條，它是通過的——所以不要以為它在守那件事。
-    await page.addInitScript(() => {
-      window.__qaSrc = [];
-      document.addEventListener('DOMContentLoaded', () => {
-        const player = document.getElementById('player');
-        const real = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
-        Object.defineProperty(player, 'src', {
-          get() { return real.get.call(this); },
-          set(value) { window.__qaSrc.push(String(value).slice(0, 12)); return real.set.call(this, value); },
-        });
-      });
-    });
+    const played = await watchPlayer(page);
 
     await start(page, { mode: 'speed', questionCount: 5 });
-
-    for (let i = 0; i < 5; i++) {
-      await waitForQuestionStart(page);
-      if (await page.locator('#screen-result').isVisible()) break;
-      await answerAndAdvance(page, { think: 1200 });
-    }
-
+    await playThrough(page, 5, { think: 1200 });
     await expect(page.locator('#screen-result')).toBeVisible({ timeout: 30_000 });
 
     // 第一場的計數歸零，只看第二場。
-    await page.evaluate(() => { window.__qaSrc = []; });
+    await played.reset();
 
     await page.locator('#btn-again').click();
     await expect(page.locator('#warmup')).toBeHidden({ timeout: 75_000 });
 
-    for (let i = 0; i < 5; i++) {
-      await waitForQuestionStart(page);
-      if (await page.locator('#screen-result').isVisible()) break;
-      await answerAndAdvance(page, { think: 1200 });
-    }
+    await playThrough(page, 5, { think: 1200 });
 
-    const sources = await page.evaluate(() => window.__qaSrc);
-    const remote = sources.filter((s) => s.startsWith('https:')).length;
+    const { blobs, remote } = await played.read();
 
     test.info().annotations.push({
       type: '第二場',
-      description: `從 blob 播 ${sources.filter((s) => s.startsWith('blob:')).length} 次、從遠端播 ${remote} 次`,
+      description: `從 blob 播 ${blobs} 次、從遠端播 ${remote} 次`,
     });
 
     expect(remote, `第二場有 ${remote} 題是直接連遠端播的`).toBe(0);
   });
 
+  test('闖關模式也有開場預備', async ({ page }) => {
+    // 闖關是**預設模式**，但整組 Playwright 測試到現在都在跑 speed／combo。
+    //
+    // 這一條只驗第一關的開頭。**第二關的開頭驗不到**：要走到那裡得先過關，
+    // 而過關要答對，題目的正解在作答前不會出現在 DOM 上，從外面猜不到。
+    // 那一格列在 QA清單.md 的實機項目裡。
+    const played = await watchPlayer(page);
+
+    await page.goto('./');
+    await expect(page.locator('#lang-chips .chip').first()).toBeVisible();
+    await page.locator('#screen-home .mode[data-mode="stage"]').click();
+    await page.locator('#btn-start').click();
+
+    await expect(page.locator('#warmup')).toBeVisible();
+    await expect(page.locator('#warmup')).toBeHidden({ timeout: 75_000 });
+
+    await waitForQuestionStart(page);
+    await expect(page.locator('#choices .choice')).toHaveCount(9);
+
+    const { blobs, remote } = await played.read();
+    test.info().annotations.push({
+      type: '闖關第一題',
+      description: `從 blob 播 ${blobs} 次、從遠端播 ${remote} 次`,
+    });
+
+    expect(remote, '闖關第一題沒吃到開場預備').toBe(0);
+  });
+
   test('換下一題的時候不會出現「還在載入」', async ({ page, browserName }) => {
-    test.skip(browserName === 'webkit' && needsAudioClock(),
-      'headless WebKit 沒有音效裝置，量不到「音樂什麼時候響」');
+    test.skip(browserName === 'webkit', NO_CLOCK);
 
     // 上一條量的是時間，這一條量的是使用者真正看到的那句話。
     await start(page, { mode: 'speed', questionCount: 10 });
@@ -304,9 +268,9 @@ test.describe('音訊', () => {
     expect(stuck.length, `第二題之後仍然出現「還在載入」：${seen.join(' / ')}`).toBe(0);
   });
 
-  test('慢網路下，正常速度作答時完全不會卡', async ({ page, context, browserName }) => {
-    test.skip(browserName !== 'chromium', 'CDP 限速只有 Chromium 支援');
-    await throttle(context, page);
+  test('慢網路下，正常速度作答時完全不會卡', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', NO_CDP);
+    await throttle(page);
 
     await start(page, { mode: 'speed', questionCount: 10 });
 
@@ -319,12 +283,12 @@ test.describe('音訊', () => {
     expect(
       Math.max(...waits),
       `限速下正常作答仍然會卡：${waits.join(', ')}`,
-    ).toBeLessThan(1500);
+    ).toBeLessThan(STALL_MS);
   });
 
-  test('慢網路下，連續秒答時前幾題有被開場預備接住', async ({ page, context, browserName }) => {
-    test.skip(browserName !== 'chromium', 'CDP 限速只有 Chromium 支援');
-    await throttle(context, page);
+  test('慢網路下，連續秒答時前幾題有被開場預備接住', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', NO_CDP);
+    await throttle(page);
 
     await start(page, { mode: 'speed', questionCount: 10 });
 
@@ -345,12 +309,12 @@ test.describe('音訊', () => {
     expect(
       Math.max(...covered),
       `開場預備囤的前兩題還是卡了：${waits.join(', ')}`,
-    ).toBeLessThan(1500);
+    ).toBeLessThan(STALL_MS);
   });
 
-  test('最極端的情況：慢網路下囤五首，不會卡超過一分鐘', async ({ page, context, browserName }) => {
-    test.skip(browserName !== 'chromium', 'CDP 限速只有 Chromium 支援');
-    await throttle(context, page);
+  test('最極端的情況：慢網路下囤五首，不會卡超過一分鐘', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', NO_CDP);
+    await throttle(page);
 
     // 連段模式的四十題會囤滿五首（WARM_MAX）。一般的十題只囤兩首。
     //
@@ -377,12 +341,12 @@ test.describe('音訊', () => {
     // 卡完之後第一題還是要馬上有聲音，不然剛剛那一分鐘白等了。
     const shown = Date.now();
     await waitForQuestionStart(page);
-    expect(Date.now() - shown, '等了那麼久，第一題居然還要載').toBeLessThan(1500);
+    expect(Date.now() - shown, '等了那麼久，第一題居然還要載').toBeLessThan(STALL_MS);
   });
 
-  test('囤夠兩首之後就可以「不等了」', async ({ page, context, browserName }) => {
-    test.skip(browserName !== 'chromium', 'CDP 限速只有 Chromium 支援');
-    await throttle(context, page);
+  test('囤夠兩首之後就可以「不等了」', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', NO_CDP);
+    await throttle(page);
 
     await page.goto('./');
     await expect(page.locator('#lang-chips .chip').first()).toBeVisible();
@@ -403,6 +367,6 @@ test.describe('音訊', () => {
     // 按了就真的開場，而且開頭那兩首是囤好的，不用再等。
     const shown = Date.now();
     await waitForQuestionStart(page);
-    expect(Date.now() - shown, '按了「不等了」之後第一題還要載').toBeLessThan(1500);
+    expect(Date.now() - shown, '按了「不等了」之後第一題還要載').toBeLessThan(STALL_MS);
   });
 });

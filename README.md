@@ -232,7 +232,7 @@ npm test
 
 預設測的是**工作目錄裡的版本**（`serve.js` 把 `web/` 端成 HTTP）。
 要驗線上：`set QA_BASE_URL=https://gueeeen.github.io/songquiz/ && npm test`。
-一輪正常是 30 通過、9 跳過（限速與多人那幾條只有 Chromium；量時間的那幾條在
+一輪正常是 33 通過、9 跳過（限速與多人那幾條只有 Chromium；量時間的那幾條在
 WebKit 上跳過——它沒有音效裝置）。
 細節與「WebKit 起不來怎麼辦」在 `tools/qa/README.md`。
 
@@ -282,7 +282,8 @@ web/                  這就是網站本體
   js/rules.js         規則與計分（純函式，不碰 DOM）
   js/questions.js     出題：九選一、同語種誘餌
   js/game.js          回合狀態機：闖關／競速／積分
-  js/app.js           唯一碰 DOM 與音訊的檔案
+  js/app.js           單人版：碰 DOM 與音訊
+  js/prefetch.js      音檔預載（單人與多人共用；原本兩邊各抄一份）
   data/bank.js        題庫（window.SONG_BANK）
   tests.html          規則測試，打開就跑（86 項）
   room.html           轉址到 index.html#room（舊網址還在流傳）
