@@ -42,6 +42,14 @@
     return document.getElementById('r-' + id);
   }
 
+  /**
+   * 房主等所有人回報「囤好了」的上限。
+   *
+   * 比 prefetch.js 的 WARM_LIMIT_MS（60 秒）多十秒：客人的預備是收到 start 訊息
+   * 才開始算的，本來就比房主晚，所以房主的線要在外面。
+   */
+  var HOST_WAIT_MS = 70000;
+
   /** 房間的容器。class 選取一律限定在這裡面，不然會抓到單人版的選項。 */
   var root = document.getElementById('room-app');
 
@@ -141,6 +149,13 @@
     deadline: 0,
     revealTimer: null,
     joinTimer: null,
+
+    /** 這一局誰回報過「音檔囤好了」。房主靠它決定什麼時候發第一題。 */
+    ready: {},
+    /** 房主已經發出第一題了。用來讓「大家都好了」和逾時只生效一次。 */
+    asked: false,
+    /** 房主等大家回報的逾時（HOST_WAIT_MS）。 */
+    readyTimer: null,
   };
 
   /**
@@ -623,21 +638,27 @@
     state.ready = {};
     state.asked = false;
 
-    // 上一局的預載狀態要清掉。單人那邊是 clearLastRound() 做的，房間原本只在
-    // leaveRoom 做——上一局結束時還在抓的那一首會沉澱到這一局的 onPrefetched，
-    // done 就多算一首不在 urls 裡的歌：進度條可能超過 100%、
+    // 上一局的預載狀態要清掉。上一局結束時還在抓的那一首會沉澱到這一局的
+    // 進度計數，done 就多算一首不在清單裡的歌：進度條可能超過 100%、
     // 「不等了」立刻冒出來、甚至在這一局一首都沒抓好之前就開場。
-    dropPrefetched();
+    prefetch.drop();
 
-    // 全場一起預備。房主等大家回報再發第一題，最多等 WARM_LIMIT_MS。
+    // 全場一起預備，房主等大家回報再發第一題。
+    //
+    // **房主的等待一定要比客人的長。** 客人的預備是收到 start 訊息才開始算的，
+    // 比房主晚；兩邊用同一個上限的話房主永遠先到線，「等大家」就從來沒真的發生過。
     if (isHost()) {
       clearTimeout(state.readyTimer);
-      state.readyTimer = setTimeout(startAsking, WARM_LIMIT_MS);
+      state.readyTimer = setTimeout(startAsking, HOST_WAIT_MS);
     }
 
-    warmUp(function () {
-      if (isHost()) noteReady(state.adapter.selfId);
-      else state.adapter.send('ready', {});
+    prefetch.warmUp(function () {
+      if (isHost()) return noteReady(state.adapter.selfId);
+
+      // 客人按了「不等了」只是自己不等，畫面還要等房主發題——
+      // 鈕上寫「直接開始」但畫面沒動，看起來像壞了，所以把話說清楚。
+      prefetch.showWaiting('你這邊準備好了，等其他人…');
+      state.adapter.send('ready', {});
     });
   }
 
@@ -668,304 +689,18 @@
   }
 
 
-  // ---- 預載 ----
-  //
-  // 和單人那邊同一套，理由與踩過的坑都寫在 app.js。三個重點：
-  //   * **用 fetch 抓整個檔案，不要用 <audio> 的 preload**——canplaythrough
-  //     是瀏覽器拿下載速率估的，限速實測它在 585ms 就發了，但只抓到 1.1 秒的歌。
-  //   * 抓到的做成 blob 直接餵播放器。題目從歌曲中段開始播，播放器會發
-  //     Range 請求要中間那一段，靠 HTTP 快取賭不到那個位元組範圍。
-  //   * 一次只抓一首，而且換題時先把頻寬讓給正在播的那一首。
-  //
-  // 房間比單人更值得做：單人只有自己在等，房間是全場一起等。
-  var PREFETCH_AHEAD = 2;
-  var PREFETCH_START_MS = 4000;
-
-  /** 開場預備：先囤這一場兩成的題目再開始（夾在 2～5 之間）。 */
-  var WARM_SHARE = 0.2;
-  var WARM_MIN = 2;
-  var WARM_MAX = 5;
-
-  var prefetched = {};
-  var order = [];
-
-  /** 已經播過的，可以放掉了。 */
-  var played = {};
-  var KEEP = 8;   // 開場最多囤 5 ＋ 前面備 2 ＋ 正在播的 1
-  var pending = [];
-
-  /** 已經被讓出去一次的網址（理由寫在 app.js 的同名變數）。 */
-  var yielded = {};
-  var loading = null;
-  var prefetchTimer = null;
-  var onPrefetched = null;
-
-  function queuePrefetch(url) {
-    if (!url || prefetched[url] || pending.indexOf(url) !== -1) return;
-    if (loading && loading.url === url) return;
-    pending.push(url);
-  }
-
-  function pumpPrefetch() {
-    if (loading || pending.length === 0) return;
-
-    var url = pending.shift();
-    var controller = typeof AbortController === 'function' ? new AbortController() : null;
-    var mine = { url: url, controller: controller };
-
-    loading = mine;
-
-    // blob 網址要在守門之後才生（理由寫在 app.js）。
-    function settle(blob) {
-      if (loading !== mine) return;
-      loading = null;
-
-      if (blob) {
-        prefetched[url] = URL.createObjectURL(blob);
-        order.push(url);
-        forget();
-      }
-
-      if (onPrefetched) onPrefetched(url, !!blob);
-      pumpPrefetch();
-    }
-
-    fetch(url, controller ? { signal: controller.signal } : undefined)
-      .then(function (response) { return response.ok ? response.blob() : null; })
-      .then(settle)
-      .catch(function () {
-        if (controller && controller.signal.aborted) return;
-        settle(null);
-      });
-  }
-
-  /** 只放掉播過的，不然還沒播到的 blob 會被回收（理由寫在 app.js 的同名函式）。 */
-  function forget() {
-    while (order.length > KEEP) {
-      var at = -1;
-      for (var i = 0; i < order.length; i++) {
-        if (played[order[i]]) { at = i; break; }
-      }
-
-      if (at === -1) return;
-
-      var old = order.splice(at, 1)[0];
-      if (prefetched[old]) URL.revokeObjectURL(prefetched[old]);
-      delete prefetched[old];
-    }
-  }
-
-  /** 這首歌要從哪裡播：抓好了就用本機的，沒抓好就照原網址。 */
-  function sourceFor(url) {
-    return prefetched[url] || url;
-  }
-
   /**
-   * 把頻寬讓給正在播的那一首。
+   * 音檔預載。整套機制、踩過的坑、和量出來的數字都在 js/prefetch.js。
    *
-   * 換題的時候，正在抓的下一首和現在要播的這一首搶同一條線。使用者等的是
-   * 現在這一首，所以中止預載、抓到一半的丟掉重來。
-   *
-   * **但只在當題真的需要網路的時候才讓。** 當題已經抓好了就是從本機的 blob 播的，
-   * 一個位元組都不用下載，沒有人跟誰搶——這時候中止預載反而有害：
-   * 秒答的人每一題都會中止一次，同一首歌抓到一半就被丟掉、重排、再被丟掉，
-   * 永遠抓不完。（非限速下實測跑出 5, 26, 25, 1848——第四題就是這樣餓死的。）
+   * 房間比單人更值得做：單人卡住只有自己在等，房間卡住是全場一起等，而且
+   * **卡的人會輸**——搶答比的是誰先按，網路慢的人先天少一秒。開場一起等，
+   * 開始之後大家手上都有貨，比的才是耳朵。
    */
-  function yieldPrefetch(nowPlaying) {
-    clearTimeout(prefetchTimer);
-    prefetchTimer = null;
-
-    if (!loading) return;
-    if (nowPlaying && prefetched[nowPlaying]) return;
-    if (yielded[loading.url]) return;
-
-    var url = loading.url;
-    yielded[url] = true;
-    if (loading.controller) loading.controller.abort();
-    loading = null;
-
-    // 退回隊伍最前面，等一下再抓。
-    if (url && !prefetched[url] && pending.indexOf(url) === -1) pending.unshift(url);
-  }
-
-  function dropPrefetched() {
-    if (loading && loading.controller) loading.controller.abort();
-
-    Object.keys(prefetched).forEach(function (url) {
-      URL.revokeObjectURL(prefetched[url]);
-    });
-
-    prefetched = {};
-
-    // played 和 state.nowPlaying 一定要一起清（理由寫在 app.js 的同名函式）。
-    played = {};
-    state.nowPlaying = null;
-    order = [];
-    pending = [];
-    loading = null;
-    yielded = {};
-    onPrefetched = null;
-
-    clearTimeout(prefetchTimer);
-    prefetchTimer = null;
-  }
-
-  /**
-   * 一段真的沒有聲音的 WAV（和 app.js 同一段）。
-   *
-   * iOS 的 <audio> 要在使用者手勢裡成功播過一次才會被解鎖。房間原本是靠
-   * 「按下開始 → startWithSettings → askNext → play()」這條同步鏈剛好落在手勢裡；
-   * 開場預備插進中間之後那條鏈就斷了，房主在 iOS 上會整場沒有聲音。
-   *
-   * **客人更早就沒有手勢**：他的第一次 play() 是收到房主的 ask 訊息才發的，
-   * 那從來不在手勢裡。所以不綁在某一顆鈕上，改成「在房間裡第一次碰到畫面
-   * 就解鎖」——房主按開始、客人按加入，都算。
-   */
-  var SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=';
-
-  var unlocked = false;
-
-  function unlockPlayer() {
-    if (unlocked) return;
-    unlocked = true;
-
-    // 已經在播真的歌就別碰——那會把聲音切斷。
-    if (player.src && !player.paused) return;
-
-    player.muted = true;
-    player.src = SILENCE;
-
-    var started = player.play();
-    if (started && started.catch) started.catch(function () {
-      // 被擋掉也沒關係：那表示這個瀏覽器本來就不用解鎖，或這一下不算手勢。
-      // 兩種情況下面照常走，最壞就是回到改動前的行為。
-    });
-
-    player.muted = false;
-  }
-
-  if (root) root.addEventListener('pointerdown', unlockPlayer, { capture: true });
-
-  /**
-   * 開場預備：開始之前全場一起把前幾題抓下來。
-   *
-   * 為什麼房間更需要這個：單人卡住只有自己在等，房間卡住是全場一起等，
-   * 而且**卡的人會輸**——搶答比的是誰先按，網路慢的人先天少一秒。
-   * 開場一起等，開始之後大家手上都有貨，比的才是耳朵。
-   *
-   * 房主會等所有人回報「囤好了」才發第一題（見 noteReady），
-   * 但最多等 WARM_LIMIT_MS：房間的開始時間不能被一個人的網路無限拖住。
-   *
-   * 上限是**時間不是首數**，理由和實測數字寫在 app.js 的同名常數。
-   */
-  var WARM_LIMIT_MS = 60000;
-  var WARM_ENOUGH = 2;
-
-  /** 就算一首都還沒抓完，等這麼久也要讓人看得到出口。 */
-  var WARM_SKIP_AFTER_MS = 15000;
-
-  function warmUp(then) {
-    if (!state.game) return then();
-
-    var want = Math.min(WARM_MAX, Math.max(WARM_MIN,
-      Math.ceil(state.game.questionCount * WARM_SHARE)));
-
-    var urls = state.game.peek(want).map(function (question) {
-      return question.answer.previewUrl;
-    }).filter(function (url) {
-      return url && !prefetched[url];
-    });
-
-    if (urls.length === 0) return then();
-
-    el('warmup').hidden = false;
-    el('choices').hidden = true;
-    el('play-hint').hidden = true;
-
-    var startedAt = Date.now();
-    var done = 0;
-    var failed = 0;
-    var finished = false;
-
-    showWarm(done, urls.length, startedAt);
-
-    function finish() {
-      if (finished) return;
-      finished = true;
-
-      clearTimeout(state.warmTimer);
-      state.warmTimer = null;
-      clearTimeout(state.skipTimer);
-      state.skipTimer = null;
-      onPrefetched = null;
-      el('btn-warmup-skip').hidden = true;
-
-      // 房主按下去會直接開場（noteReady → startAsking），客人不會——
-      // 他還要等房主發第一題。鈕上寫「直接開始」但畫面沒動，看起來像壞了，
-      // 所以把話說清楚。
-      if (!isHost()) {
-        el('warmup-text').textContent = '你這邊準備好了，等其他人…';
-        el('warmup-fill').style.width = '100%';
-      }
-
-      then();
-    }
-
-    onPrefetched = function (url, ok) {
-      // 抓失敗的不算進度（理由寫在 app.js）。房間裡算錯的代價更高：
-      // 會回報 ready，房主就開一場每題都卡的局。
-      if (ok) done += 1;
-      else failed += 1;
-
-      showWarm(done, urls.length, startedAt);
-
-      // 夠玩了就可以說「我不等了」。房間裡這一下的意思是**回報自己好了**，
-      // 房主就不必再等你——所以它同時解放的是全場，不只是自己。
-      if (done >= WARM_ENOUGH) el('btn-warmup-skip').hidden = false;
-
-      if (done + failed >= urls.length) finish();
-    };
-
-    el('btn-warmup-skip').onclick = finish;
-
-    // 抓得特別慢的時候，不要讓人乾等到第二首才看得到出口。
-    state.skipTimer = setTimeout(function () {
-      if (!finished) el('btn-warmup-skip').hidden = false;
-    }, WARM_SKIP_AFTER_MS);
-
-    urls.forEach(queuePrefetch);
-    pumpPrefetch();
-
-    state.warmTimer = setTimeout(finish, WARM_LIMIT_MS);
-  }
-
-  /** 進度條、還剩幾首、大概還要多久（估法寫在 app.js 的 progressWarm）。 */
-  function showWarm(done, total, startedAt) {
-    el('warmup-fill').style.width = Math.round((done / total) * 100) + '%';
-
-    var line = '先下載 ' + total + ' 首，開始之後就不會中斷（' + done + ' / ' + total + '）';
-
-    if (done > 0 && done < total) {
-      var each = (Date.now() - startedAt) / done;
-      var left = Math.round((each * (total - done)) / 1000);
-      if (left > 0) line += '・大約還要 ' + left + ' 秒';
-    }
-
-    el('warmup-text').textContent = line;
-  }
-
-  /** 預備結束，回到正常的遊戲畫面。 */
-  function hideWarm() {
-    clearTimeout(state.warmTimer);
-    state.warmTimer = null;
-    clearTimeout(state.skipTimer);
-    state.skipTimer = null;
-
-    el('warmup').hidden = true;
-    el('btn-warmup-skip').hidden = true;
-    el('choices').hidden = false;
-    el('play-hint').hidden = false;
-  }
+  var prefetch = window.AudioPrefetch.create({
+    player: player,
+    el: el,
+    game: function () { return state.game; },
+  });
 
   /**
    * 有人回報囤好了。房主蒐集齊了就開場。
@@ -991,40 +726,8 @@
     clearTimeout(state.readyTimer);
     state.readyTimer = null;
 
-    hideWarm();
+    prefetch.hideWarm('載入中…');
     askNext();
-  }
-
-  /**
-   * 預先生接下來幾題並排隊等著抓。
-   *
-   * 房間裡每個人都用同一顆種子各自出題，所以預生**不能**改變出題順序——
-   * prepare() 走的是和 nextQuestion() 同一條生成路徑，rng 的呼叫次數一樣，
-   * 所以有沒有預生都會得到同一批題目（tests.html 有一條測試釘著這件事）。
-   */
-  function prefetchAhead(nowPlaying) {
-    if (!state.game) return;
-
-    // 先把頻寬讓給這一題。
-    yieldPrefetch(nowPlaying);
-
-    // 補到「前面有 PREFETCH_AHEAD 題備著」為止，不是每題固定生兩題
-    // （理由和實測寫在 app.js 與 game.js 的 pendingCount）。
-    while (state.game.pendingCount() < PREFETCH_AHEAD) {
-      var coming = state.game.prepare();
-      if (!coming) break;
-      queuePrefetch(coming.answer.previewUrl);
-    }
-
-    // 當題是從本機 blob 播的話直接開始抓（理由寫在 app.js 的同一段）。
-    if (nowPlaying && prefetched[nowPlaying]) {
-      pumpPrefetch();
-    } else {
-      player.addEventListener('canplaythrough', pumpPrefetch, { once: true });
-
-      clearTimeout(prefetchTimer);
-      prefetchTimer = setTimeout(pumpPrefetch, PREFETCH_START_MS);
-    }
   }
 
   function beginQuestion(view) {
@@ -1062,7 +765,7 @@
     // seek 之後才解除靜音（細節與單人版的 playPreview 一樣）。
     var seeked = false;
 
-    player.src = sourceFor(view.previewUrl);
+    player.src = prefetch.sourceFor(view.previewUrl);
     player.muted = !!view.offset;
 
     function seek() {
@@ -1105,14 +808,8 @@
     };
     player.addEventListener('playing', playingHook, { once: true });
 
-    // 上一題可以放掉了（理由寫在 app.js 的 forget）。
-    if (state.nowPlaying && state.nowPlaying !== view.previewUrl) {
-      played[state.nowPlaying] = true;
-    }
-    state.nowPlaying = view.previewUrl;
-
-    // 這一題開始播了就去抓後面幾題的音檔。
-    prefetchAhead(view.previewUrl);
+    // 這一題開始播了：放掉上一首、補滿前面備著的題數、繼續抓。
+    prefetch.questionStarted(view.previewUrl);
 
     var playing = player.play();
     if (playing && playing.catch) {
@@ -1460,6 +1157,11 @@
     stopTimer();
     clearTimeout(state.revealTimer);
     player.pause();
+
+    // 一場結束就別再抓了。留著的話，排隊中的下載會一路跑完（那些歌這一場
+    // 已經用不到了），而且大家在結算頁討論比分的那幾分鐘裡，手上的 blob
+    // 都還佔著記憶體。
+    prefetch.drop();
     show('result');
 
     var top = rows[0];
@@ -1517,8 +1219,8 @@
 
   function leaveRoom() {
     stopTimer();
-    dropPrefetched();
-    hideWarm();
+    prefetch.drop();
+    prefetch.hideWarm();
     clearTimeout(state.revealTimer);
     clearTimeout(state.joinTimer);
     clearTimeout(state.readyTimer);
@@ -1620,7 +1322,7 @@
         if (isHost()) return;
 
         // 房主發題了＝預備時間結束，不管自己囤完沒有。
-        hideWarm();
+        prefetch.hideWarm('載入中…');
 
         var view = state.game && state.game.nextQuestion();
         if (!view) {
