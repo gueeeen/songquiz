@@ -13,11 +13,20 @@ const { throttle } = require('./specs/net');
 
 (async () => {
   const which = process.argv[2] || 'chromium';
+  if (!playwright[which]) {
+    console.error('不認識這個瀏覽器：' + which + '（可以用 chromium、webkit、firefox）');
+    process.exit(1);
+  }
+
   const browser = await playwright[which].launch(
     which === 'chromium' ? { args: ['--autoplay-policy=no-user-gesture-required'] } : {},
   );
   const page = await browser.newPage();
-  await throttle(page);
+
+  // 限速走 CDP，只有 Chromium 有。WebKit 就用這台機器真實的網速跑——
+  // 拿它來看的是「發了哪些事件」，不是「花了幾秒」。
+  if (which === 'chromium') await throttle(page);
+  else console.log(which + " 不支援 CDP 限速，用真實網速跑。");
 
   let t0 = Date.now();
   const at = () => String(Date.now() - t0).padStart(6);

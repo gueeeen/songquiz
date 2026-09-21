@@ -136,7 +136,8 @@ async function watchPlayer(page) {
         revoked: raw.revoked,
       };
     },
-    reset() { return page.evaluate(() => { window.__qaSrc = []; }); },
+    /** 兩個計數都要歸零，不然 read() 會把「這一段」和「整頁累計」混在一起。 */
+    reset() { return page.evaluate(() => { window.__qaSrc = []; window.__qaRevoked = 0; }); },
   };
 }
 

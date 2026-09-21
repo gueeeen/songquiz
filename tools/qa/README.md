@@ -36,8 +36,8 @@ WebKit 上仍然有效、而且真的抓到過 bug 的是「從 blob 播還是�
 
 ## WebKit 起不來的時候
 
-開頭印出「WebKit 在這台機器上起不來」就是這個狀況，`iphone` 那一組會整組
-明確跳過（**22 通過、11 跳過**），Chromium 兩組照跑。
+開頭印出「WebKit 在這台機器上起不來」就是這個狀況，`iphone` 那一組（14 條）會
+整組明確跳過（**28 通過、14 跳過**），Chromium 兩組照跑。
 
 原因幾乎都是 Windows 的 Smart App Control：它擋掉沒有簽章的執行檔，而 Playwright
 的 WebKit 附的 `jxl.dll` 沒有簽章——DLL 載不進去，瀏覽器以 `0xC0000142` 死掉。
