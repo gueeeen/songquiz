@@ -731,6 +731,9 @@
       to: id,
       hostId: state.hostId,
       settings: state.settings,
+      // 名冊也要一起給：排隊的人要看得到自己在等誰，不然畫面上是「0 人」。
+      players: state.players,
+      queued: state.queued,
     };
 
     Object.keys(extra).forEach(function (key) { payload[key] = extra[key]; });
@@ -1569,6 +1572,8 @@
         // 排隊中：**不要離開房間**。連線留著，這一場打完房主會把你放進名冊。
         state.hostId = payload.hostId;
         state.settings = payload.settings;
+        state.players = payload.players || [];
+        state.queued = payload.queued || [];
         lobbyError('');
         enterQueued(payload.ahead);
         return;

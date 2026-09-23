@@ -87,4 +87,84 @@ test.describe('多人房', () => {
       await guestContext.close();
     }
   });
+  test('中途有人敲門，不會把正在玩的人踢掉', async ({ browser, browserName }) => {
+    // **這一條是照著一個真實的 bug 寫的。** 現場實際玩的時候，一個人中途輸入房號，
+    // 其他所有非房主都被踢回大廳並顯示「這一場已經開打了」。
+    //
+    // 原因：房主是用 roster **廣播**回覆「正在進行中」的，而每個非房主收到 roster
+    // 都照著 phase 走——於是全場一起 leaveRoom()。一個人敲門，整場被踢。
+    //
+    // 要三個 context 才測得到：房主、一個正在玩的人、一個中途敲門的人。
+    // 兩個 context 的版本永遠看不到這個 bug，因為被踢的是「其他人」。
+    test.skip(browserName !== 'chromium', '三條 Supabase 連線，只在 Chromium 上跑');
+
+    const hostContext = await browser.newContext();
+    const playerContext = await browser.newContext();
+    const laterContext = await browser.newContext();
+
+    try {
+      const host = await openRoom(hostContext, '房主');
+      const player = await openRoom(playerContext, '正在玩的人');
+
+      // 五題就好，這一條要跑到一場結束。
+      await host.locator(`${r('count-chips')} .chip`).first().click();
+      await host.locator(r('btn-create')).click();
+
+      await expect(host.locator(r('room-code'))).not.toHaveText('----', { timeout: 30_000 });
+      const code = (await host.locator(r('room-code')).textContent()).trim();
+
+      await player.locator(r('join-code')).fill(code);
+      await player.locator(r('btn-join')).click();
+      await expect(host.locator(r('player-count'))).toHaveText(/2 人/, { timeout: 30_000 });
+
+      await host.locator(r('btn-start-round')).click();
+
+      // 兩邊都真的在玩了。
+      await expect(host.locator(`${r('choices')} .choice`)).toHaveCount(9, { timeout: 60_000 });
+      await expect(player.locator(`${r('choices')} .choice`)).toHaveCount(9, { timeout: 60_000 });
+
+      // ── 現在讓第三個人中途敲門 ──
+      const later = await openRoom(laterContext, '晚到的人');
+      await later.locator(r('join-code')).fill(code);
+      await later.locator(r('btn-join')).click();
+
+      // **最重要的一條：正在玩的人不能被踢掉。**
+      // 給訊息傳播的時間，然後確認他還在遊戲畫面上，而且大廳沒有跳錯誤。
+      await player.waitForTimeout(3000);
+      await expect(player.locator(r('screen-play')), '正在玩的人被踢出遊戲畫面了').toBeVisible();
+      await expect(player.locator(`${r('choices')} .choice`)).toHaveCount(9);
+      await expect(player.locator(r('screen-lobby'))).toBeHidden();
+
+      // 晚到的人要排隊，而且**留在房裡**——不是退回大廳叫他重新輸入房號。
+      await expect(later.locator(r('screen-waiting')), '晚到的人沒有進到等待室').toBeVisible();
+      await expect(later.locator(r('waiting-hint'))).toHaveText(/排在第 1 位/);
+      await expect(later.locator(r('lobby-error'))).toBeHidden();
+
+      // 房主那邊要看得到有人在等（名單在等待室，畫面雖然藏著但字要對）。
+      await expect(later.locator(r('player-count'))).toHaveText(/1 人排隊/);
+
+      // ── 打完這一場，排隊的人要自動進來 ──
+      for (let i = 0; i < 6; i++) {
+        if (await host.locator(r('screen-result')).isVisible()) break;
+
+        for (const page of [host, player]) {
+          const choice = page.locator(`${r('choices')} .choice`).first();
+          if (await choice.isVisible()) await choice.click().catch(() => {});
+        }
+
+        await host.waitForTimeout(4500);
+      }
+
+      await expect(host.locator(r('screen-result')), '這一場沒有走到結算').toBeVisible({ timeout: 60_000 });
+
+      // 晚到的人自己從「排隊中」變回等待室，名冊裡有三個人。
+      await expect(later.locator(r('waiting-hint')), '打完了還在排隊')
+        .not.toHaveText(/排在第/, { timeout: 30_000 });
+      await expect(later.locator(r('player-count'))).toHaveText(/3 人/);
+    } finally {
+      await hostContext.close();
+      await playerContext.close();
+      await laterContext.close();
+    }
+  });
 });
