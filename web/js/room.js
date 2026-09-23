@@ -23,7 +23,6 @@
   /** 揭曉正解之後停多久再出下一題。短到不無聊，長到看得完「誰搶到」。 */
   var REVEAL_MS = 3500;
 
-  /** 一間房最多幾個人（含房主）。 */
   /**
    * 一間房最多幾個人。
    *
@@ -191,6 +190,13 @@
 
     /** 這一場進行中才來敲門的人。打完就會被放進 players（見 admitQueued）。 */
     queued: [],
+    /**
+     * 我這一場有真的打（不是中途才進來排隊的）。
+     *
+     * showRoom() 靠它分辨兩種人：剛打完的人要留在結算頁，剛被放進名冊的排隊者
+     * 要進等待室。兩邊收到的是同一則名冊，差別只在自己的身分。
+     */
+    played: false,
     /** 這一局誰回報過「音檔囤好了」。房主靠它決定什麼時候發第一題。 */
     ready: {},
     /** 房主已經發出第一題了。用來讓「大家都好了」和逾時只生效一次。 */
@@ -640,11 +646,12 @@
       ? '把房號念給朋友，他們在自己的裝置上輸入就能進來。人到齊了按開始。'
       : '已經進房了，等房主按開始。';
 
+    state.played = false;
+
     renderPlayers();
-    if (isHost()) el('waiting-hint').textContent += bigRoomAdvice();
     show('waiting');
 
-    if (isHost()) broadcastRoster('waiting');
+    if (isHost()) broadcastRoster();
   }
 
   function renderPlayers() {
@@ -670,6 +677,8 @@
 
     el('player-count').textContent = state.players.length + ' 人' +
       (state.queued.length > 0 ? '（另有 ' + state.queued.length + ' 人排隊）' : '');
+
+    renderRoomAdvice();
   }
 
   /**
@@ -687,7 +696,7 @@
     var name = String(rawName || '無名').slice(0, 12);
 
     if (state.players.some(function (p) { return p.id === id; })) {
-      broadcastRoster('waiting');
+      broadcastRoster();
       return;
     }
 
@@ -700,14 +709,20 @@
       if (!state.queued.some(function (p) { return p.id === id; })) {
         state.queued.push({ id: id, name: name });
       }
+
       replyTo(id, { reason: 'queued', ahead: state.queued.length });
+
+      // 名冊也要重發：正在玩的人要看得到有人在等，而且第二個排隊的人進來時，
+      // 第一個人的順位顯示才會跟著對（原本只單獨回覆新來的那一個，
+      // 於是兩個排隊者對「我排第幾」的答案不一樣）。
       renderPlayers();
+      broadcastRoster();
       return;
     }
 
     state.players.push({ id: id, name: name });
     renderPlayers();
-    broadcastRoster('waiting');
+    broadcastRoster();
   }
 
   /** 這一場打完了：把排隊的人放進名冊。 */
@@ -722,13 +737,15 @@
 
     state.queued = [];
     renderPlayers();
-    broadcastRoster('waiting');
+    broadcastRoster();
   }
 
-  /** 只給某一個人的回覆。廣播會波及全場（見 case joinReply 的說明）。 */
+  /**
+   * 只給某一個人的回覆。點名是 realtime 那一層做的（adapter.sendTo）——
+   * 廣播會波及全場，而這裡回的正是「這一場滿了／正在進行中」那種話。
+   */
   function replyTo(id, extra) {
     var payload = {
-      to: id,
       hostId: state.hostId,
       settings: state.settings,
       // 名冊也要一起給：排隊的人要看得到自己在等誰，不然畫面上是「0 人」。
@@ -737,7 +754,32 @@
     };
 
     Object.keys(extra).forEach(function (key) { payload[key] = extra[key]; });
-    state.adapter.send('joinReply', payload);
+    state.adapter.sendTo(id, 'joinReply', payload);
+  }
+
+  /**
+   * 收到名冊之後該看到哪個畫面。
+   *
+   * 只看**自己的身分**，不看訊息裡的 phase，也不看 state.game 這種會在訊息之間
+   * 變動的本地旗標：
+   *
+   *   * 我在排隊名單上 → 排隊畫面（順位也從名冊算，所以第二個排隊的人一進來，
+   *     第一個人的順位顯示也會跟著對）。
+   *   * 我剛打完這一場 → 留在結算頁。名冊是來更新比分板的，不是來換畫面的。
+   *   * 其他 → 等待室。
+   */
+  function showRoom() {
+    var me = state.adapter.selfId;
+    var queuedAt = -1;
+
+    for (var i = 0; i < state.queued.length; i++) {
+      if (state.queued[i].id === me) { queuedAt = i; break; }
+    }
+
+    if (queuedAt !== -1) return enterQueued(queuedAt + 1);
+    if (state.played) return renderBoard();
+
+    enterWaiting();
   }
 
   /** 排隊中的畫面。留在房裡，不要退回大廳。 */
@@ -758,26 +800,48 @@
    * 兩件事都是量出來的，不是猜的：搶答一題只有一個人拿分（二十人就是十九個人
    * 整題摸不到分），而每人每題要從 Apple 抓 1 MB（二十人同時玩＝持續 13 Mbps）。
    * 程式不擋，但不講就等於讓人在現場才發現。
+   *
+   * **從 renderPlayers 裡叫，不要接在 enterWaiting 的提示後面。** 那樣寫等於沒有
+   * 這個功能：enterWaiting 只在房主剛連上時跑一次，那時候房裡只有他自己，
+   * 人數永遠不到九；後面有人進來走的是 admit → renderPlayers，不會再回去。
    */
-  function bigRoomAdvice() {
+  function renderRoomAdvice() {
+    var box = el('room-advice');
     var many = state.players.length;
-    if (many < 9) return '';
 
-    var lines = ['　（' + many + ' 人：'];
-    if (scoringOf() === 'steal') {
-      lines.push('搶答一題只有一個人拿分，這麼多人建議改「速度」或「積分」；');
+    if (!isHost() || many < 9) {
+      box.hidden = true;
+      box.textContent = '';
+      return;
     }
-    lines.push('人多很吃現場網路，每個人每題都要抓一首歌。）');
 
-    return lines.join('');
+    var lines = [many + ' 人：'];
+    if (scoringOf() === 'steal') {
+      lines.push('搶答一題只有一個人拿分，這麼多人建議改「速度」或「積分」。');
+    }
+    lines.push('人多很吃現場的網路，每個人每一題都要抓一首歌。');
+
+    box.textContent = lines.join('');
+    box.hidden = false;
   }
 
-  function broadcastRoster(phase) {
+  /**
+   * 把房間的名冊廣播出去。
+   *
+   * **這則訊息不決定任何人的畫面。** 原本它帶一個 phase，客人照著 phase 跳畫面——
+   * 於是一個中途敲門的人會讓全場被踢出去（見 case joinReply）。修掉之後我又用
+   * 「本地的 state.game 是不是 null」去推斷畫面，結果一樣糟：一場打完的瞬間
+   * 客人的 game 已經是 null 了，緊接著的名冊就把剛打完的人從結算頁拉回等待室。
+   *
+   * 現在名冊只是資料（誰在房裡、誰在排隊、設定是什麼），畫面由 showRoom() 依
+   * **自己的身分**決定：我在排隊嗎、我剛打完了嗎。
+   */
+  function broadcastRoster() {
     state.adapter.send('roster', {
       hostId: state.hostId,
       players: state.players,
+      queued: state.queued,
       settings: state.settings,
-      phase: phase,
     });
   }
 
@@ -811,6 +875,7 @@
 
   function startWithSettings(settings) {
     state.settings = settings;
+    state.played = true;
     state.index = 0;
     state.totalQuestions = totalQuestionsFor(settings);
     state.points = {};
@@ -1422,9 +1487,10 @@
     state.adapter.send('over', { standings: rows });
     showResult(rows);
 
-    // 這一場結束了，排隊的人可以進來了——他們的畫面會自己從「排隊中」
-    // 變回等待室（收到 phase: 'waiting' 的名冊）。
+    // 這一場結束了，排隊的人可以進來了。他們收到名冊之後會自己從「排隊中」
+    // 變成等待室，而剛打完的人（state.played）留在結算頁。
     state.game = null;
+    state.played = false;
     admitQueued();
   }
 
@@ -1511,6 +1577,7 @@
     state.game = null;
     state.players = [];
     state.queued = [];
+    state.played = false;
 
     // 「一個人開打要按兩次」的那個提醒也要跟著歸零，
     // 否則下一間房會在你還沒看到提醒之前就直接開打。
@@ -1544,12 +1611,10 @@
 
         state.hostId = payload.hostId;
         state.players = payload.players || [];
+        state.queued = payload.queued || [];
         state.settings = payload.settings;
         lobbyError('');
-
-        // 已經在玩了就別把畫面拉回等待室——名冊是給比分板用的。
-        if (!state.game) enterWaiting();
-        else renderBoard();
+        showRoom();
         return;
 
       /**
@@ -1560,7 +1625,8 @@
        * 一個人敲門，整場被踢出去。實際玩的時候就是這樣壞掉的。
        */
       case 'joinReply':
-        if (isHost() || payload.to !== state.adapter.selfId) return;
+        // 收件人的過濾在 realtime 那一層（envelope.to），這裡不必再檢查。
+        if (isHost()) return;
         clearTimeout(state.joinTimer);
 
         if (payload.reason === 'full') {
@@ -1632,6 +1698,16 @@
       case 'over':
         if (isHost()) return;
         state.game = null;
+
+        // **沒打這一場的人不要看到別人的結算。** over 是廣播的，中途來排隊的人也會
+        // 收到；把他丟到結算頁是錯的，而且那份名次裡沒有他，用它蓋掉名冊會讓他的
+        // 畫面顯示一份不含自己的名單。
+        //
+        // 這一格是被 flaky 的測試揪出來的：finishRound 先送 over、再廣播名冊，
+        // 所以正常順序下名冊會把他救回等待室——但訊息順序沒有保證，
+        // 反過來到的時候他就停在結算頁上了。
+        if (!state.played) return;
+
         state.players = (payload.standings || []).map(function (row) {
           return { id: row.id, name: row.name };
         });
@@ -1640,13 +1716,21 @@
 
       case 'bye':
         state.queued = state.queued.filter(function (p) { return p.id !== message.from; });
+
+        // 房主走了就沒有裁判了，而且不會再有名冊——排隊的人原本會停在
+        // 「等他們打完就會自動把你放進來」那句話上，永遠等不到。
+        if (!isHost() && message.from === state.hostId) {
+          leaveRoom();
+          return lobbyError('房主離開了，這間房沒了。請他重新開一間，或者你自己開。');
+        }
+
         if (!isHost()) return;
         state.players = state.players.filter(function (p) {
           return p.id !== message.from;
         });
         if (!state.game) {
           renderPlayers();
-          broadcastRoster('waiting');
+          broadcastRoster();
         } else {
           renderBoard();
         }

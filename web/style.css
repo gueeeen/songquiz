@@ -1178,3 +1178,15 @@ body.has-dock .mailbox { bottom: calc(150px + env(safe-area-inset-bottom)); }
   font-size: .85rem;
   letter-spacing: .1em;
 }
+
+/* 人多時給房主的提醒。獨立一個元素才不會被別的提示蓋掉。 */
+.room-advice {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent-2);
+  background: var(--warn-soft);
+  border-radius: 0 10px 10px 0;
+  color: var(--ink-dim);
+  font-size: .85rem;
+  line-height: 1.6;
+}
