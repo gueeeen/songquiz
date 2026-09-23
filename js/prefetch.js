@@ -320,14 +320,21 @@
      * `then` 由呼叫端決定「好了之後要做什麼」：單人是收起預備畫面直接開場，
      * 房間是回報自己準備好了、然後等房主發題。
      */
-    function warmUp(then) {
+    /**
+     * @param {function} then 預備結束要做什麼。
+     * @param {number} [cap] 最多囤幾首。人多的房間要壓低：**開場的突發流量是
+     *        「人數 × 囤的首數」**，二十個人各囤五首就是一百 MB 同時湧進同一個
+     *        無線基地台。房間那邊會依人數傳這個值進來。
+     */
+    function warmUp(then, cap) {
       // 上一段預備如果還在跑，先停掉——它的計時器會誤傷這一段。
       cancelWarm();
 
       var game = gameOf();
       if (!game) return then();
 
-      var want = Math.min(WARM_MAX, Math.max(WARM_MIN,
+      var ceiling = Math.min(WARM_MAX, cap || WARM_MAX);
+      var want = Math.min(ceiling, Math.max(WARM_MIN,
         Math.ceil(game.questionCount * WARM_SHARE)));
 
       // 第一題也要囤。它原本是「邊播邊等」的，那一下等待同樣算在玩家頭上。

@@ -97,6 +97,40 @@
     return mode === 'combo' ? COMBO_COUNT_CHOICES : QUESTION_COUNT_CHOICES;
   }
 
+  /**
+   * 自訂題數的上限：**每個語種 60 題**。
+   *
+   * 為什麼按語種算而不是給一個固定數字：選一個語種和選五個語種，可出題的歌數差
+   * 五倍，同一個上限對前者太寬、對後者太緊。每語種 60 是題庫的舒適範圍
+   * （每語種有 400 首可出題，所以 60 連一半都用不到，誘餌也還有很多可挑）。
+   *
+   * 闖關模式的 questionCount 是**每一關**的題數，總題數會再乘上關卡數，
+   * 所以那邊的上限要除回去——不然三個語種選 180 會變成四關共 720 題。
+   */
+  var MAX_PER_LANGUAGE = 60;
+  var MIN_CUSTOM_COUNT = 3;
+
+  function countLimitFor(languages, mode) {
+    var many = Math.max(1, (languages || []).length);
+    var ceiling = MAX_PER_LANGUAGE * many;
+
+    if (mode === 'stage') {
+      // 闖關：關卡數是語種數 + 1，總題數 = 關卡數 × 每關題數。
+      ceiling = Math.floor(ceiling / (many + 1));
+    }
+
+    return { min: MIN_CUSTOM_COUNT, max: Math.max(MIN_CUSTOM_COUNT, ceiling) };
+  }
+
+  /** 把使用者打的數字夾進合法範圍。看不懂就回 null，讓畫面自己決定怎麼說。 */
+  function clampCount(raw, languages, mode) {
+    var wanted = Math.floor(Number(raw));
+    if (!isFinite(wanted) || wanted <= 0) return null;
+
+    var limit = countLimitFor(languages, mode);
+    return Math.min(Math.max(wanted, limit.min), limit.max);
+  }
+
   /** 題數不在這個模式的清單裡時，挑一個最接近的——不要默默給一個離很遠的值。 */
   function nearestCountFor(mode, count) {
     var choices = questionCountsFor(mode);
@@ -392,6 +426,9 @@
     QUESTION_COUNT_CHOICES: QUESTION_COUNT_CHOICES,
     COMBO_COUNT_CHOICES: COMBO_COUNT_CHOICES,
     questionCountsFor: questionCountsFor,
+    MAX_PER_LANGUAGE: MAX_PER_LANGUAGE,
+    countLimitFor: countLimitFor,
+    clampCount: clampCount,
     nearestCountFor: nearestCountFor,
     BASE_SCORE: BASE_SCORE,
     SPEED_BONUS: SPEED_BONUS,
