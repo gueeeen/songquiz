@@ -157,9 +157,21 @@ test.describe('多人房', () => {
 
       await expect(host.locator(r('screen-result')), '這一場沒有走到結算').toBeVisible({ timeout: 60_000 });
 
+      // **剛打完的人要留在結算頁。**
+      //
+      // 這條是照著一個真實的 bug 加的：finishRound 送出 over 之後緊接著廣播名冊，
+      // 而客人在 over 裡已經把 state.game 設成 null——當時的 case roster 用
+      // 「state.game 是不是 null」推斷畫面，於是名冊把剛打完的人從結算頁拉回等待室，
+      // 房主自己卻留在結算頁。只有「真的有人排隊」時才會發作
+      //（admitQueued 空的就 return），也就是這一條測試的情境。
+      await player.waitForTimeout(3000);
+      await expect(player.locator(r('screen-result')), '剛打完的人被名冊拉離結算頁')
+        .toBeVisible();
+
       // 晚到的人自己從「排隊中」變回等待室，名冊裡有三個人。
       await expect(later.locator(r('waiting-hint')), '打完了還在排隊')
         .not.toHaveText(/排在第/, { timeout: 30_000 });
+      await expect(later.locator(r('screen-waiting'))).toBeVisible();
       await expect(later.locator(r('player-count'))).toHaveText(/3 人/);
     } finally {
       await hostContext.close();
