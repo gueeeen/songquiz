@@ -125,6 +125,20 @@
   BaseAdapter.prototype.send = function (type, payload) {
     if (this.status !== 'open') return false;
     this._sendRaw({ protocol: PROTOCOL, type: type, from: this.selfId, payload: payload || {} });
+  };
+
+  /**
+   * 只給某一個人的訊息。
+   *
+   * 通道本身是廣播的，所以「點名」是在信封上寫收件人、由收件端過濾。
+   * **這件事一定要在這一層做**：放在 payload 裡讓每個 case 自己檢查的話，
+   * 漏檢一個就會變成「一則回覆波及全場」——房間就是這樣壞過一次
+   * （中途一個人敲門，全場被踢出遊戲）。
+   */
+  BaseAdapter.prototype.sendTo = function (id, type, payload) {
+    this._sendRaw({
+      protocol: PROTOCOL, type: type, from: this.selfId, to: id, payload: payload || {},
+    });
     return true;
   };
 
@@ -142,6 +156,10 @@
   BaseAdapter.prototype._receive = function (envelope) {
     if (!envelope || envelope.protocol !== PROTOCOL) return;
     if (envelope.from === this.selfId) return;
+
+    // 點名的訊息（sendTo）只給收件人。和上面兩道是同一類判斷：
+    // 「這則訊息不是要給我處理的」。
+    if (envelope.to && envelope.to !== this.selfId) return;
 
     var message = { type: envelope.type, payload: envelope.payload || {}, from: envelope.from };
     this._onMessage.forEach(function (fn) {

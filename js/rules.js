@@ -115,8 +115,10 @@
     var ceiling = MAX_PER_LANGUAGE * many;
 
     if (mode === 'stage') {
-      // 闖關：關卡數是語種數 + 1，總題數 = 關卡數 × 每關題數。
-      ceiling = Math.floor(ceiling / (many + 1));
+      // 闖關的 questionCount 是**每一關**的題數，總題數 = 關卡數 × 每關題數，
+      // 所以上限要除回關卡數。關卡數要問 stagesFor——它不是單純的 many + 1
+      // （只選一個語種時只有一關），硬寫的話單語種的上限會無故少一半。
+      ceiling = Math.floor(ceiling / stagesFor(languages, 1, 'stage').length);
     }
 
     return { min: MIN_CUSTOM_COUNT, max: Math.max(MIN_CUSTOM_COUNT, ceiling) };

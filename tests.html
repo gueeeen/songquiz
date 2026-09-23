@@ -1026,6 +1026,52 @@
 
   // ------------------------------------------------------------ 自選題數
 
+  group('自訂題數的上下限');
+
+  test('上限是每語種 60 題', function () {
+    assertEqual(60, Rules.countLimitFor(['mandarin'], 'speed').max, '一個語種');
+    assertEqual(120, Rules.countLimitFor(['mandarin', 'japanese'], 'speed').max, '兩個語種');
+    assertEqual(300, Rules.countLimitFor(
+      ['mandarin', 'japanese', 'korean', 'western', 'taiwanese'], 'speed').max, '五個語種');
+  });
+
+  test('闖關的上限要除回關卡數', function () {
+    // 闖關的 questionCount 是每一關的題數，總題數 = 關卡數 × 每關題數。
+    // 不除的話三個語種選 180 會變成四關共 720 題。
+    var three = ['mandarin', 'japanese', 'korean'];
+    var stages = Rules.stagesFor(three, 1, 'stage').length;
+
+    assertEqual(Math.floor(60 * 3 / stages), Rules.countLimitFor(three, 'stage').max,
+      '三個語種的每關上限');
+    assertTrue(Rules.countLimitFor(three, 'stage').max * stages <= 60 * 3,
+      '總題數超過了每語種 60 題');
+  });
+
+  test('只選一個語種時只有一關，上限不該被砍半', function () {
+    // stagesFor 對單語種回一關（見它自己的註解）。這裡一度硬寫成語種數 + 1，
+    // 於是單語種的上限變成 30——無故少一半。
+    assertEqual(1, Rules.stagesFor(['mandarin'], 1, 'stage').length, '單語種的關卡數');
+    assertEqual(60, Rules.countLimitFor(['mandarin'], 'stage').max, '單語種的闖關上限');
+  });
+
+  test('打進去的數字會被夾進範圍', function () {
+    var one = ['mandarin'];
+    assertEqual(36, Rules.clampCount(36, ['mandarin', 'japanese'], 'speed'), '合法的值不動');
+    assertEqual(60, Rules.clampCount(999, one, 'speed'), '太大往下夾');
+    assertEqual(3, Rules.clampCount(1, one, 'speed'), '太小往上夾');
+    assertEqual(36, Rules.clampCount('36', one, 'speed'), '字串也吃');
+    assertEqual(36, Rules.clampCount(36.7, one, 'speed'), '小數往下取整');
+  });
+
+  test('看不懂的輸入回 null，不要自己猜一個數字', function () {
+    // 回 null 是刻意的：畫面才能決定要怎麼說（清空？回預設？），
+    // 而不是在規則層默默塞一個使用者沒有打的數字進去。
+    assertEqual(null, Rules.clampCount('', ['mandarin'], 'speed'), '空字串');
+    assertEqual(null, Rules.clampCount('abc', ['mandarin'], 'speed'), '不是數字');
+    assertEqual(null, Rules.clampCount(0, ['mandarin'], 'speed'), '零');
+    assertEqual(null, Rules.clampCount(-5, ['mandarin'], 'speed'), '負數');
+  });
+
   group('開場預備（peek）');
 
   test('peek 生得出要求的題數', function () {
