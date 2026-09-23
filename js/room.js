@@ -24,7 +24,44 @@
   var REVEAL_MS = 3500;
 
   /** 一間房最多幾個人（含房主）。 */
-  var MAX_PLAYERS = 6;
+  /**
+   * 一間房最多幾個人。
+   *
+   * 原本是 6，理由是「六個人的名字才排得進一行」——那是版面問題，不是能力問題，
+   * 現場實際有人要開到十五、二十個人。量過之後結論是撐得住，但瓶頸不在伺服器：
+   *
+   *   * **Supabase**：一題約 41 則發送（ask ＋ 每人一則 claim ＋ 每人一則 tally），
+   *     派送出去是 41 × 人數 ≈ 820 則。36 題一場約 29,500 則，
+   *     免費額度 200 萬則／月大約夠 68 場。20 人的 tally 帶整份分數是 971 bytes，
+   *     整場 realtime 流量約 14 MB。都很寬鬆。
+   *   * **現場的 Wi-Fi 才是上限**：每人每題要從 Apple 抓 1 MB，二十個人同時玩
+   *     等於持續 13 Mbps；開場預備更是「人數 × 囤的首數」的突發——
+   *     二十人各囤五首就是一百 MB 同時湧進同一台基地台。
+   *     所以 warmCap() 會依人數壓低囤貨量。
+   *   * **搶答計分在人多的時候不好玩**：一題只有一個人拿分，二十個人就是十九個
+   *     人整題摸不到分。人多建議用「速度」或「積分」。這件事程式不擋，
+   *     但開房的畫面會講。
+   *   * **不會被 Apple 鎖。** 同一個 IP 實測打過：40 個並行的 1 MB 下載（＝20 人
+   *     開場）全部 200、38.7 MB／1.4 秒；720 次請求（＝20 人 36 題一整場的次數）
+   *     全部 206，沒有 429／403、沒有 Retry-After。合理——那是公開 CDN 上的靜態
+   *     媒體，Apple 自己給 `Cache-Control: public, max-age≈294 天` 和
+   *     `Access-Control-Allow-Origin: *`，等於明說可以快取、可以跨來源用。
+   *     **會被限速的是另一個東西**：itunes.apple.com 的 search／RSS API 會回
+   *     429／403，但那只有離線的題庫產生器在用（見 ItunesClient.cs），
+   *     瀏覽器從來不碰它。
+   */
+  var MAX_PLAYERS = 20;
+
+  /** 人多就少囤幾首，開場才不會把基地台打爆（理由寫在 MAX_PLAYERS）。 */
+  function warmCap() {
+    var many = Math.max(1, state.players.length);
+    if (many <= 4) return 5;
+    if (many <= 8) return 3;
+    return 2;
+  }
+
+  /** 比分板一次列幾個人就要開始摺疊。再多就變成滑動介面了。 */
+  var BOARD_ROWS = 8;
 
   /**
    * 客人送出 hello 之後等多久還沒收到名冊，就當這個房號不存在。
@@ -148,8 +185,12 @@
     ticker: null,
     deadline: 0,
     revealTimer: null,
+    /** 正解看到什麼時候為止。房主切回前景時靠它判斷是不是已經該推了。 */
+    revealAt: 0,
     joinTimer: null,
 
+    /** 這一場進行中才來敲門的人。打完就會被放進 players（見 admitQueued）。 */
+    queued: [],
     /** 這一局誰回報過「音檔囤好了」。房主靠它決定什麼時候發第一題。 */
     ready: {},
     /** 房主已經發出第一題了。用來讓「大家都好了」和逾時只生效一次。 */
@@ -168,6 +209,8 @@
   var setup = {
     languages: availableLanguages.slice(),
     questionCount: Rules.QUESTIONS_PER_ROUND,
+    /** 題數是自己打的（不是清單上的預設值）。 */
+    customCount: false,
     mode: 'speed',
     scoring: 'steal',
   };
@@ -343,17 +386,71 @@
     });
   }
 
+  /**
+   * 題數：預設幾個選項 ＋ 一個「自訂」。
+   *
+   * 自訂是現場要求的：實際玩起來會想要「36 題」這種不在清單上的數字
+   * （人數、時間、想玩多久都會影響）。上限按語種算，見 Rules.countLimitFor。
+   */
   function renderCountChips() {
     var box = el('count-chips');
     box.replaceChildren();
 
-    // 題數清單跟著出題方式走（積分那一種開到 80）。
-    Rules.questionCountsFor(setup.mode).forEach(function (count) {
-      box.append(chip(count + ' 題', count === setup.questionCount, function () {
+    var presets = Rules.questionCountsFor(setup.mode);
+
+    presets.forEach(function (count) {
+      box.append(chip(count + ' 題', !setup.customCount && count === setup.questionCount, function () {
+        setup.customCount = false;
         setup.questionCount = count;
         refreshSetup();
       }));
     });
+
+    box.append(chip('自訂', setup.customCount, function () {
+      setup.customCount = true;
+      refreshSetup();
+      el('count-input').focus();
+    }));
+
+    renderCustomCount();
+  }
+
+  function renderCustomCount() {
+    var box = el('custom-count');
+    box.hidden = !setup.customCount;
+    if (!setup.customCount) return;
+
+    var limit = Rules.countLimitFor(setup.languages, setup.mode);
+    var input = el('count-input');
+
+    input.min = limit.min;
+    input.max = limit.max;
+    if (document.activeElement !== input) input.value = setup.questionCount;
+
+    el('count-hint').textContent = setup.mode === 'stage'
+      ? limit.min + '～' + limit.max + ' 題（每一關；一個語種最多 ' +
+        Rules.MAX_PER_LANGUAGE + ' 題，闖關要再分給各關）'
+      : limit.min + '～' + limit.max + ' 題（一個語種最多 ' + Rules.MAX_PER_LANGUAGE + ' 題）';
+  }
+
+  el('count-input').addEventListener('input', function () {
+    // 打字中不要夾值——正在輸入「36」的人會在打完 3 的時候被跳成 3。
+    var wanted = Math.floor(Number(this.value));
+    if (!isFinite(wanted) || wanted <= 0) return;
+
+    setup.questionCount = wanted;
+    refreshSetup();
+  });
+
+  // 焦點離開才夾進合法範圍，並把夾過的值寫回輸入框。
+  el('count-input').addEventListener('change', commitCustomCount);
+  el('count-input').addEventListener('blur', commitCustomCount);
+
+  function commitCustomCount() {
+    var fixed = Rules.clampCount(el('count-input').value, setup.languages, setup.mode);
+    setup.questionCount = fixed === null ? Rules.QUESTIONS_PER_ROUND : fixed;
+    el('count-input').value = setup.questionCount;
+    refreshSetup();
   }
 
   var modeButtons = qa('.mode');
@@ -361,8 +458,14 @@
   for (var m = 0; m < modeButtons.length; m++) {
     modeButtons[m].addEventListener('click', function () {
       setup.mode = this.dataset.mode;
+
       // 換出題方式可能換掉整份題數清單，要把題數挪到新清單裡最接近的那個。
-      setup.questionCount = Rules.nearestCountFor(setup.mode, setup.questionCount);
+      // 自訂的題數不要被挪掉（那是使用者自己打的），但還是要夾進新模式的上限——
+      // 闖關的上限低很多，因為那個數字會再乘上關卡數。
+      setup.questionCount = setup.customCount
+        ? Rules.clampCount(setup.questionCount, setup.languages, setup.mode)
+        : Rules.nearestCountFor(setup.mode, setup.questionCount);
+
       refreshSetup();
     });
   }
@@ -538,6 +641,7 @@
       : '已經進房了，等房主按開始。';
 
     renderPlayers();
+    if (isHost()) el('waiting-hint').textContent += bigRoomAdvice();
     show('waiting');
 
     if (isHost()) broadcastRoster('waiting');
@@ -555,7 +659,114 @@
       list.append(item);
     });
 
-    el('player-count').textContent = state.players.length + ' 人';
+    // 排隊中的人也列出來。房主要知道有人在等，排隊的人也要看到自己在名單上。
+    state.queued.forEach(function (person) {
+      var item = document.createElement('li');
+      item.className = 'queued';
+      item.textContent = person.name +
+        (person.id === state.adapter.selfId ? '（你）' : '') + '・下一場加入';
+      list.append(item);
+    });
+
+    el('player-count').textContent = state.players.length + ' 人' +
+      (state.queued.length > 0 ? '（另有 ' + state.queued.length + ' 人排隊）' : '');
+  }
+
+  /**
+   * 有人敲門。收下、排隊、或者說滿了。
+   *
+   * 三條路：
+   *   * 已經在名冊裡 → 重發一次名冊就好（他可能是斷線重連的）。
+   *   * 這一場正在進行中 → **排隊**，不是趕走。他的連線留著，
+   *     這一場打完 admitQueued() 會把他放進名冊。
+   *     （原本是趕走的，理由是「臨時加入的人名次看起來像作弊」——
+   *     排隊解決的是同一件事，而且不必叫人重新輸入房號。）
+   *   * 滿了 → 只能說滿了。
+   */
+  function admit(id, rawName) {
+    var name = String(rawName || '無名').slice(0, 12);
+
+    if (state.players.some(function (p) { return p.id === id; })) {
+      broadcastRoster('waiting');
+      return;
+    }
+
+    if (state.players.length + state.queued.length >= MAX_PLAYERS) {
+      replyTo(id, { reason: 'full' });
+      return;
+    }
+
+    if (state.game) {
+      if (!state.queued.some(function (p) { return p.id === id; })) {
+        state.queued.push({ id: id, name: name });
+      }
+      replyTo(id, { reason: 'queued', ahead: state.queued.length });
+      renderPlayers();
+      return;
+    }
+
+    state.players.push({ id: id, name: name });
+    renderPlayers();
+    broadcastRoster('waiting');
+  }
+
+  /** 這一場打完了：把排隊的人放進名冊。 */
+  function admitQueued() {
+    if (state.queued.length === 0) return;
+
+    state.queued.forEach(function (person) {
+      if (!state.players.some(function (p) { return p.id === person.id; })) {
+        state.players.push(person);
+      }
+    });
+
+    state.queued = [];
+    renderPlayers();
+    broadcastRoster('waiting');
+  }
+
+  /** 只給某一個人的回覆。廣播會波及全場（見 case joinReply 的說明）。 */
+  function replyTo(id, extra) {
+    var payload = {
+      to: id,
+      hostId: state.hostId,
+      settings: state.settings,
+    };
+
+    Object.keys(extra).forEach(function (key) { payload[key] = extra[key]; });
+    state.adapter.send('joinReply', payload);
+  }
+
+  /** 排隊中的畫面。留在房裡，不要退回大廳。 */
+  function enterQueued(ahead) {
+    el('room-code').textContent = state.roomCode;
+    el('room-settings').textContent = describeSettings(state.settings);
+    el('btn-start-round').hidden = true;
+    el('waiting-hint').textContent = '這一場正在進行中，你排在第 ' + (ahead || 1) +
+      ' 位。等他們打完就會自動把你放進來，不用再輸入房號。';
+
+    renderPlayers();
+    show('waiting');
+  }
+
+  /**
+   * 人多的時候給房主兩句話。
+   *
+   * 兩件事都是量出來的，不是猜的：搶答一題只有一個人拿分（二十人就是十九個人
+   * 整題摸不到分），而每人每題要從 Apple 抓 1 MB（二十人同時玩＝持續 13 Mbps）。
+   * 程式不擋，但不講就等於讓人在現場才發現。
+   */
+  function bigRoomAdvice() {
+    var many = state.players.length;
+    if (many < 9) return '';
+
+    var lines = ['　（' + many + ' 人：'];
+    if (scoringOf() === 'steal') {
+      lines.push('搶答一題只有一個人拿分，這麼多人建議改「速度」或「積分」；');
+    }
+    lines.push('人多很吃現場網路，每個人每題都要抓一首歌。）');
+
+    return lines.join('');
   }
 
   function broadcastRoster(phase) {
@@ -632,7 +843,7 @@
     });
 
     el('q-mode').textContent = describeSettings(settings);
-    el('btn-next-q').hidden = !isHost();
+    // 沒有「下一題」鈕了——一切自動推進（見 showVerdict 那段說明）。
     show('play');
 
     if (settings.bankStamp && settings.bankStamp !== bankStamp) {
@@ -664,7 +875,7 @@
       // 鈕上寫「直接開始」但畫面沒動，看起來像壞了，所以把話說清楚。
       prefetch.showWaiting('你這邊準備好了，等其他人…');
       state.adapter.send('ready', {});
-    });
+    }, warmCap());
   }
 
   /** 房主出下一題。Game 出不出來（整場結束）就結算。 */
@@ -753,7 +964,7 @@
     el('q-progress').textContent = '第 ' + state.index + ' / ' + state.totalQuestions + ' 題' +
       (view.stageLabel ? '（' + view.stageLabel + '）' : '');
     el('verdict').hidden = true;
-    el('btn-next-q').disabled = true;
+    state.revealAt = 0;
     el('play-hint').textContent = '正在播放…最快答對的人拿一分';
     el('play-hint').className = 'hint';
 
@@ -1074,16 +1285,37 @@
     el('verdict-answer').textContent = '正解：' + state.answerLabel;
     renderBoard();
 
-    if (isHost()) {
-      el('btn-next-q').disabled = false;
-      el('btn-next-q').textContent = state.index >= state.totalQuestions ? '看結算' : '下一題';
-      // 自動接下一題，房主不必每題都按。想快一點就按那顆鈕。
-      state.revealTimer = setTimeout(askNext, REVEAL_MS);
-    }
+    if (!isHost()) return;
+
+    /**
+     * 一切自動推進，房主沒有「下一題」可以按。
+     *
+     * 一題會在三種情況結束（都不需要房主動手）：
+     *   * 搶答模式：有人答對了。
+     *   * 其他模式：所有人都答完了（everyoneAnswered）。
+     *   * 時間到（arbitrateTimeout）。
+     * 然後留 REVEAL_MS 給大家看正解，再自動接下一題。
+     *
+     * 原本還有一顆鈕給房主跳過這段等待。拿掉它是刻意的：現場實際玩的時候，
+     * 那顆鈕只會讓房主變成全場的節拍器——大家還在看正解就被拉走，
+     * 而房主自己也沒空一題一題按。
+     */
+    state.revealAt = Date.now() + REVEAL_MS;
+    state.revealTimer = setTimeout(askNext, REVEAL_MS);
   }
 
-  el('btn-next-q').addEventListener('click', function () {
-    if (!isHost()) return;
+  /**
+   * 房主切到背景再切回來的時候補推一次。
+   *
+   * 少了那顆鈕之後，setTimeout 就是唯一的推進來源——而瀏覽器會把背景分頁的
+   * 計時器節流到一分鐘一次（iOS 甚至整個暫停）。房主去看一下訊息回來，
+   * 全場就卡在正解畫面上等他，而且沒有任何人能做什麼。
+   */
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    if (!isHost() || !state.game || !state.revealAt) return;
+    if (Date.now() < state.revealAt) return;
+
     clearTimeout(state.revealTimer);
     askNext();
   });
@@ -1132,20 +1364,50 @@
     });
   }
 
+  /**
+   * 比分板。人多的時候只列前幾名 ＋ 自己。
+   *
+   * 二十個人全列會變成一條要滑的清單，而遊戲進行中沒有人會去滑它——
+   * 真正想知道的只有兩件事：誰在前面、我在第幾。
+   */
   function renderBoard() {
     var box = el('board');
     box.replaceChildren();
 
-    standings().forEach(function (row) {
+    var rows = standings();
+    var mine = rows.findIndex(function (row) { return row.id === state.adapter.selfId; });
+    var shown = rows.slice(0, BOARD_ROWS);
+
+    // 自己掉到看不見的地方就單獨接在後面（中間用一列點點表示省略了幾個人）。
+    var hiddenBefore = 0;
+    if (mine >= BOARD_ROWS) {
+      hiddenBefore = mine - BOARD_ROWS;
+      shown = shown.concat([null, rows[mine]]);
+    }
+
+    shown.forEach(function (row, at) {
       var item = document.createElement('li');
+
+      if (row === null) {
+        item.className = 'gap';
+        item.textContent = hiddenBefore > 0 ? '⋯ 還有 ' + hiddenBefore + ' 人' : '⋯';
+        box.append(item);
+        return;
+      }
+
       if (row.id === state.adapter.selfId) item.className = 'me';
+
+      var place = document.createElement('i');
+      place.className = 'place';
+      place.textContent = (row === rows[mine] && at > BOARD_ROWS ? mine + 1 : at + 1) + '.';
 
       var who = document.createElement('span');
       who.textContent = row.name;
+
       var pts = document.createElement('b');
       pts.textContent = num(row.points) + Rules.roomScoreUnit(scoringOf());
 
-      item.append(who, pts);
+      item.append(place, who, pts);
       box.append(item);
     });
   }
@@ -1156,6 +1418,11 @@
     var rows = standings();
     state.adapter.send('over', { standings: rows });
     showResult(rows);
+
+    // 這一場結束了，排隊的人可以進來了——他們的畫面會自己從「排隊中」
+    // 變回等待室（收到 phase: 'waiting' 的名冊）。
+    state.game = null;
+    admitQueued();
   }
 
   function showResult(rows) {
@@ -1240,6 +1507,7 @@
     state.role = null;
     state.game = null;
     state.players = [];
+    state.queued = [];
 
     // 「一個人開打要按兩次」的那個提醒也要跟著歸零，
     // 否則下一間房會在你還沒看到提醒之前就直接開打。
@@ -1264,53 +1532,45 @@
     switch (message.type) {
       case 'hello':
         if (!isHost()) return;
-
-        // 已經開打了就不收人。臨時加入的人沒有跑過前面幾題，
-        // 名次會看起來像作弊，不如老實請他等下一場。
-        if (state.game) {
-          state.adapter.send('roster', {
-            hostId: state.hostId, players: state.players, settings: state.settings, phase: 'playing',
-          });
-          return;
-        }
-
-        // 人數上限。九個選項要在手機上被掃過一遍才按得下去，人再多就會變成
-        // 「誰網路快」而不是「誰先聽出來」；而且六個人的名字才排得進一行。
-        var known = state.players.some(function (p) { return p.id === message.from; });
-        if (!known && state.players.length >= MAX_PLAYERS) {
-          state.adapter.send('roster', {
-            hostId: state.hostId, players: state.players, settings: state.settings, phase: 'full',
-          });
-          return;
-        }
-
-        if (!known) {
-          state.players.push({ id: message.from, name: String(payload.name || '無名').slice(0, 12) });
-        }
-        renderPlayers();
-        broadcastRoster('waiting');
+        admit(message.from, payload.name);
         return;
 
       case 'roster':
         if (isHost()) return; // 房主自己就是名冊的來源
         clearTimeout(state.joinTimer);
 
-        if (payload.phase === 'playing') {
-          leaveRoom();
-          return lobbyError('房號 ' + state.roomCode + ' 這一場已經開打了，等他們打完再進來。');
-        }
+        state.hostId = payload.hostId;
+        state.players = payload.players || [];
+        state.settings = payload.settings;
+        lobbyError('');
 
-        if (payload.phase === 'full') {
+        // 已經在玩了就別把畫面拉回等待室——名冊是給比分板用的。
+        if (!state.game) enterWaiting();
+        else renderBoard();
+        return;
+
+      /**
+       * 房主對某一個人的回覆：滿了、或者這一場正在進行中。
+       *
+       * **一定要點名。** 原本這兩種情況是用 roster 廣播回覆的，於是一個中途敲門的人
+       * 會讓**全場**的非房主收到 phase: 'playing' 然後各自 leaveRoom()——
+       * 一個人敲門，整場被踢出去。實際玩的時候就是這樣壞掉的。
+       */
+      case 'joinReply':
+        if (isHost() || payload.to !== state.adapter.selfId) return;
+        clearTimeout(state.joinTimer);
+
+        if (payload.reason === 'full') {
           leaveRoom();
           return lobbyError('房號 ' + state.roomCode + ' 已經滿了（最多 ' + MAX_PLAYERS +
             ' 人）。請他們開第二間房，或等這一場打完。');
         }
 
+        // 排隊中：**不要離開房間**。連線留著，這一場打完房主會把你放進名冊。
         state.hostId = payload.hostId;
-        state.players = payload.players || [];
         state.settings = payload.settings;
         lobbyError('');
-        enterWaiting();
+        enterQueued(payload.ahead);
         return;
 
       case 'start':
@@ -1366,6 +1626,7 @@
 
       case 'over':
         if (isHost()) return;
+        state.game = null;
         state.players = (payload.standings || []).map(function (row) {
           return { id: row.id, name: row.name };
         });
@@ -1373,6 +1634,7 @@
         return;
 
       case 'bye':
+        state.queued = state.queued.filter(function (p) { return p.id !== message.from; });
         if (!isHost()) return;
         state.players = state.players.filter(function (p) {
           return p.id !== message.from;

@@ -8,8 +8,8 @@
      不加版本號的話，改完要等十分鐘（或使用者自己強制重新整理）才看得到新版——
      實際踩過：修好的 CSS 已經上線，但畫面還是舊的。
      發佈前把這個號碼加一，發佈流程寫在 代辦清單.md。 -->
-<link rel="stylesheet" href="style.css?v=27">
-<link rel="stylesheet" href="room.css?v=27">
+<link rel="stylesheet" href="style.css?v=28">
+<link rel="stylesheet" href="room.css?v=28">
 <!-- 主題要在第一次繪製之前就定下來。
      交給 shell.js（在 </body> 前）會先閃一下夜間版才變成日間版，
      那一下在白色房間裡特別刺眼。所以這一小段刻意內嵌在 head 裡。 -->
@@ -241,6 +241,11 @@
         <fieldset class="field">
           <legend>題數<i>出題方式選「逐關解鎖語種」時是每關題數，選「隨機出題」時是整場題數</i></legend>
           <div class="chips" id="r-count-chips"></div>
+          <div class="custom-count" id="r-custom-count" hidden>
+            <label for="r-count-input">自訂題數</label>
+            <input type="number" id="r-count-input" inputmode="numeric" min="3" step="1">
+            <span class="custom-hint" id="r-count-hint"></span>
+          </div>
         </fieldset>
 
         <!-- 計分方式的三顆鈕由 room.js 依 Rules.ROOM_SCORINGS 產生，
@@ -321,7 +326,6 @@
     <div class="verdict" id="r-verdict" hidden>
       <strong id="r-verdict-title"></strong>
       <span id="r-verdict-answer"></span>
-      <button type="button" class="primary" id="r-btn-next-q" hidden>下一題</button>
     </div>
 
     <h2 class="board-title">目前比分<small>先答對的人拿一分・房主裁判</small></h2>
@@ -439,19 +443,19 @@
      不然「只想一個人玩」的人要白付那 218 KB。
      shell.js 最後，因為它要呼叫前面兩邊掛出來的停止函式。
      全部都是傳統 script（不是 module），這樣從 file:// 雙擊開也能玩。 -->
-<script src="js/rules.js?v=27"></script>
-<script src="js/questions.js?v=27"></script>
-<script src="js/game.js?v=27"></script>
-<script src="js/prefetch.js?v=27"></script>
-<script src="data/bank.js?v=27"></script>
-<script src="realtime-config.js?v=27"></script>
-<script src="js/realtime.js?v=27"></script>
-<script src="js/feedback.js?v=27"></script>
-<script src="js/leaderboard.js?v=27"></script>
-<script src="js/boardui.js?v=27"></script>
-<script src="js/app.js?v=27"></script>
-<script src="js/room.js?v=27"></script>
-<script src="js/feedbackui.js?v=27"></script>
-<script src="js/shell.js?v=27"></script>
+<script src="js/rules.js?v=28"></script>
+<script src="js/questions.js?v=28"></script>
+<script src="js/game.js?v=28"></script>
+<script src="js/prefetch.js?v=28"></script>
+<script src="data/bank.js?v=28"></script>
+<script src="realtime-config.js?v=28"></script>
+<script src="js/realtime.js?v=28"></script>
+<script src="js/feedback.js?v=28"></script>
+<script src="js/leaderboard.js?v=28"></script>
+<script src="js/boardui.js?v=28"></script>
+<script src="js/app.js?v=28"></script>
+<script src="js/room.js?v=28"></script>
+<script src="js/feedbackui.js?v=28"></script>
+<script src="js/shell.js?v=28"></script>
 </body>
 </html>
