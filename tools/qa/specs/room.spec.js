@@ -140,8 +140,9 @@ test.describe('多人房', () => {
       await expect(later.locator(r('waiting-hint'))).toHaveText(/排在第 1 位/);
       await expect(later.locator(r('lobby-error'))).toBeHidden();
 
-      // 房主那邊要看得到有人在等（名單在等待室，畫面雖然藏著但字要對）。
-      await expect(later.locator(r('player-count'))).toHaveText(/1 人排隊/);
+      // 房主那邊也要看得到有人在等（名單在等待室，畫面雖然藏著但字要對）。
+      // 原本這裡查的是 later —— 和上面兩行同一頁，所以房主的顯示從來沒被測到。
+      await expect(host.locator(r('player-count'))).toHaveText(/1 人排隊/);
 
       // ── 打完這一場，排隊的人要自動進來 ──
       for (let i = 0; i < 6; i++) {
