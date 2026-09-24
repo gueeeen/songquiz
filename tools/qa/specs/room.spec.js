@@ -8,8 +8,12 @@ const { test, expect } = require('@playwright/test');
 /** 房間的每個 id 都有 r- 前綴。 */
 const r = (id) => `#r-${id}`;
 
-async function openRoom(context, nick) {
+async function openRoom(context, nick, before) {
   const page = await context.newPage();
+
+  // initScript 必須在 goto 之前掛（有的測試要攔頁面上的計時器）。
+  if (before) await before(page);
+
   await page.goto('./');
   // 單人和多人兩塊各有一組切換鈕（兩邊長得一樣是刻意的），要限定在單人那邊按。
   await page.locator('#screen-home .who-pick[data-who="room"]').click();
@@ -87,6 +91,89 @@ test.describe('多人房', () => {
       await guestContext.close();
     }
   });
+  test('房主的時鐘停了一陣子再恢復，全場會自己補上', async ({ browser, browserName }) => {
+    // **拿掉「下一題」鈕之後，房主的時鐘是全場唯一的推進來源。**
+    // 而瀏覽器會把背景分頁的計時器節流到一分鐘一次（iOS 更直接暫停），
+    // 所以房主去回個訊息，全場就停在那一題——而且沒有鈕可以救。
+    //
+    // 修法是「照絕對時間推進」：tick() 每次都問「照現在的時間，該發生什麼事」，
+    // 所以中間有多久沒跑都沒關係，恢復後的第一個 tick 就會補上。
+    //
+    // **這一條測的是那個性質，不是真的節流。** Playwright 沒辦法讓分頁真的進入
+    // 背景節流（Emulation.setPageVisibilityOverride 在這個 build 不存在），
+    // 所以用一個替身：把頁面上所有的 interval 停掉一段時間再重新掛上，
+    // 也就是「一段時間內一個 tick 都沒跑，然後恢復」——正是節流的極端版本。
+    //
+    // 驗過它有牙齒：把 tick() 改成「只處理還沒過期的時戳」（也就是不補過去的事），
+    // 這一條會失敗。
+    test.skip(browserName !== 'chromium', '三條連線的房間測試只在 Chromium 上跑');
+
+    const hostContext = await browser.newContext();
+    const playerContext = await browser.newContext();
+
+    try {
+      const host = await openRoom(hostContext, '房主', (page) => page.addInitScript(() => {
+        // 記住每一個 interval，才停得掉也掛得回來。
+        const real = window.setInterval;
+        const kept = [];
+
+        window.setInterval = function (fn, ms) {
+          const id = real(fn, ms);
+          kept.push({ id: id, fn: fn, ms: ms });
+          return id;
+        };
+
+        window.__qaFreeze = function () { kept.forEach(function (one) { clearInterval(one.id); }); };
+        window.__qaThaw = function () { kept.forEach(function (one) { one.id = real(one.fn, one.ms); }); };
+      }));
+
+      const player = await openRoom(playerContext, '玩家');
+
+      await host.locator(`${r('count-chips')} .chip`).first().click();
+      await host.locator(r('btn-create')).click();
+      await expect(host.locator(r('room-code'))).not.toHaveText('----', { timeout: 30_000 });
+      const code = (await host.locator(r('room-code')).textContent()).trim();
+
+      await player.locator(r('join-code')).fill(code);
+      await player.locator(r('btn-join')).click();
+      await expect(host.locator(r('player-count'))).toHaveText(/2 人/, { timeout: 30_000 });
+
+      await host.locator(r('btn-start-round')).click();
+      await expect(player.locator(`${r('choices')} .choice`)).toHaveCount(9, { timeout: 60_000 });
+
+      const before = await player.locator(r('q-progress')).textContent();
+
+      // 房主的時鐘停掉。兩邊都答完這一題——揭曉的時限會在凍結期間過去。
+      await host.evaluate(() => window.__qaFreeze());
+
+      for (const page of [host, player]) {
+        const choice = page.locator(`${r('choices')} .choice`).first();
+        if (await choice.isVisible()) await choice.click().catch(() => {});
+      }
+
+      // 揭曉是 3.5 秒；等超過它，而且這段時間房主一個 tick 都沒跑。
+      await host.waitForTimeout(6000);
+      await expect(player.locator(r('q-progress')), '時鐘停著卻推進了，那這個測試沒測到東西')
+        .toHaveText(before);
+
+      // 恢復——第一個 tick 就該把過期的揭曉補上。
+      await host.evaluate(() => window.__qaThaw());
+
+      await expect
+        .poll(() => player.locator(r('q-progress')).textContent(),
+          { message: '時鐘恢復之後全場還是卡在同一題', timeout: 20_000 })
+        .not.toBe(before);
+
+      test.info().annotations.push({
+        type: '題號',
+        description: before.trim() + ' → ' + (await player.locator(r('q-progress')).textContent()).trim(),
+      });
+    } finally {
+      await hostContext.close();
+      await playerContext.close();
+    }
+  });
+
   test('中途有人敲門，不會把正在玩的人踢掉', async ({ browser, browserName }) => {
     // **這一條是照著一個真實的 bug 寫的。** 現場實際玩的時候，一個人中途輸入房號，
     // 其他所有非房主都被踢回大廳並顯示「這一場已經開打了」。

@@ -194,9 +194,18 @@
     /** 房主視角：這一題誰已經出手過了，避免同一人連點兩次。 */
     claimed: {},
     points: {},
-    ticker: null,
+
+    /**
+     * 全場唯一的計時器（見「時鐘」那一節）。
+     *
+     * 底下那兩個是**絕對時間戳**，不是剩餘秒數——tick() 每次都拿現在的時間去比，
+     * 所以分頁被節流或暫停之後回來，第一個 tick 就會把該發生的事補上。
+     */
+    clock: null,
+    /** 這一題的作答期限。0 ＝ 沒有在計時。 */
     deadline: 0,
-    revealTimer: null,
+    /** 這一題有多久（毫秒），畫進度條要用。 */
+    questionMs: Rules.QUESTION_SECONDS * 1000,
     /** 正解看到什麼時候為止。房主切回前景時靠它判斷是不是已經該推了。 */
     revealAt: 0,
     joinTimer: null,
@@ -909,10 +918,9 @@
     state.played = true;
 
     // **一定要歸零。** 它是上一局最後一題的揭曉時限，早就過期了；不清的話
-    // 房主在這一局的「準備中」畫面切出去再切回來，visibilitychange 會看到
-    // 「揭曉時間到了」然後直接 askNext()——選項還藏在預備畫面後面，
-    // 而且 startAsking 稍後還會再發一次題，第一題就整題沒有人作答。
-    state.revealAt = 0;
+    // 這一局的「準備中」還沒結束，tick() 就會看到「揭曉時間到了」然後直接
+    // askNext()——選項還藏在預備畫面後面，而且 startAsking 稍後還會再發一次題。
+    stopClock();
     state.index = 0;
     state.totalQuestions = totalQuestionsFor(settings);
     state.points = {};
@@ -985,7 +993,7 @@
 
   /** 房主出下一題。Game 出不出來（整場結束）就結算。 */
   function askNext() {
-    clearTimeout(state.revealTimer);
+    state.revealAt = 0;
 
     var view = state.game.nextQuestion();
     if (!view) return finishRound();
@@ -1419,58 +1427,104 @@
      * 原本還有一顆鈕給房主跳過這段等待。拿掉它是刻意的：現場實際玩的時候，
      * 那顆鈕只會讓房主變成全場的節拍器——大家還在看正解就被拉走，
      * 而房主自己也沒空一題一題按。
+     *
+     * 這裡只放一個時戳，推進交給 tick()——它會在時間到的那一刻做這件事，
+     * 包含「房主切到背景又回來」的情況（見「時鐘」那一節）。
      */
     state.revealAt = Date.now() + REVEAL_MS;
-    state.revealTimer = setTimeout(askNext, REVEAL_MS);
+    startClock();
+  }
+
+  // ---- 時鐘 ----
+  //
+  // **一個 tick，兩個絕對時間戳。** 不是兩組一次性計時器。
+  //
+  // 房間裡有兩件事要按時發生：作答時間到（12 秒）、以及正解看完了要接下一題
+  // （3.5 秒）。原本各用一個 setTimeout／setInterval，而**房主的那兩個是全場唯一的
+  // 推進來源**——他沒有「下一題」鈕可以按。瀏覽器會把背景分頁的計時器節流到一分鐘
+  // 一次（iOS 直接暫停），所以房主去回個訊息，全場就停在那一題，誰都幫不上忙。
+  //
+  // 補一個 visibilitychange 去救不夠：那只補得到「正在看正解」那一半，
+  // 題目進行中切出去照樣卡死。而且那種寫法每加一個計時器就要多記一次歸零
+  // （revealAt 跨局殘留就是這樣來的）。
+  //
+  // 改成問「照時間，現在該發生什麼事」。切到背景再回來的第一個 tick 自然會把
+  // 該做的事補上，visibilitychange 就不再是特例——整個拿掉了。
+  //
+  // 兩個時戳都用 Date.now()：原本一個用 performance.now()、一個用 Date.now()，
+  // 混著用在同一個判斷裡是等著被踩的。
+  var TICK_MS = 50;
+
+  function startClock() {
+    if (state.clock) return;
+    state.clock = setInterval(tick, TICK_MS);
+  }
+
+  function stopClock() {
+    if (state.clock) clearInterval(state.clock);
+    state.clock = null;
+    state.deadline = 0;
+    state.revealAt = 0;
+  }
+
+  function tick() {
+    var now = Date.now();
+
+    if (state.deadline) {
+      drawTimer(Math.max(0, state.deadline - now));
+
+      if (now >= state.deadline) {
+        state.deadline = 0;
+        questionExpired();
+      }
+    }
+
+    if (state.revealAt && now >= state.revealAt) {
+      state.revealAt = 0;
+      // 只有房主的揭曉時限有效力——他是唯一能發下一題的人。
+      if (isHost()) askNext();
+    }
+  }
+
+  function drawTimer(leftMs) {
+    var timer = q('.timer');
+    var left = leftMs / 1000;
+
+    el('timer-bar').style.transform = 'scaleX(' + (leftMs / state.questionMs) + ')';
+    el('timer-text').textContent = left.toFixed(1);
+
+    if (left <= 3) timer.classList.add('urgent');
+    else timer.classList.remove('urgent');
   }
 
   /**
-   * 房主切到背景再切回來的時候補推一次。
+   * 作答時間到。
    *
-   * 少了那顆鈕之後，setTimeout 就是唯一的推進來源——而瀏覽器會把背景分頁的
-   * 計時器節流到一分鐘一次（iOS 甚至整個暫停）。房主去看一下訊息回來，
-   * 全場就卡在正解畫面上等他，而且沒有任何人能做什麼。
+   * 每個人的計時器各自從「收到 ask」起算，所以到期的時刻本來就不會完全一樣。
+   * 只有房主的到期有效力，其他人到期就只是自己不能再答了。
    */
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState !== 'visible') return;
-    if (!isHost() || !state.game || !state.revealAt) return;
-    if (Date.now() < state.revealAt) return;
+  function questionExpired() {
+    if (isHost()) return arbitrateTimeout();
+    if (state.locked) return;
 
-    clearTimeout(state.revealTimer);
-    askNext();
-  });
-
-  // ---- 計時條 ----
-
-  function startTimer(seconds) {
-    stopTimer();
-
-    var bar = el('timer-bar');
-    var text = el('timer-text');
-    state.deadline = performance.now() + seconds * 1000;
-
-    state.ticker = setInterval(function () {
-      var left = Math.max(0, state.deadline - performance.now()) / 1000;
-      bar.style.transform = 'scaleX(' + (left / seconds) + ')';
-      text.textContent = left.toFixed(1);
-
-      if (left === 0) {
-        stopTimer();
-        // 每個人的計時器各自從「收到 ask」起算，所以到期的時刻本來就不會完全一樣。
-        // 只有房主的到期有效力，其他人到期就只是自己不能再答了。
-        if (isHost()) arbitrateTimeout();
-        else if (!state.locked) {
-          state.locked = true;
-          lockChoices();
-          el('play-hint').textContent = '你這一題沒答，等房主宣布結果。';
-        }
-      }
-    }, 50);
+    state.locked = true;
+    lockChoices();
+    el('play-hint').textContent = '你這一題沒答，等房主宣布結果。';
   }
 
+  /** 這一題開始計時。 */
+  function startTimer(seconds) {
+    state.questionMs = seconds * 1000;
+    state.deadline = Date.now() + state.questionMs;
+
+    q('.timer').classList.remove('urgent');
+    drawTimer(state.questionMs);
+    startClock();
+  }
+
+  /** 這一題不再計時（有人搶到、大家都答完、或離開）。揭曉的時鐘不受影響。 */
   function stopTimer() {
-    if (state.ticker) clearInterval(state.ticker);
-    state.ticker = null;
+    state.deadline = 0;
   }
 
   // ---- 即時比分 ----
@@ -1559,13 +1613,13 @@
     // 這裡刻意**不**把 played 設回 false：它是「我在這間房打過了」，
     // 不是「這一場」。清掉的話下一則名冊就會把剛打完的人拉離結算頁。
     state.game = null;
-    state.revealAt = 0;
     admitQueued();
   }
 
   function showResult(rows) {
-    stopTimer();
-    clearTimeout(state.revealTimer);
+    // 一場結束就把時鐘整個停掉。stopClock 會把兩個時戳一起歸零——
+    // 留著過期的 revealAt 會讓下一局的「準備中」畫面被偷推一題。
+    stopClock();
     player.pause();
 
     // 一場結束就別再抓了。留著的話，排隊中的下載會一路跑完（那些歌這一場
@@ -1617,10 +1671,9 @@
   el('btn-leave').addEventListener('click', leaveRoom);
 
   function leaveRoom() {
-    stopTimer();
+    stopClock();
     prefetch.drop();
     prefetch.hideWarm();
-    clearTimeout(state.revealTimer);
     clearTimeout(state.joinTimer);
     clearTimeout(state.readyTimer);
     state.readyTimer = null;
@@ -1636,7 +1689,6 @@
     state.players = [];
     state.queued = [];
     state.played = false;
-    state.revealAt = 0;
 
     // 「一個人開打要按兩次」的那個提醒也要跟著歸零，
     // 否則下一間房會在你還沒看到提醒之前就直接開打。

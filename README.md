@@ -232,7 +232,7 @@ npm test
 
 預設測的是**工作目錄裡的版本**（`serve.js` 把 `web/` 端成 HTTP）。
 要驗線上：`set QA_BASE_URL=https://gueeeen.github.io/songquiz/ && npm test`。
-一輪正常是 33 通過、9 跳過（限速與多人那幾條只有 Chromium；量時間的那幾條在
+一輪正常是 37 通過、11 跳過（限速與多人那幾條只有 Chromium；量時間的那幾條在
 WebKit 上跳過——它沒有音效裝置）。
 細節與「WebKit 起不來怎麼辦」在 `tools/qa/README.md`。
 
