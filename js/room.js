@@ -31,12 +31,14 @@
    *
    *   * **Supabase**：一題約 41 則發送（ask ＋ 每人一則 claim ＋ 每人一則 tally），
    *     派送出去是 41 × 人數 ≈ 820 則。36 題一場約 29,500 則，
-   *     免費額度 200 萬則／月大約夠 68 場。20 人的 tally 帶整份分數是 971 bytes，
-   *     整場 realtime 流量約 14 MB。都很寬鬆。
+   *     免費額度 200 萬則／月大約夠 68 場。位元組本來是 14 MB，其中七成是
+   *     tally 帶整份比分（那個隨人數平方成長）——改成增量之後降到約 5 MB。
    *   * **現場的 Wi-Fi 才是上限**：每人每題要從 Apple 抓 1 MB，二十個人同時玩
-   *     等於持續 13 Mbps；開場預備更是「人數 × 囤的首數」的突發——
+   *     等於**持續 13 Mbps**；開場預備更是「人數 × 囤的首數」的突發——
    *     二十人各囤五首就是一百 MB 同時湧進同一台基地台。
-   *     所以 warmCap() 會依人數壓低囤貨量。
+   *     warmCap() 壓低的是**開場那一下**（20 人從 100 MB 降到 40 MB）；
+   *     遊戲中的 13 Mbps 是 PREFETCH_AHEAD 決定的，沒有被這個機制處理——
+   *     再壓下去就是拿頻寬換題與題之間的空白。
    *   * **搶答計分在人多的時候不好玩**：一題只有一個人拿分，二十個人就是十九個
    *     人整題摸不到分。人多建議用「速度」或「積分」。這件事程式不擋，
    *     但開房的畫面會講。
@@ -51,16 +53,27 @@
    */
   var MAX_PLAYERS = 20;
 
-  /** 人多就少囤幾首，開場才不會把基地台打爆（理由寫在 MAX_PLAYERS）。 */
+  /**
+   * 幾個人算「人多」。
+   *
+   * 比分板超過這個數就摺疊（再多就變成沒人會滑的清單），而且房主會看到那兩句
+   * 關於網路和搶答計分的提醒。兩件事是同一個判斷，所以同一個數字。
+   */
+  var CROWD = 8;
+
+  /**
+   * 人多就少囤幾首，開場才不會把基地台打爆（理由寫在 MAX_PLAYERS）。
+   *
+   * 回 null ＝「不要壓」，讓 prefetch.js 用它自己的 WARM_MAX。這裡刻意不寫 5：
+   * 那是 prefetch.js 的私有常數，抄過來的話它哪天改成 6，單人變 6 而小房間
+   * 還是 5，而「小房間跟單人一樣」正是這個函式想表達的事。
+   */
   function warmCap() {
     var many = Math.max(1, state.players.length);
-    if (many <= 4) return 5;
-    if (many <= 8) return 3;
+    if (many <= 4) return null;
+    if (many <= CROWD) return 3;
     return 2;
   }
-
-  /** 比分板一次列幾個人就要開始摺疊。再多就變成滑動介面了。 */
-  var BOARD_ROWS = 8;
 
   /**
    * 客人送出 hello 之後等多久還沒收到名冊，就當這個房號不存在。
@@ -191,10 +204,13 @@
     /** 這一場進行中才來敲門的人。打完就會被放進 players（見 admitQueued）。 */
     queued: [],
     /**
-     * 我這一場有真的打（不是中途才進來排隊的）。
+     * 我在這間房打過了（不是中途才進來排隊的）。
      *
-     * showRoom() 靠它分辨兩種人：剛打完的人要留在結算頁，剛被放進名冊的排隊者
-     * 要進等待室。兩邊收到的是同一則名冊，差別只在自己的身分。
+     * showRoom() 靠它分辨兩種人：打過的人收到名冊時要留在原本的畫面（結算頁），
+     * 剛被放進名冊的排隊者要進等待室。兩邊收到的是同一則名冊，差別只在身分。
+     *
+     * 是「這間房」而不是「這一場」：一局結束後它仍然是 true，直到離開房間。
+     * 那正是「留在結算頁」成立的原因。
      */
     played: false,
     /** 這一局誰回報過「音檔囤好了」。房主靠它決定什麼時候發第一題。 */
@@ -440,24 +456,28 @@
   }
 
   el('count-input').addEventListener('input', function () {
-    // 打字中不要夾值——正在輸入「36」的人會在打完 3 的時候被跳成 3。
+    // 打字中不夾值：正在輸入「36」的人不該在打完 3 的時候就被夾成 3。
+    // 解析用 clampCount 同一套規則，只是不套上下限。
     var wanted = Math.floor(Number(this.value));
     if (!isFinite(wanted) || wanted <= 0) return;
 
     setup.questionCount = wanted;
-    refreshSetup();
+    refreshSummary();
   });
 
-  // 焦點離開才夾進合法範圍，並把夾過的值寫回輸入框。
-  el('count-input').addEventListener('change', commitCustomCount);
-  el('count-input').addEventListener('blur', commitCustomCount);
+  /**
+   * 焦點離開才夾進合法範圍，並把夾過的值寫回輸入框。
+   *
+   * **只掛 blur，不要也掛 change。** 一般的「打完字點別的地方」會讓兩個都發，
+   * 於是夾值和重畫各做兩次。這裡沒有 <form>，change 沒有 blur 給不了的東西。
+   */
+  el('count-input').addEventListener('blur', function () {
+    var fixed = Rules.clampCount(this.value, setup.languages, setup.mode);
 
-  function commitCustomCount() {
-    var fixed = Rules.clampCount(el('count-input').value, setup.languages, setup.mode);
     setup.questionCount = fixed === null ? Rules.QUESTIONS_PER_ROUND : fixed;
-    el('count-input').value = setup.questionCount;
-    refreshSetup();
-  }
+    this.value = setup.questionCount;
+    refreshSummary();
+  });
 
   var modeButtons = qa('.mode');
 
@@ -501,16 +521,14 @@
         : '');
   }
 
-  function refreshSetup() {
-    for (var i = 0; i < modeButtons.length; i++) {
-      modeButtons[i].setAttribute('aria-pressed',
-        modeButtons[i].dataset.mode === setup.mode ? 'true' : 'false');
-    }
-
-    renderLanguageChips();
-    renderCountChips();
-    renderScoringButtons();
-
+  /**
+   * 只重畫「這組設定行不行」那一段。
+   *
+   * 打字的時候只能跑這一段，不能跑整個 refreshSetup——那會把每一顆膠囊
+   * replaceChildren 掉重建。後果不只是白做功：輸入框有焦點時去點預設題數，
+   * 那顆鈕會在它的 click 送達之前就被換掉，所以第一下沒有反應。
+   */
+  function refreshSummary() {
     var capacity = bankReady
       ? Rules.capacityFor(bank, setup.languages, setup.questionCount, setup.mode)
       : { ok: false, shortfall: [] };
@@ -527,6 +545,18 @@
     warning.hidden = !warning.textContent;
 
     el('btn-create').disabled = !capacity.ok || !picked.adapter;
+  }
+
+  function refreshSetup() {
+    for (var i = 0; i < modeButtons.length; i++) {
+      modeButtons[i].setAttribute('aria-pressed',
+        modeButtons[i].dataset.mode === setup.mode ? 'true' : 'false');
+    }
+
+    renderLanguageChips();
+    renderCountChips();
+    renderScoringButtons();
+    refreshSummary();
   }
 
   function describeBank() {
@@ -638,13 +668,14 @@
 
   // ---- 等待室 ----
 
-  function enterWaiting() {
+  function enterWaiting(hint) {
     el('room-code').textContent = state.roomCode;
     el('room-settings').textContent = describeSettings(state.settings);
-    el('btn-start-round').hidden = !isHost();
-    el('waiting-hint').textContent = isHost()
+    // 排隊中的人也走這裡，只是換一句話（見 enterQueued）。
+    el('btn-start-round').hidden = !isHost() || !!hint;
+    el('waiting-hint').textContent = hint || (isHost()
       ? '把房號念給朋友，他們在自己的裝置上輸入就能進來。人到齊了按開始。'
-      : '已經進房了，等房主按開始。';
+      : '已經進房了，等房主按開始。');
 
     state.played = false;
 
@@ -700,17 +731,22 @@
       return;
     }
 
-    if (state.players.length + state.queued.length >= MAX_PLAYERS) {
+    // 已經在排隊的人要先認出來，再檢查人數。順序顛倒的話，滿房時他的 hello
+    // 重送一次（斷線重連、訊息重複）就會收到「已經滿了」然後被踢掉，
+    // 連排隊的位置一起丟掉。
+    var queuing = state.queued.some(function (p) { return p.id === id; });
+
+    if (!queuing && state.players.length + state.queued.length >= MAX_PLAYERS) {
       replyTo(id, { reason: 'full' });
       return;
     }
 
     if (state.game) {
-      if (!state.queued.some(function (p) { return p.id === id; })) {
+      if (!queuing) {
         state.queued.push({ id: id, name: name });
       }
 
-      replyTo(id, { reason: 'queued', ahead: state.queued.length });
+      replyTo(id, { reason: 'queued' });
 
       // 名冊也要重發：正在玩的人要看得到有人在等，而且第二個排隊的人進來時，
       // 第一個人的順位顯示才會跟著對（原本只單獨回覆新來的那一個，
@@ -745,13 +781,8 @@
    * 廣播會波及全場，而這裡回的正是「這一場滿了／正在進行中」那種話。
    */
   function replyTo(id, extra) {
-    var payload = {
-      hostId: state.hostId,
-      settings: state.settings,
-      // 名冊也要一起給：排隊的人要看得到自己在等誰，不然畫面上是「0 人」。
-      players: state.players,
-      queued: state.queued,
-    };
+    // 名冊也要一起給：排隊的人要看得到自己在等誰，不然畫面上是「0 人」。
+    var payload = rosterPayload();
 
     Object.keys(extra).forEach(function (key) { payload[key] = extra[key]; });
     state.adapter.sendTo(id, 'joinReply', payload);
@@ -770,11 +801,7 @@
    */
   function showRoom() {
     var me = state.adapter.selfId;
-    var queuedAt = -1;
-
-    for (var i = 0; i < state.queued.length; i++) {
-      if (state.queued[i].id === me) { queuedAt = i; break; }
-    }
+    var queuedAt = state.queued.findIndex(function (person) { return person.id === me; });
 
     if (queuedAt !== -1) return enterQueued(queuedAt + 1);
     if (state.played) return renderBoard();
@@ -782,16 +809,15 @@
     enterWaiting();
   }
 
-  /** 排隊中的畫面。留在房裡，不要退回大廳。 */
+  /**
+   * 排隊中的畫面。留在房裡，不要退回大廳。
+   *
+   * 就是等待室，只是換一句話——所以走同一個函式，不要抄一份。
+   * 抄一份的代價是「等待室以後多加一個元素」只會被填一邊。
+   */
   function enterQueued(ahead) {
-    el('room-code').textContent = state.roomCode;
-    el('room-settings').textContent = describeSettings(state.settings);
-    el('btn-start-round').hidden = true;
-    el('waiting-hint').textContent = '這一場正在進行中，你排在第 ' + (ahead || 1) +
-      ' 位。等他們打完就會自動把你放進來，不用再輸入房號。';
-
-    renderPlayers();
-    show('waiting');
+    enterWaiting('這一場正在進行中，你排在第 ' + ahead +
+      ' 位。等他們打完就會自動把你放進來，不用再輸入房號。');
   }
 
   /**
@@ -809,7 +835,7 @@
     var box = el('room-advice');
     var many = state.players.length;
 
-    if (!isHost() || many < 9) {
+    if (!isHost() || many <= CROWD) {
       box.hidden = true;
       box.textContent = '';
       return;
@@ -836,13 +862,18 @@
    * 現在名冊只是資料（誰在房裡、誰在排隊、設定是什麼），畫面由 showRoom() 依
    * **自己的身分**決定：我在排隊嗎、我剛打完了嗎。
    */
-  function broadcastRoster() {
-    state.adapter.send('roster', {
+  /** 名冊的內容。廣播和點名回覆都用它——組兩份的話，加第五個欄位會漏一邊。 */
+  function rosterPayload() {
+    return {
       hostId: state.hostId,
       players: state.players,
       queued: state.queued,
       settings: state.settings,
-    });
+    };
+  }
+
+  function broadcastRoster() {
+    state.adapter.send('roster', rosterPayload());
   }
 
   /** 一個人就開打要按兩次。第一次只是提醒，不是拒絕——測試和「朋友還在路上」都是正當理由。 */
@@ -876,6 +907,12 @@
   function startWithSettings(settings) {
     state.settings = settings;
     state.played = true;
+
+    // **一定要歸零。** 它是上一局最後一題的揭曉時限，早就過期了；不清的話
+    // 房主在這一局的「準備中」畫面切出去再切回來，visibilitychange 會看到
+    // 「揭曉時間到了」然後直接 askNext()——選項還藏在預備畫面後面，
+    // 而且 startAsking 稍後還會再發一次題，第一題就整題沒有人作答。
+    state.revealAt = 0;
     state.index = 0;
     state.totalQuestions = totalQuestionsFor(settings);
     state.points = {};
@@ -911,7 +948,7 @@
     });
 
     el('q-mode').textContent = describeSettings(settings);
-    // 沒有「下一題」鈕了——一切自動推進（見 showVerdict 那段說明）。
+    // 沒有「下一題」鈕了——一切自動推進（見 applyAward 末尾那段說明）。
     show('play');
 
     if (settings.bankStamp && settings.bankStamp !== bankStamp) {
@@ -1228,11 +1265,24 @@
     state.streaks[fromId] = streak;
 
     var gained = Rules.roomScoreFor(scoringOf(), correct, seconds, streak);
-    state.points[fromId] = (state.points[fromId] || 0) + gained;
 
-    // points 整份傳出去，而不是只傳增量：掉一則訊息的話，
-    // 只傳增量會讓某個人的分數從此永遠少一截，而且沒有人會發現。
-    var tally = { index: index, id: fromId, gained: gained, streak: streak, points: state.points };
+    // **這裡不要自己加分。** 加分只由 applyTally 做一次——房主也要走它。
+    // 兩邊都加的話房主的分數會是兩倍，而且 finishQuestion 會把那份加倍的比分
+    // 當成權威值廣播出去，全場的結算就跟著錯，而且沒有人看得出原因。
+    // （這是把 tally 改成增量的時候差點漏掉的：原本 applyTally 是整份取代，
+    // 所以先加一次沒有差；改成累加之後就變成加兩次。）
+
+    // **只傳增量，不傳整份比分。**
+    //
+    // 原本這裡傳整份，理由是「掉一則訊息的話，只傳增量會讓某個人的分數從此永遠
+    // 少一截」。那個顧慮是對的，但它**已經被別的程式碼解決了**：每一題結束都會走到
+    // finishQuestion，它廣播的 award 帶整份 points，而 applyAward 是整份取代的。
+    // 所以掉一則 tally 最多錯一題（≤12 秒），下一次揭曉就自己補回來。
+    //
+    // 而傳整份的代價會隨人數平方成長：一題有「人數」則 tally，每一則又帶
+    // 「人數」筆分數。二十人實測一則 551 bytes，一題送出 11 KB、派送 209 KB，
+    // 36 題一場 7.5 MB——佔整場 realtime 流量的七成。改成增量之後一則約 140 bytes。
+    var tally = { index: index, id: fromId, gained: gained, streak: streak };
     state.adapter.send('tally', tally);
     applyTally(tally);
 
@@ -1280,7 +1330,9 @@
   function applyTally(tally) {
     if (tally.index !== state.index) return;
 
-    state.points = tally.points || state.points;
+    // **加分只在這裡做，房主也一樣**（見 arbitrate 裡那段說明）。
+    // 增量累加；權威的整份比分在每題結束的 award 裡，所以這裡累錯了也只錯一題。
+    state.points[tally.id] = (state.points[tally.id] || 0) + (Number(tally.gained) || 0);
     renderBoard();
 
     if (tally.id === state.adapter.selfId && tally.gained > 0) {
@@ -1433,6 +1485,31 @@
   }
 
   /**
+   * 比分板和結算頁共用的一列：名次、名字、分數。
+   *
+   * **單位一定要問 Rules.roomScoreUnit。** 這兩邊本來各寫一份，結算頁硬寫「題」——
+   * 於是速度／積分模式下，比分板寫「1,200 分」而結算頁寫「1200 題」，同一個數字
+   * 兩個單位。而且結算頁沒有套 num()，四位數就不會有千分位。
+   */
+  function scoreRow(row, place) {
+    var item = document.createElement('li');
+    if (row.id === state.adapter.selfId) item.className = 'me';
+
+    var rank = document.createElement('i');
+    rank.className = 'place';
+    rank.textContent = place + '.';
+
+    var who = document.createElement('span');
+    who.textContent = row.name;
+
+    var pts = document.createElement('b');
+    pts.textContent = num(row.points) + Rules.roomScoreUnit(scoringOf());
+
+    item.append(rank, who, pts);
+    return item;
+  }
+
+  /**
    * 比分板。人多的時候只列前幾名 ＋ 自己。
    *
    * 二十個人全列會變成一條要滑的清單，而遊戲進行中沒有人會去滑它——
@@ -1444,39 +1521,28 @@
 
     var rows = standings();
     var mine = rows.findIndex(function (row) { return row.id === state.adapter.selfId; });
-    var shown = rows.slice(0, BOARD_ROWS);
+    var shown = rows.slice(0, CROWD);
 
     // 自己掉到看不見的地方就單獨接在後面（中間用一列點點表示省略了幾個人）。
     var hiddenBefore = 0;
-    if (mine >= BOARD_ROWS) {
-      hiddenBefore = mine - BOARD_ROWS;
-      shown = shown.concat([null, rows[mine]]);
+    if (mine >= CROWD) {
+      hiddenBefore = mine - CROWD;
+      // 剛好排在第 CROWD + 1 名的時候中間沒有人被省略，那就不要畫那一列
+      // ——「⋯」會宣告一個不存在的省略。
+      shown = hiddenBefore > 0 ? shown.concat([null, rows[mine]]) : shown.concat([rows[mine]]);
     }
 
     shown.forEach(function (row, at) {
-      var item = document.createElement('li');
-
       if (row === null) {
-        item.className = 'gap';
-        item.textContent = hiddenBefore > 0 ? '⋯ 還有 ' + hiddenBefore + ' 人' : '⋯';
-        box.append(item);
+        var gap = document.createElement('li');
+        gap.className = 'gap';
+        gap.textContent = hiddenBefore > 0 ? '⋯ 還有 ' + hiddenBefore + ' 人' : '⋯';
+        box.append(gap);
         return;
       }
 
-      if (row.id === state.adapter.selfId) item.className = 'me';
-
-      var place = document.createElement('i');
-      place.className = 'place';
-      place.textContent = (row === rows[mine] && at > BOARD_ROWS ? mine + 1 : at + 1) + '.';
-
-      var who = document.createElement('span');
-      who.textContent = row.name;
-
-      var pts = document.createElement('b');
-      pts.textContent = num(row.points) + Rules.roomScoreUnit(scoringOf());
-
-      item.append(place, who, pts);
-      box.append(item);
+      // 摺疊之後自己那一列接在最後面，名次要用真正的名次，不是它在畫面上的位置。
+      box.append(scoreRow(row, at > CROWD ? mine + 1 : at + 1));
     });
   }
 
@@ -1488,9 +1554,12 @@
     showResult(rows);
 
     // 這一場結束了，排隊的人可以進來了。他們收到名冊之後會自己從「排隊中」
-    // 變成等待室，而剛打完的人（state.played）留在結算頁。
+    // 變成等待室，而剛打完的人（state.played 還是 true）留在結算頁。
+    //
+    // 這裡刻意**不**把 played 設回 false：它是「我在這間房打過了」，
+    // 不是「這一場」。清掉的話下一則名冊就會把剛打完的人拉離結算頁。
     state.game = null;
-    state.played = false;
+    state.revealAt = 0;
     admitQueued();
   }
 
@@ -1530,18 +1599,7 @@
     list.replaceChildren();
 
     rows.forEach(function (row, i) {
-      var item = document.createElement('li');
-      if (row.id === state.adapter.selfId) item.className = 'me';
-
-      var rank = document.createElement('i');
-      rank.textContent = (i + 1);
-      var who = document.createElement('span');
-      who.textContent = row.name;
-      var pts = document.createElement('b');
-      pts.textContent = row.points + ' 題';
-
-      item.append(rank, who, pts);
-      list.append(item);
+      list.append(scoreRow(row, i + 1));
     });
 
     el('btn-again-room').hidden = !isHost();
@@ -1578,6 +1636,7 @@
     state.players = [];
     state.queued = [];
     state.played = false;
+    state.revealAt = 0;
 
     // 「一個人開打要按兩次」的那個提醒也要跟著歸零，
     // 否則下一間房會在你還沒看到提醒之前就直接開打。
@@ -1636,12 +1695,24 @@
         }
 
         // 排隊中：**不要離開房間**。連線留著，這一場打完房主會把你放進名冊。
+        //
+        // 如果我剛好已經跟著 start 開了一局（我的 hello 比房主的 start 晚被處理，
+        // 而 start 是廣播的），要把它收掉：不然我會變成「在排隊、卻有一個活著的
+        // Game」——每一題都在藏起來的畫面後面播音樂，而且 case over 的
+        // 「沒打過就別看結算」的守門會被騙過去，把我丟到一份我沒打過的結算頁。
+        state.game = null;
+        state.played = false;
+        prefetch.drop();
+
         state.hostId = payload.hostId;
         state.settings = payload.settings;
         state.players = payload.players || [];
         state.queued = payload.queued || [];
         lobbyError('');
-        enterQueued(payload.ahead);
+
+        // 順位從名冊算，不要另外傳一個數字過來——那會變成第二個真相來源，
+        // 而且只在「房主只往後加、從不重排」的前提下和本地算的一致。
+        showRoom();
         return;
 
       case 'start':
@@ -1656,6 +1727,11 @@
 
       case 'ask':
         if (isHost()) return;
+
+        // 排隊的人也會收到（廣播），但他沒有 Game——原本會掉進下面那句
+        // 「出不了題了（題庫和房主的不一致？）」，而那個橫幅在四個畫面之外，
+        // 會一直掛在他的等待室上，連到下一局都還在。
+        if (!state.played) return;
 
         // 房主發題了＝預備時間結束，不管自己囤完沒有。
         prefetch.hideWarm('載入中…');
@@ -1728,12 +1804,12 @@
         state.players = state.players.filter(function (p) {
           return p.id !== message.from;
         });
-        if (!state.game) {
-          renderPlayers();
-          broadcastRoster();
-        } else {
-          renderBoard();
-        }
+        // 名冊變了就要重發，不管是不是在遊戲中：排隊的人走掉之後，
+        // 其他排隊者的順位和房主的「另有 N 人排隊」都還是舊的，
+        // 原本要等這一局打完才會更新。
+        renderPlayers();
+        broadcastRoster();
+        if (state.game) renderBoard();
         return;
 
       default:

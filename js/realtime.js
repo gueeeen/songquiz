@@ -122,9 +122,9 @@
     });
   };
 
+  /** 廣播給房裡所有人。 */
   BaseAdapter.prototype.send = function (type, payload) {
-    if (this.status !== 'open') return false;
-    this._sendRaw({ protocol: PROTOCOL, type: type, from: this.selfId, payload: payload || {} });
+    return this.sendTo(null, type, payload);
   };
 
   /**
@@ -136,9 +136,17 @@
    * （中途一個人敲門，全場被踢出遊戲）。
    */
   BaseAdapter.prototype.sendTo = function (id, type, payload) {
-    this._sendRaw({
-      protocol: PROTOCOL, type: type, from: this.selfId, to: id, payload: payload || {},
-    });
+    if (this.status !== 'open') return false;
+
+    var envelope = {
+      protocol: PROTOCOL, type: type, from: this.selfId, payload: payload || {},
+    };
+
+    // 沒有收件人就是廣播。不要寫 to: undefined——JSON 會把它整個丟掉，
+    // 但 BroadcastChannel 走的是結構化複製，會留下一個 to: undefined 的欄位。
+    if (id) envelope.to = id;
+
+    this._sendRaw(envelope);
     return true;
   };
 
