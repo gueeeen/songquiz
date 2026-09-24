@@ -116,9 +116,8 @@
 
     if (mode === 'stage') {
       // 闖關的 questionCount 是**每一關**的題數，總題數 = 關卡數 × 每關題數，
-      // 所以上限要除回關卡數。關卡數要問 stagesFor——它不是單純的 many + 1
-      // （只選一個語種時只有一關），硬寫的話單語種的上限會無故少一半。
-      ceiling = Math.floor(ceiling / stagesFor(languages, 1, 'stage').length);
+      // 所以上限要除回關卡數。
+      ceiling = Math.floor(ceiling / stageCountFor(languages));
     }
 
     return { min: MIN_CUSTOM_COUNT, max: Math.max(MIN_CUSTOM_COUNT, ceiling) };
@@ -288,10 +287,21 @@
    * @param {number} questionCount 每關幾題
    * @param {string} [mode] 算門檻用的模式，預設 'stage'
    */
+  /**
+   * 闖關有幾關。
+   *
+   * 只選一個語種時只有一關——沒有「解鎖下一個語種」可言。所以這**不是**語種數 + 1，
+   * 而那個差別會咬人：countLimitFor 一度硬寫成 many + 1，單語種的上限就無故少一半。
+   */
+  function stageCountFor(languages) {
+    var many = orderLanguages(languages).length;
+    return many === 1 ? 1 : many + 1;
+  }
+
   function stagesFor(languages, questionCount, mode) {
     var ordered = orderLanguages(languages);
     var count = questionCount || QUESTIONS_PER_ROUND;
-    var stageCount = ordered.length === 1 ? 1 : ordered.length + 1;
+    var stageCount = stageCountFor(ordered);
     var perfect = maxQuestionScoreFor(mode || 'stage') * count;
     var stages = [];
 
@@ -429,6 +439,7 @@
     COMBO_COUNT_CHOICES: COMBO_COUNT_CHOICES,
     questionCountsFor: questionCountsFor,
     MAX_PER_LANGUAGE: MAX_PER_LANGUAGE,
+    stageCountFor: stageCountFor,
     countLimitFor: countLimitFor,
     clampCount: clampCount,
     nearestCountFor: nearestCountFor,

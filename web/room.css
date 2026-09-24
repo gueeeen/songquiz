@@ -34,7 +34,10 @@
 /* ---- 大廳 ---- */
 .lab { display: block; color: var(--ink-dim); font-size: .82rem; margin-bottom: 6px; }
 
-.room input[type=text] {
+/* 自訂題數是 [type=number]，其他是 [type=text]——同一個皮膚，不要為它再寫一份。
+   寫兩份的下場是同一個大廳裡有兩種 focus 外觀（border-color vs outline）。 */
+.room input[type=text],
+.room input[type=number] {
   width: 100%;
   padding: 12px 14px;
   background: var(--bg);
@@ -43,7 +46,8 @@
   color: var(--ink);
   font: inherit;
 }
-.room input[type=text]:focus { outline: none; border-color: var(--accent); }
+.room input[type=text]:focus,
+.room input[type=number]:focus { outline: none; border-color: var(--accent); }
 
 /* 房號要一眼就讀得完、也要一眼看出打錯了幾個字，所以放大並拉開字距。 */
 .code-input {
@@ -200,3 +204,55 @@
 }
 .standings li:first-child i { color: var(--accent); }
 .standings b { color: var(--accent-2); }
+
+/* ---- 自訂題數 ---- */
+/* 現場要求的：實際玩起來會想要「36 題」這種不在清單上的數字。
+   輸入框本身吃 .room input[type=number] 的皮膚，這裡只排版。 */
+.custom-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.custom-count label { font-size: .9rem; color: var(--ink-dim); }
+
+.custom-count input {
+  width: 6.5em;
+  font-variant-numeric: tabular-nums;
+}
+
+.custom-hint {
+  flex: 1 1 100%;
+  font-size: .82rem;
+  color: var(--ink-dim);
+}
+
+/* 排隊中的人：在名單上，但這一場還進不來。 */
+.players li.queued {
+  opacity: .62;
+  font-style: italic;
+}
+
+/* 比分板人多時會摺疊成「前幾名 ＋ 自己」，所以每一列都要標名次。
+   一列現在有三個小孩（名次／名字／分數），而 .board li 是 space-between——
+   名字會被推到正中間。讓名字吃掉剩下的空間，名次貼左、分數貼右。 */
+.board li span,
+.standings li span { flex: 1; }
+
+.board li .place,
+.standings li .place {
+  font-style: normal;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  min-width: 1.8em;
+}
+
+/* 中間省略了幾個人的那一列。 */
+.board li.gap {
+  justify-content: center;
+  color: var(--ink-dim);
+  font-size: .85rem;
+  letter-spacing: .1em;
+}
