@@ -137,10 +137,6 @@ foreach (var channel in Charts.All)
 var tracks = new List<Track>();
 var decoys = new List<Decoy>();
 
-// 每一首的發行年份，只用來看年代覆蓋。刻意不放進 Track——bank.js 是每個玩家
-// 一進站就要下載的東西，沒有人用到年份之前不該把它塞進去。
-var years = new Dictionary<long, int>();
-
 // 去重跨語種共用：同一首歌被兩個語種的演出者帶出來時，先到先得。
 var seenIds = new HashSet<long>();
 var seenTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -207,6 +203,8 @@ foreach (var language in Languages.InBank)
 
             tracks.Add(new Track(song.Id, song.Title, song.Artist, language, song.PreviewUrl)
             {
+                Year = song.Year,
+
                 // **管道的順序要算進 Fame。**
                 //
                 // 原本是 song.Rank - 200000，所以每條管道的第一名都一樣有名——
@@ -356,11 +354,10 @@ foreach (var language in Languages.InBank)
         cache.Add((artistRank, playable, picked.Count));
 
         // Fame 越小越有名。往下第幾首 × SongStep ＋ 歌手名次（見 Track.Fame）。
-        foreach (var one in picked) years[one.Id] = one.Year;
-
         tracks.AddRange(picked.Select((t, index) =>
             new Track(t.Id, t.Title, t.Artist, language, t.PreviewUrl!)
             {
+                Year = t.Year,
                 Fame = index * Track.SongStep + artistRank,
             }));
         trackCount += picked.Count;
@@ -384,7 +381,8 @@ foreach (var language in Languages.InBank)
                       + (skippedByGenre > 0 ? $"（另有 {skippedByGenre} 首曲風不是這個語種，讓給別的管道）" : ""));
 
     // 年代分佈。標籤會騙人（我以為某個歌手是九〇年代的），releaseDate 不會。
-    Console.WriteLine($"    年代：{Eras.Describe(years, language, tracks)}");
+    // 第二行是出題會用到的那三格，數字太小就看得見（見 Eras.DescribeSlices）。
+    Console.WriteLine($"    年代：{Eras.Describe(language, tracks)}");
 
     // ── 第二輪：名單用完了還不夠，就在同一批演出者身上挖深一層 ──
     //
@@ -404,6 +402,8 @@ foreach (var language in Languages.InBank)
             var song = songs[used];
             tracks.Add(new Track(song.Id, song.Title, song.Artist, language, song.PreviewUrl!)
             {
+                Year = song.Year,
+
                 // 挖越深、Fame 越大（越不有名）。和第一輪同一個公式，
                 // 所以第 6 首自然排在大部分人的第 5 首之後。
                 Fame = used * Track.SongStep + rank,
@@ -543,6 +543,12 @@ foreach (var language in Languages.InBank)
     Console.WriteLine($"  {Names.Of(language)}：{t} 首（{byTier}）＋ {d} 誘餌"
                       + (t == 0 ? "　← 一首都沒有，這個語種會開不了場" : ""));
 
+    // 按年代切的語種（華語／台語／西洋）出題要求兩成從「今年」出。
+    // 那一格有幾首是資料決定的，所以印出來。
+    if (Eras.SlicedByEra(language))
+    {
+        Console.WriteLine($"    出題保底：{Eras.DescribeSlices(language, tracks)}");
+    }
 }
 
 if (tracks.Count < 90)
@@ -572,18 +578,17 @@ if (size > 600 * 1024)
 /// </remarks>
 internal static class Eras
 {
-    public static string Describe(Dictionary<long, int> years, Language language, List<Track> tracks)
-        {
+    public static string Describe(Language language, List<Track> tracks)
+    {
         var buckets = new SortedDictionary<int, int>();
         var unknown = 0;
 
         foreach (var track in tracks)
         {
             if (track.Language != language) continue;
+            if (track.Year == 0) { unknown++; continue; }
 
-            if (!years.TryGetValue(track.Id, out var year) || year == 0) { unknown++; continue; }
-
-            var decade = year / 10 * 10;
+            var decade = track.Year / 10 * 10;
             buckets[decade] = buckets.TryGetValue(decade, out var had) ? had + 1 : 1;
         }
 
@@ -591,6 +596,48 @@ internal static class Eras
         if (unknown > 0) parts.Add($"不明 {unknown}");
 
         return parts.Count == 0 ? "（還沒有歌）" : string.Join("、", parts);
+    }
+
+    /// <summary>
+    /// 被保底的那兩格各有幾首（見 web/js/rules.js 的 ERA_MIX）。
+    /// </summary>
+    /// <remarks>
+    /// 印它的理由和 Describe 一樣，但更直接：出題規則要求 2000 年以前的歌正好兩成、
+    /// 近兩年的至少一成，而「有幾首可以抽」是資料決定的，不是我能保證的。
+    ///
+    /// 這個數字改過一次規則：本來新歌那格算「今年」，實測台語只有 19 首、
+    /// 華語 28 首——那一格會一直重複同樣那十幾首歌，所以放寬成近兩年。
+    /// 池子太薄這件事只有印出來才看得見，出題端是靜靜地退回整池的。
+    /// </remarks>
+    /// <summary>
+    /// 這個語種的出題比例是按年代切的嗎？
+    /// </summary>
+    /// <remarks>
+    /// 真正的規則在 web/js/rules.js（那裡才是出題的地方），這裡只是為了決定
+    /// 要不要印那一行。兩邊不同步的後果是「少印一行字」，不是壞掉。
+    /// </remarks>
+    public static bool SlicedByEra(Language language) =>
+        language is Language.Mandarin or Language.Taiwanese or Language.Western;
+
+    /// <summary>「新歌」算幾年內。和 rules.js 的 FRESH_YEARS 是同一個數字。</summary>
+    private const int FreshYears = 2;
+
+    public static string DescribeSlices(Language language, List<Track> tracks)
+    {
+        var freshFrom = DateTime.UtcNow.Year - (FreshYears - 1);
+        var mine = tracks.Where(t => t.Language == language).ToList();
+        if (mine.Count == 0) return "（還沒有歌）";
+
+        var classic = mine.Count(t => t.Year > 0 && t.Year < 2000);
+        var fresh = mine.Count(t => t.Year >= freshFrom);
+        var middle = mine.Count - classic - fresh;
+
+        // 兩格的意思不一樣（見 rules.js 的 ERA_MIX）：老歌是上限，新歌是下限。
+        // 池子太薄的話出題端會靜靜地退回整池，所以在這裡講出來。
+        var thin = classic < 30 ? "　← 老歌太少，兩成會湊不滿" : "";
+
+        return $"2000 前 {classic}（正好兩成）、{freshFrom} 年起 {fresh}（至少一成）、"
+               + $"其餘 {middle}{thin}";
     }
 }
 

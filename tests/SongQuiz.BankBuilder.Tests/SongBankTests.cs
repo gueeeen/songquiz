@@ -17,7 +17,7 @@ public class SongBankTests
     {
         Tracks =
         [
-            new Track(1, "晴天", "周杰倫", Language.Mandarin, RealPrefix + Middle + RealSuffix) { Tier = 2 },
+            new Track(1, "晴天", "周杰倫", Language.Mandarin, RealPrefix + Middle + RealSuffix) { Tier = 2, Year = 2003 },
 
             // 第二首刻意用不合前後綴的網址：Apple 有兩種資產路徑，
             // 實測兩千多首裡有兩首長這樣，那條退路是真的會被踩到的。
@@ -76,8 +76,11 @@ public class SongBankTests
     [Fact]
     public void 資料存成陣列而不是每首歌都重複一次鍵名()
     {
-        // 題庫是每個玩家一進站就要下載的東西。物件形式會把五個鍵名
-        // 在每一首歌重複一次，兩千首就是快 100 KB 的純鍵名。
+        // 題庫是每個玩家一進站就要下載的東西。物件形式會把七個鍵名
+        // 在每一首歌重複一次，三千五百首就是 200 KB 的純鍵名。
+        //
+        // **這一條是格式契約，欄位順序只能往後加、不能插中間。**
+        // 插中間的話網頁端會靜靜地把年份讀成難度、把難度讀成網址。
         var path = SaveToTemp(Sample());
 
         try
@@ -87,7 +90,7 @@ public class SongBankTests
             {
                 var track = root.GetProperty("tracks")[0];
                 Assert.Equal(JsonValueKind.Array, track.ValueKind);
-                Assert.Equal(6, track.GetArrayLength());
+                Assert.Equal(7, track.GetArrayLength());
 
                 Assert.Equal(1, track[0].GetInt64());
                 Assert.Equal("晴天", track[1].GetString());
@@ -95,6 +98,7 @@ public class SongBankTests
                 Assert.Equal(0, track[3].GetInt32());          // mandarin 的索引
                 Assert.Equal(Middle, track[4].GetString());    // 前後綴被砍掉了
                 Assert.Equal(2, track[5].GetInt32());          // 難度（這筆樣本設成困難）
+                Assert.Equal(2003, track[6].GetInt32());       // 發行年份
 
 
                 var decoy = root.GetProperty("decoys")[0];

@@ -110,13 +110,15 @@ public static class Charts
 
 /// <summary>榜單上的一首歌。名次就是它的知名度訊號。</summary>
 /// <param name="Rank">在這條管道裡排第幾（從 0 開始）。</param>
+/// <param name="Year">發行年份，解不出來是 0。RSS 自己就帶，不用多打一次請求。</param>
 public sealed record ChartSong(
     int Rank,
     long Id,
     string Title,
     string Artist,
     string PreviewUrl,
-    string? Genre);
+    string? Genre,
+    int Year);
 /// <summary>排行榜用戶端。只讀一份 JSON，把上面的演出者依名次取出來。</summary>
 public sealed class ChartClient(HttpClient http)
 {
@@ -219,7 +221,8 @@ public sealed class ChartClient(HttpClient http)
                     continue;
                 }
 
-                songs.Add(new ChartSong(rank, IdOf(entry), TitleCleaner.Clean(title), artist, preview!, GenreOf(entry)));
+                songs.Add(new ChartSong(rank, IdOf(entry), TitleCleaner.Clean(title), artist, preview!,
+                    GenreOf(entry), Years.Of(Text(entry, "im:releaseDate"))));
                 rank++;
             }
 
@@ -255,6 +258,10 @@ public sealed class ChartClient(HttpClient http)
         return long.TryParse(tail[(slash + 1)..], out var id) ? id : 0;
     }
 
+    /// <summary>
+    /// 取 { "label": "…" } 這種形狀的值。榜單的欄位幾乎都長這樣，
+    /// 包括 im:releaseDate——**年份不用另外打一次請求**，RSS 本來就給。
+    /// </summary>
     private static string? Text(JsonElement entry, string property) =>
         entry.TryGetProperty(property, out var node) && node.TryGetProperty("label", out var label)
             ? label.GetString()

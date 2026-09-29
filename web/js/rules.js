@@ -22,33 +22,74 @@
   var LANGUAGES = ['mandarin', 'taiwanese', 'western', 'korean', 'japanese'];
 
   /**
-   * 難度。題庫裡每一首都貼了 0／1／2（見產生器的 Difficulty.cs）：
-   * 在同語種裡依知名度排序，前 40% 簡單、接下來 30% 中等、最後 30% 困難。
+   * 出題比例。**每個語種各一組，而且切的維度不一樣。**
    *
-   * **出題的比例是每個語種各一組。** 一開始是全語種共用六成／三成／一成，
-   * 但那是拿「排行名次」當「認得出來」的代理——而名次量的是「這個月在紅」，
-   * 那正是現場回饋「歌太新、太難」的來源。
+   * 一開始是全語種共用「簡單六成／中等三成／困難一成」，用的是題庫裡貼好的難度
+   * （0／1／2，見產生器的 Difficulty.cs：在同語種裡依知名度排序，前 40% 簡單、
+   * 接下來 30% 中等、最後 30% 困難）。
    *
-   * 題庫改版之後（榜單只留前 100 首，其餘換成手挑的經典歌手）各語種的體質不同，
-   * 所以比例也不同：
+   * 但難度是拿「排行名次」當「認得出來」的代理，而名次量的是「這個月在紅」——
+   * 那正是現場回饋「歌太新、太難」的來源。修了兩輪：
    *
-   *   * **華語／台語／西洋 → 純隨機（null）。** 整池都是經典，再分難度沒有意義：
-   *     tier 想表達的「認得出來」已經由選歌保證了。而且分級會讓同一批「最有名的
-   *     四成」被反覆抽到，池子大反而沒用上。
+   *   1. **換選歌來源**：榜單只留前 100 首當流動性，其餘換成手挑的經典歌手。
+   *   2. **換出題維度**：華語／台語／西洋改成**按年代切**，不看難度。
+   *
+   * 第二輪是必要的，因為第一輪沒有解決問題：池子換新了，但出題仍然是整池隨機，
+   * 而池子的年代分佈本身是歪的——實測華語 700 首裡 2000 年以前只有 78 首（11%），
+   * 純隨機就等於十題裡只有一題老歌。要讓老歌真的被聽到，比例得寫在出題這一層。
+   *
+   *   * **華語／台語／西洋 → 按年代。** 老歌走篩選（2000 年以前，**正好兩成**）、
+   *     新歌走保底（近兩年，**至少一成**）、其餘七成是剩下的隨機。
    *   * **日語 → 九成簡單、一成困難。** 台灣的 J-Pop 榜和動漫歌手（都在經典名單裡，
    *     Fame 最好）會落在簡單那一級；日本本地榜排在最後面，落在困難那一級——
    *     那些是傑尼斯與偶像團，台灣人多半不認得，所以只留一成。
-   *   * **韓語 → 維持六成／三成／一成。** 韓語的老團（少女時代、SHINee、2NE1…）
-   *     和當紅團（NewJeans、IVE…）認得出來的程度差距大，分級還有價值。
+   *   * **韓語 → 六成／三成／一成。** 韓語的老團（少女時代、SHINee、2NE1…）和
+   *     當紅團（NewJeans、IVE…）認得出來的程度差距大，難度分級還有價值。
+   *     而且韓語沒有老歌可分：實測 700 首裡 2000 年以前只有 3 首。
    */
   var TIERS = { EASY: 0, MEDIUM: 1, HARD: 2 };
 
-  var UNIFORM = null;
+  /** 「2000 年以前」的界線。 */
+  var CLASSIC_BEFORE = 2000;
 
-  var DIFFICULTY_MIX_BY_LANGUAGE = {
-    mandarin: UNIFORM,
-    taiwanese: UNIFORM,
-    western: UNIFORM,
+  /**
+   * 「新歌」算幾年內。
+   *
+   * 本來是「今年」，改成兩年是因為池子太薄：實測台語今年只有 19 首、華語 28 首，
+   * 那一格會一直重複同樣那十幾首歌。兩年是 39～51 首，夠了。
+   */
+  var FRESH_YEARS = 2;
+
+  var ERAS = { CLASSIC: 'classic', FRESH: 'fresh', MIDDLE: 'middle' };
+
+  /**
+   * 年代的出題比例。**兩格的意思不一樣：老歌是上限，新歌是下限。**
+   *
+   * |  | 意思 | 實際佔比 |
+   * |---|---|---|
+   * | 2000 年以前 | **篩選，兩成就是兩成** | 剛好 20% |
+   * | 近兩年 | **保底，至少一成** | 10% ＋ 在那七成裡自然抽到的 |
+   * | 其餘 | 剩下的隨機 | 70% |
+   *
+   * 差別在最後那一格 `exclude`：它**排除老歌**，但不排除新歌。
+   *
+   *   * 不排除老歌的話，老歌會是「兩成 ＋ 七成裡抽到的」＝約 28%，兩成就不是上限了。
+   *   * 限定成「中間年代」（連新歌也排除）的話，新歌的一成就同時變成天花板，
+   *     池子再大也只出那麼多——而新歌那一格本來就只是不想讓它掉到一成以下。
+   *
+   * 實際跑出來（華語：老歌 78 首、新歌 49 首、中間 573 首）：
+   * 老歌 20%、新歌 10% ＋ 70% × 49/622 ≈ 15.5%、中間約 64.5%。
+   */
+  var ERA_MIX = [
+    { era: ERAS.CLASSIC, share: 0.2, label: '2000 年以前' },
+    { era: ERAS.FRESH, share: 0.1, label: '近兩年' },
+    { exclude: ERAS.CLASSIC, share: 0.7, label: '老歌以外' },
+  ];
+
+  var MIX_BY_LANGUAGE = {
+    mandarin: ERA_MIX,
+    taiwanese: ERA_MIX,
+    western: ERA_MIX,
     japanese: [
       { tier: TIERS.EASY, share: 0.9, label: '簡單' },
       { tier: TIERS.HARD, share: 0.1, label: '困難' },
@@ -60,33 +101,76 @@
     ],
   };
 
-  /** 這個語種的出題比例。null ＝ 純隨機，不分難度。 */
-  function difficultyMixFor(language) {
-    return DIFFICULTY_MIX_BY_LANGUAGE[language] || UNIFORM;
+  /** 這個語種的出題比例。認不得的語種回 null ＝ 整池隨機。 */
+  function mixFor(language) {
+    return MIX_BY_LANGUAGE[language] || null;
   }
 
   /**
-   * 這一題要出哪一級。純隨機的語種回 null，出題層就不篩。
+   * 這一題要從哪一格出。認不得的語種回 null，出題層就不篩。
    *
    * @param {string} language 這一題的語種。比例是每個語種各一組。
    * @param {number} roll 0～1 的隨機數。由出題層傳進來，才能用同一顆種子重現——
    *   多人房間所有人要拿到同一題，而他們唯一共享的東西就是那顆種子。
    */
-  function tierFor(language, roll) {
-    var mix = difficultyMixFor(language);
+  function sliceFor(language, roll) {
+    var mix = mixFor(language);
     if (!mix) return null;
 
     var seen = 0;
 
     for (var i = 0; i < mix.length; i++) {
       seen += mix[i].share;
-      if (roll < seen) return mix[i].tier;
+      if (roll < seen) return mix[i];
     }
 
     // 浮點誤差讓 roll 剛好落在最後面的時候。
-    return mix[mix.length - 1].tier;
+    return mix[mix.length - 1];
   }
 
+  /**
+   * 一首歌屬於哪一個年代格。三格互斥而且蓋滿，所以每一首歌都屬於剛好一格。
+   *
+   * 年份不明（題庫裡是 0）歸進中間那一格。那不是將就——
+   * 年份不明的歌不該因為缺一個欄位就變成抽不到的。
+   *
+   * @param {number} year 題庫裡的年份，解不出來是 0。
+   * @param {number} [thisYear] 今年。預設看系統時鐘；測試傳固定值。
+   */
+  function eraOf(year, thisYear) {
+    var now = thisYear || new Date().getFullYear();
+
+    if (year > 0 && year < CLASSIC_BEFORE) return ERAS.CLASSIC;
+
+    // 用 >= 而不是落在某個區間：Apple 的 releaseDate 偶爾是未來
+    // （預購、跨區上架），那些歌算「新」比算「中間年代」對。
+    if (year >= now - (FRESH_YEARS - 1)) return ERAS.FRESH;
+
+    return ERAS.MIDDLE;
+  }
+
+  /**
+   * 這一格吃不吃這一首歌。
+   *
+   * 出題層只要這一個判斷，不必知道格子是按年代還是按難度切的——
+   * 那是這裡的事。原本出題層寫的是 `t.tier === tier`，
+   * 加年代那一維就得在出題層長出第二條分支。
+   */
+  function sliceAccepts(slice, track, thisYear) {
+    if (!slice) return true;
+    if (slice.era) return eraOf(track.year || 0, thisYear) === slice.era;
+
+    // 排除某一格。**「兩成就是兩成」全靠這一行**：老歌被擋在其餘七成之外，
+    // 所以它的兩成同時是下限也是上限。新歌沒有被擋，所以它的一成只是下限。
+    if (slice.exclude) return eraOf(track.year || 0, thisYear) !== slice.exclude;
+
+    if (typeof slice.tier === 'number') return track.tier === slice.tier;
+
+    // 兩個維度都沒指定＝什麼都吃。這裡**必須明寫**，不能靠
+    // track.tier === slice.tier 自然成立：兩邊都是 undefined 時它是 true，
+    // 但題庫裡的歌都有 tier，所以那個寫法會變成「什麼都不吃」，而且是靜靜地。
+    return true;
+  }
 
   /**
    * 語種的中文名。這一份**故意比 LANGUAGES 長**：
@@ -458,9 +542,14 @@
   window.Rules = {
     LANGUAGES: LANGUAGES,
     TIERS: TIERS,
-    DIFFICULTY_MIX_BY_LANGUAGE: DIFFICULTY_MIX_BY_LANGUAGE,
-    difficultyMixFor: difficultyMixFor,
-    tierFor: tierFor,
+    MIX_BY_LANGUAGE: MIX_BY_LANGUAGE,
+    ERAS: ERAS,
+    CLASSIC_BEFORE: CLASSIC_BEFORE,
+    FRESH_YEARS: FRESH_YEARS,
+    mixFor: mixFor,
+    sliceFor: sliceFor,
+    eraOf: eraOf,
+    sliceAccepts: sliceAccepts,
     LANGUAGE_NAMES: LANGUAGE_NAMES,
     QUESTION_SECONDS: QUESTION_SECONDS,
     QUESTIONS_PER_ROUND: QUESTIONS_PER_ROUND,

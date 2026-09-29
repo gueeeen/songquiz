@@ -124,6 +124,62 @@ public class BankReaderTests
     }
 
     [Fact]
+    public void 年份讀得回來()
+    {
+        // 年份不只是統計了，它是出題規則的一部分（華語／台語／西洋保底兩成老歌）。
+        // 合併回來的舊歌如果年份掉了，它們就永遠進不了「2000 前」那一格。
+        var path = Temp();
+
+        try
+        {
+            new SongBank
+            {
+                Tracks = [new Track(1, "a", "甲", Language.Mandarin, OddUrl) { Year = 1995 }],
+                Decoys = [],
+            }.Save(path);
+
+            var read = BankReader.TryRead(path);
+            Assert.NotNull(read);
+            Assert.Equal(1995, read!.Value.Tracks[0].Year);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void 沒有年份那一欄的舊檔案讀成零而不是爆掉()
+    {
+        // 年份是 2026-09 才加的第 7 欄。在那之前產生的題庫檔只有 6 欄，
+        // 而每月合併一定會讀到它。
+        //
+        // 0 在出題時歸進「中間年代」，所以那些歌照樣出得到——
+        // 只是進不了「2000 前」那一格。那也是「改了規則要用 --carry 0」的理由。
+        var path = Temp();
+
+        try
+        {
+            // 手工造一份六欄的舊檔，形狀和我們自己寫出去的一樣。
+            File.WriteAllText(path,
+                "(function(){var b={\"generatedAt\":\"2026-08-01T00:00:00+00:00\","
+                + "\"languages\":[\"mandarin\"],\"urlPrefix\":\"\",\"urlSuffix\":\"\","
+                + "\"tracks\":[[1,\"a\",\"甲\",0,\"https://x/y.m4a\",1]],"
+                + "\"decoys\":[]};function u(s){return s;}window.SONG_BANK={};})();\n");
+
+            var read = BankReader.TryRead(path);
+            Assert.NotNull(read);
+            Assert.Single(read!.Value.Tracks);
+            Assert.Equal(0, read.Value.Tracks[0].Year);
+            Assert.Equal(1, read.Value.Tracks[0].Tier);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void 索引表變長了舊檔案仍然讀得對()
     {
         // 之後開放粵語時，索引表會多一個值。

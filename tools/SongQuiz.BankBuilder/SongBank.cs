@@ -48,12 +48,13 @@ public sealed class SongBank
     /// 改成 &lt;script src="data/bank.js"&gt; 就沒有這回事。
     ///
     /// **為什麼存成陣列再展開**：題庫是每個玩家一進站就要下載的東西，而現場多半
-    /// 是手機網路。物件形式的 JSON 會把 "id"/"title"/"artist"/"language"/"previewUrl"
-    /// 這五個鍵在每一首歌重複一次（約 48 bytes），兩千首就是 96 KB 的鍵名；
-    /// 網址的共同前後綴又是每首 75 bytes。改成陣列＋展開之後這些都只出現一次。
+    /// 是手機網路。物件形式的 JSON 會把 "id"/"title"/"artist"/"language"/"previewUrl"/
+    /// "tier"/"year" 這七個鍵在每一首歌重複一次（約 60 bytes），三千五百首就是
+    /// 200 KB 的鍵名；網址的共同前後綴又是每首 75 bytes。
+    /// 改成陣列＋展開之後這些都只出現一次。
     ///
-    /// 展開出來的 window.SONG_BANK 形狀和以前**完全一樣**，所以網頁那邊
-    /// 一行都不用改——這是刻意的，格式是實作細節，不該漏到遊戲邏輯裡。
+    /// 欄位順序就是格式契約：**只能往後加，不能插中間**。BankReader 讀舊檔時
+    /// 靠「長度夠不夠」判斷有沒有那一欄（年份是第 7 欄，2026-09 才加的）。
     /// </remarks>
     public void Save(string path)
     {
@@ -80,6 +81,7 @@ public sealed class SongBank
                 languageIndex[track.Language],
                 Shorten(track.PreviewUrl),
                 track.Tier,
+                track.Year,
             })
 
             .ToList();
@@ -109,7 +111,8 @@ public sealed class SongBank
                    + "function u(s){return s.charCodeAt(0)===104?s:b.urlPrefix+s+b.urlSuffix;}"
                    + "window.SONG_BANK={generatedAt:b.generatedAt,"
                    + "tracks:b.tracks.map(function(r){"
-                   + "return {id:r[0],title:r[1],artist:r[2],language:b.languages[r[3]],previewUrl:u(r[4]),tier:r[5]};}),"
+                   + "return {id:r[0],title:r[1],artist:r[2],language:b.languages[r[3]],"
+                   + "previewUrl:u(r[4]),tier:r[5],year:r[6]};}),"
                    + "decoys:b.decoys.map(function(r){"
                    + "return {title:r[0],artist:r[1],language:b.languages[r[2]]};})};})();\n";
 

@@ -2,7 +2,7 @@
 
 自動測試分兩層。**先看第二層有沒有涵蓋，再決定要不要拿手機出來。**
 
-**第一層──無頭 Edge，快、不連外網**（`web/tests.html` 96 項、
+**第一層──無頭 Edge，快、不連外網**（`web/tests.html` 103 項、
 `web/layout-tests.html` 55 項、`web/playthrough.html` 14 項）。
 驗規則、版面、和「一整場走不走得完」。
 
@@ -128,7 +128,7 @@ iPhone/WebKit ＋ Android/Chromium ＋ 桌機三組）。它補上第一層驗�
 ### 第一層：無頭 Edge（快，不用網路）
 
 ```
-:: 規則（96 項）
+:: 規則（103 項）
 msedge --headless=new --disable-gpu --allow-file-access-from-files ^
        --virtual-time-budget=25000 --dump-dom "file:///…/web/tests.html"
 
@@ -143,7 +143,7 @@ msedge --headless=new --disable-gpu --allow-file-access-from-files ^
 ```
 
 三頁都會把 `RESULT PASS n/n` 畫進 DOM，所以 `--dump-dom` 抓得到。
-題庫產生器那半邊是 `dotnet test`（44 項）。
+題庫產生器那半邊是 `dotnet test`（46 項）。
 
 ### 第二層：Playwright（真的連外網，慢）
 
