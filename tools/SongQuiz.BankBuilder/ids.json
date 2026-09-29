@@ -1,0 +1,1888 @@
+{
+ "mandarin": {
+  "taken": [
+   {
+    "name": "張震嶽",
+    "id": 369289818,
+    "apple": "張震嶽",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "張信哲",
+    "id": 14619979,
+    "apple": "張信哲",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "劉德華",
+    "id": 19345683,
+    "apple": "劉德華",
+    "genre": "粵語流行樂"
+   },
+   {
+    "name": "張雨生",
+    "id": 202968045,
+    "apple": "張雨生",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "任賢齊",
+    "id": 368372834,
+    "apple": "任賢齊",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "彭佳慧",
+    "id": 690432144,
+    "apple": "彭佳慧",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "鄧麗君",
+    "id": 137320901,
+    "apple": "鄧麗君",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "5566",
+    "id": 255921846,
+    "apple": "5566",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "小虎隊",
+    "id": 751896013,
+    "apple": "小虎隊",
+    "genre": "粵語流行樂"
+   },
+   {
+    "name": "棒棒堂",
+    "id": 15132680,
+    "apple": "棒棒堂",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "周傳雄",
+    "id": 41867774,
+    "apple": "周傳雄",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "黃小琥",
+    "id": 367991488,
+    "apple": "黃小琥",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "陳小春",
+    "id": 656087484,
+    "apple": "陳小春",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "庾澄慶",
+    "id": 306466690,
+    "apple": "庾澄慶",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "蕭敬騰",
+    "id": 283971013,
+    "apple": "蕭敬騰",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "飛兒樂團",
+    "id": 205561210,
+    "apple": "飛兒樂團",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "范逸臣",
+    "id": 681251699,
+    "apple": "范逸臣",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "方大同",
+    "id": 201549024,
+    "apple": "方大同",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "王藍茵",
+    "id": 408651913,
+    "apple": "王藍茵",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "MP魔幻力量",
+    "id": 368191060,
+    "apple": "MP魔幻力量",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "By2",
+    "id": 265595963,
+    "apple": "By2",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "潘瑋柏",
+    "id": 260955153,
+    "apple": "潘瑋柏",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "張韶涵",
+    "id": 535400872,
+    "apple": "張韶涵",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "王心凌",
+    "id": 347815083,
+    "apple": "王心凌",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "張惠妹",
+    "id": 422255649,
+    "apple": "張惠妹",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "李榮浩",
+    "id": 307674970,
+    "apple": "李荣浩",
+    "genre": "華語流行樂",
+    "renamed": true
+   },
+   {
+    "name": "李玟",
+    "id": 15772775,
+    "apple": "李玟",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "林宥嘉",
+    "id": 436847316,
+    "apple": "林宥嘉",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "楊宗緯",
+    "id": 466427122,
+    "apple": "楊宗緯",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "李浩瑋",
+    "id": 1441098132,
+    "apple": "李浩瑋",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "謝和弦",
+    "id": 420372665,
+    "apple": "謝和弦",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "黃明志",
+    "id": 600866763,
+    "apple": "黃明志",
+    "genre": "流行樂"
+   },
+   {
+    "name": "叮噹",
+    "id": 453466412,
+    "apple": "丁噹",
+    "genre": "華語流行樂",
+    "renamed": true
+   },
+   {
+    "name": "梁文音",
+    "id": 303214431,
+    "apple": "梁文音",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "周湯豪",
+    "id": 911092195,
+    "apple": "周湯豪",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "家家",
+    "id": 295060477,
+    "apple": "家家",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "陳芳語",
+    "id": 520340425,
+    "apple": "陳芳語",
+    "genre": "R&B/靈魂樂"
+   },
+   {
+    "name": "陳勢安",
+    "id": 156423522,
+    "apple": "陳勢安",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "李聖傑",
+    "id": 735931601,
+    "apple": "李聖傑",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "吳克群",
+    "id": 400171473,
+    "apple": "吳克群",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "李佳薇",
+    "id": 211566950,
+    "apple": "李佳薇",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "李玖哲",
+    "id": 289040110,
+    "apple": "李玖哲",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "黃鴻升",
+    "id": 543460036,
+    "apple": "黃鴻升",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "周興哲",
+    "id": 903273139,
+    "apple": "周興哲",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "周深",
+    "id": 1154054707,
+    "apple": "周深",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "華晨宇",
+    "id": 919255386,
+    "apple": "华晨宇",
+    "genre": "華語流行樂",
+    "renamed": true
+   },
+   {
+    "name": "汪蘇瀧",
+    "id": 657686835,
+    "apple": "汪苏泷",
+    "genre": "華語流行樂",
+    "renamed": true
+   },
+   {
+    "name": "張碧晨",
+    "id": 1019445030,
+    "apple": "张碧晨",
+    "genre": "華語流行樂",
+    "renamed": true
+   },
+   {
+    "name": "張靚穎",
+    "id": 276363061,
+    "apple": "张靓颖",
+    "genre": "華語流行樂",
+    "renamed": true
+   },
+   {
+    "name": "鄧福如",
+    "id": 658116631,
+    "apple": "鄧福如 AFÜ",
+    "genre": "華語流行樂",
+    "renamed": true
+   },
+   {
+    "name": "蔡健雅",
+    "id": 387313548,
+    "apple": "蔡健雅",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "胡夏",
+    "id": 408937662,
+    "apple": "胡夏",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "薛之謙",
+    "id": 160809474,
+    "apple": "薛之谦",
+    "genre": "華語流行樂",
+    "renamed": true
+   },
+   {
+    "name": "胡彥斌",
+    "id": 29431462,
+    "apple": "胡彦斌",
+    "genre": "華語流行樂",
+    "renamed": true
+   },
+   {
+    "name": "周杰倫",
+    "id": 300117743,
+    "apple": "周杰倫",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "五月天",
+    "id": 369211611,
+    "apple": "五月天",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "蔡依林",
+    "id": 152678183,
+    "apple": "JOLIN蔡依林",
+    "genre": "華語流行樂",
+    "renamed": true
+   },
+   {
+    "name": "林俊傑",
+    "id": 216635866,
+    "apple": "林俊傑",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "田馥甄",
+    "id": 417691809,
+    "apple": "田馥甄",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "告五人",
+    "id": 1284151651,
+    "apple": "告五人",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "鄧紫棋",
+    "id": 425208570,
+    "apple": "鄧紫棋",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "孫燕姿",
+    "id": 83405200,
+    "apple": "孫燕姿",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "韋禮安",
+    "id": 441921723,
+    "apple": "韋禮安",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "陳奕迅",
+    "id": 137938148,
+    "apple": "陳奕迅",
+    "genre": "粵語流行樂"
+   },
+   {
+    "name": "蘇打綠",
+    "id": 345954909,
+    "apple": "蘇打綠",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "盧廣仲",
+    "id": 477669285,
+    "apple": "盧廣仲",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "徐佳瑩",
+    "id": 387317532,
+    "apple": "徐佳瑩",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "八三夭",
+    "id": 904192340,
+    "apple": "八三夭",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "魏如萱",
+    "id": 426913195,
+    "apple": "魏如萱",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "楊丞琳",
+    "id": 299846702,
+    "apple": "楊丞琳",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "動力火車",
+    "id": 593436026,
+    "apple": "動力火車",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "張學友",
+    "id": 256718696,
+    "apple": "張學友",
+    "genre": "粵語流行樂"
+   },
+   {
+    "name": "王菲",
+    "id": 41760704,
+    "apple": "王菲",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "莫文蔚",
+    "id": 162585630,
+    "apple": "莫文蔚",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "梁靜茹",
+    "id": 531134701,
+    "apple": "梁靜茹",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "劉若英",
+    "id": 16027938,
+    "apple": "劉若英",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "信樂團",
+    "id": 820255331,
+    "apple": "信樂團",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "王力宏",
+    "id": 117741179,
+    "apple": "王力宏",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "蕭亞軒",
+    "id": 14892084,
+    "apple": "蕭亞軒",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "光良",
+    "id": 152368592,
+    "apple": "光良",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "品冠",
+    "id": 368373220,
+    "apple": "品冠",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "曹格",
+    "id": 513448219,
+    "apple": "曹格",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "范瑋琪",
+    "id": 287299102,
+    "apple": "范瑋琪",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "Tank",
+    "id": 1705928399,
+    "apple": "Tank",
+    "genre": "華語流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "F4",
+    "id": 137635396,
+    "apple": "F4",
+    "genre": "華語流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "自由發揮",
+    "id": 407647121,
+    "apple": "自由發揮",
+    "genre": "華語流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "郁可唯",
+    "id": 369227516,
+    "apple": "郁可唯",
+    "genre": "華語流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "畢書盡",
+    "id": 449081841,
+    "apple": "畢書盡",
+    "genre": "華語流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "S.H.E",
+    "id": 104129527,
+    "apple": "S.H.E",
+    "genre": "華語流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "陶喆",
+    "id": 16789930,
+    "apple": "陶喆",
+    "genre": "華語流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "A-Lin",
+    "id": 370412270,
+    "apple": "A-Lin",
+    "genre": "華語流行樂",
+    "how": "曲風分辨"
+   }
+  ],
+  "skipped": [
+   {
+    "name": "高爾宣",
+    "why": "第一候選是「高爾宣 OSN／嘻哈/饒舌」，曲風對不上"
+   }
+  ]
+ },
+ "taiwanese": {
+  "taken": [
+   {
+    "name": "張清芳",
+    "id": 762342228,
+    "apple": "張清芳",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "曾心梅",
+    "id": 568796353,
+    "apple": "曾心梅",
+    "genre": "台灣流行樂"
+   },
+   {
+    "name": "施文彬",
+    "id": 449590536,
+    "apple": "施文彬",
+    "genre": "台灣流行樂"
+   },
+   {
+    "name": "葉啟田",
+    "id": 382303919,
+    "apple": "葉啟田",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "沈文程",
+    "id": 1105496867,
+    "apple": "沈文程",
+    "genre": "台灣流行樂"
+   },
+   {
+    "name": "伍佰",
+    "id": 327469111,
+    "apple": "伍佰",
+    "genre": "華語搖滾"
+   },
+   {
+    "name": "茄子蛋",
+    "id": 1416696196,
+    "apple": "茄子蛋",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "江蕙",
+    "id": 395158183,
+    "apple": "江蕙",
+    "genre": "台灣流行樂"
+   },
+   {
+    "name": "蕭煌奇",
+    "id": 441717593,
+    "apple": "蕭煌奇",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "滅火器",
+    "id": 850327761,
+    "apple": "滅火器",
+    "genre": "龐克"
+   },
+   {
+    "name": "謝金燕",
+    "id": 406292125,
+    "apple": "謝金燕",
+    "genre": "台灣流行樂"
+   },
+   {
+    "name": "黃乙玲",
+    "id": 404105101,
+    "apple": "黃乙玲",
+    "genre": "台灣流行樂"
+   },
+   {
+    "name": "鄭進一",
+    "id": 609425209,
+    "apple": "鄭進一",
+    "genre": "台灣流行樂"
+   },
+   {
+    "name": "玖壹壹",
+    "id": 935194104,
+    "apple": "玖壹壹",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "洪榮宏",
+    "id": 417429273,
+    "apple": "洪榮宏",
+    "genre": "台灣流行樂"
+   },
+   {
+    "name": "陳一郎",
+    "id": 471754383,
+    "apple": "陳一郎",
+    "genre": "台灣民謠"
+   },
+   {
+    "name": "陳小雲",
+    "id": 371217500,
+    "apple": "陳小雲",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "林強",
+    "id": 380626237,
+    "apple": "林強",
+    "genre": "世界音樂"
+   },
+   {
+    "name": "潘越雲",
+    "id": 152297993,
+    "apple": "潘越雲",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "蔡秋鳳",
+    "id": 370358592,
+    "apple": "蔡秋鳳",
+    "genre": "台灣流行樂"
+   },
+   {
+    "name": "張秀卿",
+    "id": 718073088,
+    "apple": "張秀卿",
+    "genre": "台灣流行樂"
+   },
+   {
+    "name": "方瑞娥",
+    "id": 1021190013,
+    "apple": "方瑞娥",
+    "genre": "台灣流行樂"
+   },
+   {
+    "name": "龍千玉",
+    "id": 976090098,
+    "apple": "龍千玉",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "詹雅雯",
+    "id": 781295482,
+    "apple": "詹雅雯",
+    "genre": "華語音樂"
+   },
+   {
+    "name": "白冰冰",
+    "id": 417449489,
+    "apple": "白冰冰",
+    "genre": "華語流行樂"
+   },
+   {
+    "name": "陳雷",
+    "id": 158043233,
+    "apple": "陳雷",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "小鳳鳳",
+    "id": 787040114,
+    "apple": "小鳳鳳",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "向蕙玲",
+    "id": 976075090,
+    "apple": "向蕙玲",
+    "genre": "台灣流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "康康",
+    "id": 292009859,
+    "apple": "康康",
+    "genre": "華語流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "翁立友",
+    "id": 976085673,
+    "apple": "翁立友",
+    "genre": "台灣流行樂",
+    "how": "Apple 排序第一"
+   }
+  ],
+  "skipped": []
+ },
+ "western": {
+  "taken": [
+   {
+    "name": "OneRepublic",
+    "id": 260414340,
+    "apple": "OneRepublic",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Ava Max",
+    "id": 1265164818,
+    "apple": "Ava Max",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Nicki Minaj",
+    "id": 278464538,
+    "apple": "Nicki Minaj",
+    "genre": "嘻哈/饒舌"
+   },
+   {
+    "name": "Dua Lipa",
+    "id": 1031397873,
+    "apple": "Dua Lipa",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Iggy Azalea",
+    "id": 503970811,
+    "apple": "Iggy Azalea",
+    "genre": "嘻哈/饒舌"
+   },
+   {
+    "name": "Little Mix",
+    "id": 477515548,
+    "apple": "Little Mix",
+    "genre": "流行樂"
+   },
+   {
+    "name": "One Direction",
+    "id": 396754057,
+    "apple": "One Direction",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Selena Gomez",
+    "id": 280215834,
+    "apple": "Selena Gomez",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Marshmello",
+    "id": 980795202,
+    "apple": "Marshmello",
+    "genre": "舞曲"
+   },
+   {
+    "name": "Christina Perri",
+    "id": 378346343,
+    "apple": "Christina Perri",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Bebe Rexha",
+    "id": 466059563,
+    "apple": "Bebe Rexha",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Arctic Monkeys",
+    "id": 62820413,
+    "apple": "Arctic Monkeys",
+    "genre": "另類音樂"
+   },
+   {
+    "name": "Owl City",
+    "id": 264481094,
+    "apple": "Owl City",
+    "genre": "電子音樂"
+   },
+   {
+    "name": "Evanescence",
+    "id": 42102393,
+    "apple": "Evanescence",
+    "genre": "硬搖滾"
+   },
+   {
+    "name": "Fall Out Boy",
+    "id": 28673423,
+    "apple": "Fall Out Boy",
+    "genre": "另類音樂"
+   },
+   {
+    "name": "JAY-Z",
+    "id": 1525651974,
+    "apple": "Jay Z"
+   },
+   {
+    "name": "Meghan Trainor",
+    "id": 348580754,
+    "apple": "Meghan Trainor",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Miley Cyrus",
+    "id": 137057909,
+    "apple": "Miley Cyrus",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Taylor Swift",
+    "id": 159260351,
+    "apple": "Taylor Swift",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Bruno Mars",
+    "id": 278873078,
+    "apple": "Bruno Mars",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Billie Eilish",
+    "id": 1065981054,
+    "apple": "Billie Eilish",
+    "genre": "另類音樂"
+   },
+   {
+    "name": "Maroon 5",
+    "id": 1798556,
+    "apple": "Maroon 5",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Coldplay",
+    "id": 471744,
+    "apple": "Coldplay",
+    "genre": "另類音樂"
+   },
+   {
+    "name": "Ariana Grande",
+    "id": 412778295,
+    "apple": "Ariana Grande",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Charlie Puth",
+    "id": 336249253,
+    "apple": "Charlie Puth",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Katy Perry",
+    "id": 64387566,
+    "apple": "Katy Perry",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Whitney Houston",
+    "id": 13952,
+    "apple": "Whitney Houston",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Mariah Carey",
+    "id": 91853,
+    "apple": "Mariah Carey",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Backstreet Boys",
+    "id": 217039,
+    "apple": "Backstreet Boys",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Westlife",
+    "id": 807028,
+    "apple": "Westlife",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Queen",
+    "id": 3296287,
+    "apple": "Queen",
+    "genre": "搖滾"
+   },
+   {
+    "name": "Britney Spears",
+    "id": 217005,
+    "apple": "Britney Spears",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Avril Lavigne",
+    "id": 459885,
+    "apple": "Avril Lavigne",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Beyoncé",
+    "id": 1419227,
+    "apple": "Beyoncé",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Black Eyed Peas",
+    "id": 360391,
+    "apple": "Black Eyed Peas",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Linkin Park",
+    "id": 148662,
+    "apple": "LINKIN PARK",
+    "genre": "硬搖滾"
+   },
+   {
+    "name": "Lady Gaga",
+    "id": 277293880,
+    "apple": "Lady Gaga",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Jason Mraz",
+    "id": 156987,
+    "apple": "Jason Mraz",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Shawn Mendes",
+    "id": 890403665,
+    "apple": "Shawn Mendes",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Imagine Dragons",
+    "id": 358714030,
+    "apple": "Imagine Dragons",
+    "genre": "另類音樂"
+   },
+   {
+    "name": "Justin Bieber",
+    "id": 320569549,
+    "apple": "Justin Bieber",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Olivia Rodrigo",
+    "id": 979458609,
+    "apple": "Olivia Rodrigo",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Harry Styles",
+    "id": 471260289,
+    "apple": "Harry Styles",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Doja Cat",
+    "id": 830588310,
+    "apple": "Doja Cat",
+    "genre": "R&B/靈魂樂"
+   },
+   {
+    "name": "Sabrina Carpenter",
+    "id": 390647681,
+    "apple": "Sabrina Carpenter",
+    "genre": "流行樂"
+   },
+   {
+    "name": "Pitbull",
+    "id": 27044968,
+    "apple": "Pitbull",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Kesha",
+    "id": 334854763,
+    "apple": "Kesha",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Alan Walker",
+    "id": 1062085272,
+    "apple": "Alan Walker",
+    "genre": "舞曲",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Sam Smith",
+    "id": 156488786,
+    "apple": "Sam Smith",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Sia",
+    "id": 28721078,
+    "apple": "Sia",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "The Weeknd",
+    "id": 479756766,
+    "apple": "The Weeknd",
+    "genre": "R&B/靈魂樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "P!nk",
+    "id": 4488522,
+    "apple": "P!nk",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Shakira",
+    "id": 889327,
+    "apple": "Shakira",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "NSYNC",
+    "id": 398120,
+    "apple": "*NSYNC",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Halsey",
+    "id": 324916925,
+    "apple": "Halsey",
+    "genre": "另類音樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Eminem",
+    "id": 111051,
+    "apple": "Eminem",
+    "genre": "嘻哈/饒舌",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Jessie J",
+    "id": 405360400,
+    "apple": "Jessie J",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Lauv",
+    "id": 982612996,
+    "apple": "LAUV",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Lewis Capaldi",
+    "id": 1213405916,
+    "apple": "Lewis Capaldi",
+    "genre": "另類音樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Justin Timberlake",
+    "id": 398128,
+    "apple": "Justin Timberlake",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Madonna",
+    "id": 20044,
+    "apple": "Madonna",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Ed Sheeran",
+    "id": 183313439,
+    "apple": "Ed Sheeran",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Adele",
+    "id": 262836961,
+    "apple": "Adele",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Michael Jackson",
+    "id": 32940,
+    "apple": "Michael Jackson",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Bon Jovi",
+    "id": 122782,
+    "apple": "Bon Jovi",
+    "genre": "搖滾",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Rihanna",
+    "id": 63346553,
+    "apple": "Rihanna",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   }
+  ],
+  "skipped": [
+   {
+    "name": "Celine Dion",
+    "why": "第一候選是「Céline Dion／流行樂」，曲風對不上"
+   }
+  ]
+ },
+ "japanese": {
+  "taken": [
+   {
+    "name": "いきものがかり",
+    "id": 550412714,
+    "apple": "Ikimonogakari",
+    "genre": "日本流行樂",
+    "renamed": true
+   },
+   {
+    "name": "imase",
+    "id": 1598758503,
+    "apple": "imase",
+    "genre": "日本流行樂"
+   },
+   {
+    "name": "Mrs. GREEN APPLE",
+    "id": 962221033,
+    "apple": "Mrs. GREEN APPLE",
+    "genre": "搖滾"
+   },
+   {
+    "name": "緑黄色社会",
+    "id": 747734869,
+    "apple": "Ryokuoushoku Shakai",
+    "genre": "日本流行樂",
+    "renamed": true
+   },
+   {
+    "name": "澤野弘之",
+    "id": 912316913,
+    "apple": "SawanoHiroyuki[nZk]",
+    "genre": "動畫",
+    "renamed": true
+   },
+   {
+    "name": "藍井エイル",
+    "id": 569938402,
+    "apple": "Eir Aoi",
+    "genre": "動畫",
+    "renamed": true
+   },
+   {
+    "name": "スピッツ",
+    "id": 74456960,
+    "apple": "Spitz",
+    "genre": "日本流行樂",
+    "renamed": true
+   },
+   {
+    "name": "BUMP OF CHICKEN",
+    "id": 185088141,
+    "apple": "BUMP OF CHICKEN",
+    "genre": "日本流行樂"
+   },
+   {
+    "name": "宮脇詩音",
+    "id": 259912603,
+    "apple": "Shion Miyawaki",
+    "genre": "日本流行樂",
+    "renamed": true
+   },
+   {
+    "name": "YOASOBI",
+    "id": 1490256993,
+    "apple": "YOASOBI",
+    "genre": "日本流行樂"
+   },
+   {
+    "name": "米津玄師",
+    "id": 530814268,
+    "apple": "Kenshi Yonezu",
+    "genre": "日本流行樂",
+    "renamed": true
+   },
+   {
+    "name": "Official髭男dism",
+    "id": 960568308,
+    "apple": "OFFICIAL HIGE DANDISM",
+    "genre": "日本流行樂",
+    "renamed": true
+   },
+   {
+    "name": "星野源",
+    "id": 269598403,
+    "apple": "Gen Hoshino",
+    "genre": "日本流行樂",
+    "renamed": true
+   },
+   {
+    "name": "あいみょん",
+    "id": 1165017710,
+    "apple": "aimyon",
+    "genre": "日本流行樂",
+    "renamed": true
+   },
+   {
+    "name": "RADWIMPS",
+    "id": 91160335,
+    "apple": "RADWIMPS",
+    "genre": "搖滾"
+   },
+   {
+    "name": "King Gnu",
+    "id": 1258439196,
+    "apple": "King Gnu",
+    "genre": "另類音樂"
+   },
+   {
+    "name": "宇多田ヒカル",
+    "id": 18756224,
+    "apple": "Hikaru Utada",
+    "genre": "日本流行樂",
+    "renamed": true
+   },
+   {
+    "name": "Mr.Children",
+    "id": 428909573,
+    "apple": "Mr.Children",
+    "genre": "日本流行樂"
+   },
+   {
+    "name": "安室奈美恵",
+    "id": 74068261,
+    "apple": "Namie Amuro",
+    "genre": "日本流行樂",
+    "renamed": true
+   },
+   {
+    "name": "浜崎あゆみ",
+    "id": 73951471,
+    "apple": "Ayumi Hamasaki",
+    "genre": "日本流行樂",
+    "renamed": true
+   },
+   {
+    "name": "中島美嘉",
+    "id": 292677928,
+    "apple": "Mika Nakashima",
+    "genre": "日本流行樂",
+    "renamed": true
+   },
+   {
+    "name": "西野カナ",
+    "id": 410542403,
+    "apple": "Kana Nishino",
+    "genre": "日本流行樂",
+    "renamed": true
+   },
+   {
+    "name": "back number",
+    "id": 302361237,
+    "apple": "back number",
+    "genre": "日本流行樂"
+   },
+   {
+    "name": "SEKAI NO OWARI",
+    "id": 454694621,
+    "apple": "SEKAI NO OWARI",
+    "genre": "日本流行樂"
+   },
+   {
+    "name": "Vaundy",
+    "id": 1487570516,
+    "apple": "Vaundy",
+    "genre": "搖滾"
+   },
+   {
+    "name": "Creepy Nuts",
+    "id": 678140651,
+    "apple": "Creepy Nuts",
+    "genre": "嘻哈/饒舌"
+   },
+   {
+    "name": "水樹奈々",
+    "id": 308629932,
+    "apple": "Nana Mizuki",
+    "genre": "日本流行樂",
+    "renamed": true
+   },
+   {
+    "name": "milet",
+    "id": 880638079,
+    "apple": "milet",
+    "genre": "日本流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "ano",
+    "id": 1529999013,
+    "apple": "ano",
+    "genre": "日本流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "yama",
+    "id": 1506180365,
+    "apple": "yama",
+    "genre": "日本流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Uru",
+    "id": 1124533435,
+    "apple": "Uru",
+    "genre": "日本流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "AAA",
+    "id": 79789358,
+    "apple": "AAA",
+    "genre": "日本流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "michi",
+    "id": 422230049,
+    "apple": "MICHI",
+    "genre": "動畫",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "Perfume",
+    "id": 351343399,
+    "apple": "Perfume",
+    "genre": "電子音樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "ZARD",
+    "id": 74945708,
+    "apple": "ZARD",
+    "genre": "日本流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "GLAY",
+    "id": 705683182,
+    "apple": "GLAY",
+    "genre": "搖滾",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "B'z",
+    "id": 74931253,
+    "apple": "B'z",
+    "genre": "搖滾",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "L'Arc-en-Ciel",
+    "id": 80486557,
+    "apple": "L'Arc-en-Ciel",
+    "genre": "搖滾",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "ONE OK ROCK",
+    "id": 252239625,
+    "apple": "ONE OK ROCK",
+    "genre": "搖滾",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "Ado",
+    "id": 1492604670,
+    "apple": "Ado",
+    "genre": "日本流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "Aimer",
+    "id": 569972619,
+    "apple": "Aimer",
+    "genre": "日本流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "Eve",
+    "id": 1080967231,
+    "apple": "Eve",
+    "genre": "日本流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "ClariS",
+    "id": 548139430,
+    "apple": "ClariS",
+    "genre": "動畫",
+    "how": "曲風分辨"
+   }
+  ],
+  "skipped": [
+   {
+    "name": "女王蜂",
+    "why": "第一候選是「QUEEN BEE／搖滾」，曲風對不上"
+   },
+   {
+    "name": "優里",
+    "why": "第一候選是「Yuuri／搖滾」，曲風對不上"
+   },
+   {
+    "name": "藤井風",
+    "why": "第一候選是「Fujii Kaze／流行樂」，曲風對不上"
+   },
+   {
+    "name": "ヨルシカ",
+    "why": "第一候選是「Yorushika／另類音樂」，曲風對不上"
+   },
+   {
+    "name": "LiSA",
+    "why": "同名的人太多（動畫 LiSA／BLACKPINK LISA／R&B Lisa），照約定跳過不猜"
+   }
+  ]
+ },
+ "korean": {
+  "taken": [
+   {
+    "name": "BIGBANG",
+    "id": 318754656,
+    "apple": "BIGBANG",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "少女時代",
+    "id": 357463500,
+    "apple": "Girls' Generation",
+    "genre": "韓國流行樂",
+    "renamed": true
+   },
+   {
+    "name": "Wonder Girls",
+    "id": 289029151,
+    "apple": "Wonder Girls",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "SUPER JUNIOR",
+    "id": 284066214,
+    "apple": "SUPER JUNIOR",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "2NE1",
+    "id": 329155759,
+    "apple": "2NE1",
+    "genre": "流行樂"
+   },
+   {
+    "name": "4Minute",
+    "id": 371898647,
+    "apple": "4Minute",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "T-ARA",
+    "id": 471900661,
+    "apple": "T-ara",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "Girl's Day",
+    "id": 429348919,
+    "apple": "Girl's Day",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "SISTAR",
+    "id": 380432623,
+    "apple": "SISTAR",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "AOA",
+    "id": 1080563762,
+    "apple": "AOA",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "BTOB",
+    "id": 515372357,
+    "apple": "BTOB",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "EXO",
+    "id": 657630070,
+    "apple": "EXO",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "EXID",
+    "id": 503473013,
+    "apple": "EXID",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "AKMU",
+    "id": 747306596,
+    "apple": "AKMU",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "MAMAMOO",
+    "id": 818951094,
+    "apple": "MAMAMOO",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "GOT7",
+    "id": 802694659,
+    "apple": "GOT7",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "Red Velvet",
+    "id": 906961899,
+    "apple": "Red Velvet",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "GFRIEND",
+    "id": 958416186,
+    "apple": "GFRIEND",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "WJSN",
+    "id": 1087651007,
+    "apple": "WJSN",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "I.O.I",
+    "id": 1110816583,
+    "apple": "I.O.I",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "NCT 127",
+    "id": 1235849306,
+    "apple": "NCT 127",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "Wanna One",
+    "id": 1268507013,
+    "apple": "Wanna One",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "IZ*ONE",
+    "id": 1440449616,
+    "apple": "IZ*ONE",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "SEVENTEEN",
+    "id": 999644772,
+    "apple": "SEVENTEEN",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "TOMORROW X TOGETHER",
+    "id": 1454642552,
+    "apple": "TOMORROW X TOGETHER",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "ENHYPEN",
+    "id": 1541011620,
+    "apple": "ENHYPEN",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "NMIXX",
+    "id": 1600411676,
+    "apple": "NMIXX",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "NewJeans",
+    "id": 1635469693,
+    "apple": "NewJeans",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "LE SSERAFIM",
+    "id": 1616740364,
+    "apple": "LE SSERAFIM",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "Kep1er",
+    "id": 1594156263,
+    "apple": "Kep1er",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "RIIZE",
+    "id": 1702435257,
+    "apple": "RIIZE",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "KiiiKiii",
+    "id": 1795471746,
+    "apple": "KiiiKiii",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "Hearts2Hearts",
+    "id": 1793698498,
+    "apple": "Hearts2Hearts",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "HyunA",
+    "id": 384855556,
+    "apple": "HyunA",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "BTS",
+    "id": 883131348,
+    "apple": "BTS",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "BLACKPINK",
+    "id": 1141774019,
+    "apple": "BLACKPINK",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "aespa",
+    "id": 1540251304,
+    "apple": "aespa",
+    "genre": "韓國流行樂"
+   },
+   {
+    "name": "(G)I-DLE",
+    "id": 1378887586,
+    "apple": "i-dle",
+    "genre": "韓國流行樂",
+    "renamed": true
+   },
+   {
+    "name": "H.O.T.",
+    "id": 4691436,
+    "apple": "H.O.T.",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "SHINee",
+    "id": 433371033,
+    "apple": "SHINee",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "f(x)",
+    "id": 425076892,
+    "apple": "f(x)",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "miss A",
+    "id": 312076995,
+    "apple": "miss A",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "Apink",
+    "id": 482854746,
+    "apple": "Apink",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "Trouble Maker",
+    "id": 214830950,
+    "apple": "Trouble Maker",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "WINNER",
+    "id": 908222845,
+    "apple": "WINNER",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "CLC",
+    "id": 978594123,
+    "apple": "CLC",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "iKON",
+    "id": 1044506362,
+    "apple": "iKON",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "TWICE",
+    "id": 1203816887,
+    "apple": "TWICE",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "ATEEZ",
+    "id": 1439301205,
+    "apple": "ATEEZ",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "ITZY",
+    "id": 1451964345,
+    "apple": "ITZY",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "IVE",
+    "id": 1594159996,
+    "apple": "IVE",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "KISS OF LIFE",
+    "id": 1694672936,
+    "apple": "KISS OF LIFE",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "MEOVV",
+    "id": 1765256889,
+    "apple": "MEOVV",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "ILLIT",
+    "id": 1734551937,
+    "apple": "ILLIT",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "KATSEYE",
+    "id": 1754284416,
+    "apple": "KATSEYE",
+    "genre": "流行樂",
+    "how": "Apple 排序第一"
+   },
+   {
+    "name": "IU",
+    "id": 409076743,
+    "apple": "IU",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "Stray Kids",
+    "id": 1304823362,
+    "apple": "Stray Kids",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   },
+   {
+    "name": "CORTIS",
+    "id": 1831651635,
+    "apple": "CORTIS",
+    "genre": "韓國流行樂",
+    "how": "曲風分辨"
+   }
+  ],
+  "skipped": [
+   {
+    "name": "東方神起",
+    "why": "第一候選是「TVXQ!／流行樂」，曲風對不上"
+   }
+  ]
+ }
+}

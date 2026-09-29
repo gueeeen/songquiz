@@ -2,7 +2,7 @@
 
 自動測試分兩層。**先看第二層有沒有涵蓋，再決定要不要拿手機出來。**
 
-**第一層──無頭 Edge，快、不連外網**（`web/tests.html` 86 項、
+**第一層──無頭 Edge，快、不連外網**（`web/tests.html` 96 項、
 `web/layout-tests.html` 55 項、`web/playthrough.html` 14 項）。
 驗規則、版面、和「一整場走不走得完」。
 
@@ -128,7 +128,7 @@ iPhone/WebKit ＋ Android/Chromium ＋ 桌機三組）。它補上第一層驗�
 ### 第一層：無頭 Edge（快，不用網路）
 
 ```
-:: 規則（86 項）
+:: 規則（96 項）
 msedge --headless=new --disable-gpu --allow-file-access-from-files ^
        --virtual-time-budget=25000 --dump-dom "file:///…/web/tests.html"
 

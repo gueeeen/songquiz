@@ -23,40 +23,68 @@
 
   /**
    * 難度。題庫裡每一首都貼了 0／1／2（見產生器的 Difficulty.cs）：
-   * 在同語種裡，依知名度排序的前 50% 是簡單、接下來 25% 中等、最後 25% 困難。
+   * 在同語種裡依知名度排序，前 40% 簡單、接下來 30% 中等、最後 30% 困難。
    *
-   * DIFFICULTY_MIX 是**出題的比例**，和題庫的比例是兩件事：
-   * 題庫裡簡單佔一半，但六成的題目從那一半出——所以有名的歌會被重複用到，
-   * 而那正是要的。原本九個選項從整個語種隨機抽，一首冷門歌和一首國民歌
-   * 中獎率一樣，玩起來就是「大部分題目沒聽過」。
+   * **出題的比例是每個語種各一組。** 一開始是全語種共用六成／三成／一成，
+   * 但那是拿「排行名次」當「認得出來」的代理——而名次量的是「這個月在紅」，
+   * 那正是現場回饋「歌太新、太難」的來源。
    *
-   * 為什麼困難那一級留 10% 而不是 0：全部出簡單的話，熟的人十題全對沒有懸念。
-   * 一兩題冷門的才有「這首是什麼」的空間。
+   * 題庫改版之後（榜單只留前 100 首，其餘換成手挑的經典歌手）各語種的體質不同，
+   * 所以比例也不同：
+   *
+   *   * **華語／台語／西洋 → 純隨機（null）。** 整池都是經典，再分難度沒有意義：
+   *     tier 想表達的「認得出來」已經由選歌保證了。而且分級會讓同一批「最有名的
+   *     四成」被反覆抽到，池子大反而沒用上。
+   *   * **日語 → 九成簡單、一成困難。** 台灣的 J-Pop 榜和動漫歌手（都在經典名單裡，
+   *     Fame 最好）會落在簡單那一級；日本本地榜排在最後面，落在困難那一級——
+   *     那些是傑尼斯與偶像團，台灣人多半不認得，所以只留一成。
+   *   * **韓語 → 維持六成／三成／一成。** 韓語的老團（少女時代、SHINee、2NE1…）
+   *     和當紅團（NewJeans、IVE…）認得出來的程度差距大，分級還有價值。
    */
   var TIERS = { EASY: 0, MEDIUM: 1, HARD: 2 };
 
-  var DIFFICULTY_MIX = [
-    { tier: TIERS.EASY, share: 0.6, label: '簡單' },
-    { tier: TIERS.MEDIUM, share: 0.3, label: '中等' },
-    { tier: TIERS.HARD, share: 0.1, label: '困難' },
-  ];
+  var UNIFORM = null;
+
+  var DIFFICULTY_MIX_BY_LANGUAGE = {
+    mandarin: UNIFORM,
+    taiwanese: UNIFORM,
+    western: UNIFORM,
+    japanese: [
+      { tier: TIERS.EASY, share: 0.9, label: '簡單' },
+      { tier: TIERS.HARD, share: 0.1, label: '困難' },
+    ],
+    korean: [
+      { tier: TIERS.EASY, share: 0.6, label: '簡單' },
+      { tier: TIERS.MEDIUM, share: 0.3, label: '中等' },
+      { tier: TIERS.HARD, share: 0.1, label: '困難' },
+    ],
+  };
+
+  /** 這個語種的出題比例。null ＝ 純隨機，不分難度。 */
+  function difficultyMixFor(language) {
+    return DIFFICULTY_MIX_BY_LANGUAGE[language] || UNIFORM;
+  }
 
   /**
-   * 這一題要出哪一級。
+   * 這一題要出哪一級。純隨機的語種回 null，出題層就不篩。
    *
+   * @param {string} language 這一題的語種。比例是每個語種各一組。
    * @param {number} roll 0～1 的隨機數。由出題層傳進來，才能用同一顆種子重現——
    *   多人房間所有人要拿到同一題，而他們唯一共享的東西就是那顆種子。
    */
-  function tierFor(roll) {
+  function tierFor(language, roll) {
+    var mix = difficultyMixFor(language);
+    if (!mix) return null;
+
     var seen = 0;
 
-    for (var i = 0; i < DIFFICULTY_MIX.length; i++) {
-      seen += DIFFICULTY_MIX[i].share;
-      if (roll < seen) return DIFFICULTY_MIX[i].tier;
+    for (var i = 0; i < mix.length; i++) {
+      seen += mix[i].share;
+      if (roll < seen) return mix[i].tier;
     }
 
     // 浮點誤差讓 roll 剛好落在最後面的時候。
-    return DIFFICULTY_MIX[DIFFICULTY_MIX.length - 1].tier;
+    return mix[mix.length - 1].tier;
   }
 
 
@@ -430,7 +458,8 @@
   window.Rules = {
     LANGUAGES: LANGUAGES,
     TIERS: TIERS,
-    DIFFICULTY_MIX: DIFFICULTY_MIX,
+    DIFFICULTY_MIX_BY_LANGUAGE: DIFFICULTY_MIX_BY_LANGUAGE,
+    difficultyMixFor: difficultyMixFor,
     tierFor: tierFor,
     LANGUAGE_NAMES: LANGUAGE_NAMES,
     QUESTION_SECONDS: QUESTION_SECONDS,

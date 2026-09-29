@@ -47,17 +47,56 @@ Console.WriteLine("── 排行榜 ──");
 // 名單要連「這個人有多紅」一起記：那是難度分級的一半訊號（另一半是歌在他歌裡的順序）。
 // 榜上的人用名次；備源名單的人沒有名次，給該語種榜單人數的一半——
 // 他們是長青歌手，不是當紅也不是冷門，硬給最後一名會把周杰倫判成「困難」。
-var roster = new Dictionary<Language, List<(string Name, int Rank)>>();
-var inRoster = new Dictionary<Language, HashSet<string>>();
+// 第三個欄位是「這是手打名單上的經典歌手嗎」。要分開是因為兩種人該取的歌數不同：
+// 榜單上的多半是新人，歌單薄，第 6 首之後就是專輯冷門歌；
+// 經典歌手的前十幾首全是代表作（伍佰第 16～24 首還是牽掛、夜照亮了夜、白鴿）。
+// 用同一個數字的話，不是把新人的冷門歌收進來，就是把老歌手的代表作丟掉——
+// 而「太新、太難」正是現場回饋的那兩件事。
+var roster = new Dictionary<Language, List<(string Name, long ArtistId, int Rank, bool Classic)>>();
+// 用 id 去重，不用名字：同一位歌手在 RSS 叫「BTS」、在 Search 叫「防彈少年團」，
+// 比名字會把他當成兩個人（見 Artists.cs 開頭）。
+var inRoster = new Dictionary<Language, HashSet<long>>();
 var chartCount = new Dictionary<Language, int>();
 
 
 foreach (var language in Languages.InBank)
 {
     roster[language] = [];
-    inRoster[language] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    inRoster[language] = [];
     chartCount[language] = 0;
 
+}
+
+// **經典名單要排在榜單歌手前面。**
+//
+// 額度是先到先得，所以誰排前面決定題庫長什麼樣。現場的回饋是「歌太新、太難」，
+// 而榜單歌手的歌正是最新的那些——把他們排前面的話，題庫的額度會先被
+// 「這個月在紅的新人」吃掉大半，手打的經典名單根本輪不到。
+//
+// 榜單的流動性由**第一層（榜上前 100 首歌）**提供，那一層是獨立的；
+// 榜單歌手的其他歌只是拿來補尾巴。
+Console.WriteLine("\n── 經典名單（手打）──");
+
+foreach (var (language, artists) in Artists.ByLanguage)
+{
+    if (!Languages.IsInBank(language)) continue;
+
+    var added = 0;
+
+    foreach (var artist in artists)
+    {
+        if (inRoster[language].Add(artist.ArtistId))
+        {
+            // 名次就是在名單裡的位置。經典排最前面，Fame 比榜單歌手好——
+            // 難度分級會把他們放進「簡單」，那正是要的。
+            roster[language].Add((artist.Name, artist.ArtistId, roster[language].Count, true));
+            added++;
+        }
+    }
+
+
+    Console.WriteLine($"  {Names.Of(language)}：名單 {artists.Length} 位，新加入 {added} 位"
+                      + $"（合計 {roster[language].Count} 位）");
 }
 
 foreach (var channel in Charts.All)
@@ -75,11 +114,11 @@ foreach (var channel in Charts.All)
     var added = 0;
     foreach (var artist in artists)
     {
-        if (inRoster[channel.Language].Add(artist))
+        if (inRoster[channel.Language].Add(artist.ArtistId))
         {
             // 名次就是它在名單裡的位置：同一個語種可能有好幾條管道，
             // 先進來的（比較前面的榜、比較前面的名次）名次比較好。
-            roster[channel.Language].Add((artist, roster[channel.Language].Count));
+            roster[channel.Language].Add((artist.Name, artist.ArtistId, roster[channel.Language].Count, false));
             chartCount[channel.Language]++;
             added++;
         }
@@ -91,28 +130,6 @@ foreach (var channel in Charts.All)
         : $"  {channel.Note}：{artists.Count} 位，新加入 {added} 位");
 }
 
-Console.WriteLine("\n── 備源（手打名單）──");
-
-foreach (var (language, artists) in Artists.ByLanguage)
-{
-    if (!Languages.IsInBank(language)) continue;
-
-    var added = 0;
-    var classicRank = Math.Max(1, chartCount[language] / 2);
-
-    foreach (var artist in artists)
-    {
-        if (inRoster[language].Add(artist))
-        {
-            roster[language].Add((artist, classicRank));
-            added++;
-        }
-    }
-
-
-    Console.WriteLine($"  {Names.Of(language)}：名單 {artists.Length} 位，新加入 {added} 位"
-                      + $"（合計 {roster[language].Count} 位）");
-}
 
 // ── 第二段：對每位演出者撈歌 ──────────────────────────────────
 
@@ -120,13 +137,20 @@ foreach (var (language, artists) in Artists.ByLanguage)
 var tracks = new List<Track>();
 var decoys = new List<Decoy>();
 
+// 每一首的發行年份，只用來看年代覆蓋。刻意不放進 Track——bank.js 是每個玩家
+// 一進站就要下載的東西，沒有人用到年份之前不該把它塞進去。
+var years = new Dictionary<long, int>();
+
 // 去重跨語種共用：同一首歌被兩個語種的演出者帶出來時，先到先得。
 var seenIds = new HashSet<long>();
 var seenTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 // 一次搜尋要回幾筆。取題庫要的 15 首，加上要拿來當誘餌的，再留一點餘裕給
 // 「同一首歌以單曲／專輯／精選重複出現」被去掉的那些。
-var searchLimit = options.PerArtist + options.DecoysPerArtist + 15;
+// lookup 一次要回幾首。
+// 要夠多：經典歌手取 15 首進題庫、14 首當誘餌，再加上「同一首歌以單曲／專輯／
+// 精選重複出現」被去掉的那些。而 lookup 的第一筆是歌手本身（不是歌），所以要 +1。
+var searchLimit = options.ClassicPerArtist + options.DecoysPerArtist + 20;
 
 var requests = 0;
 
@@ -152,17 +176,29 @@ Console.WriteLine("\n── 榜上的歌 ──");
 
 foreach (var language in Languages.InBank)
 {
+    // **兩個額度要分開數。**
+    //
+    // 原本只有一個：台灣的榜先把它填滿，補深度的管道（日本本地榜、韓語 1252）
+    // 就永遠讀不到——它們的歌一首都沒進題庫，而日語的「一成困難」指的正是那些。
+    // 分開之後流動性和深度各有自己的量。
     var taken = 0;
+    var takenDepth = 0;
+
+    var channelOrder = 0;
 
     foreach (var channel in Charts.All.Where(c => c.Language == language))
     {
-        if (taken >= options.ChartSongs) break;
+        var quota = channel.Depth ? options.DepthSongs : options.ChartSongs;
+        var already = channel.Depth ? takenDepth : taken;
+        if (already >= quota) continue;
+
+        channelOrder++;
 
         var songs = await charts.SongsAsync(channel, options.ChartLimit, default);
 
         foreach (var song in songs)
         {
-            if (taken >= options.ChartSongs) break;
+            if ((channel.Depth ? takenDepth : taken) >= quota) break;
 
             // 語種還是看歌自己的曲風：Pop 榜上會混進別的語種的歌。
             if (!Genres.Accepts(song.Genre, language)) continue;
@@ -171,16 +207,33 @@ foreach (var language in Languages.InBank)
 
             tracks.Add(new Track(song.Id, song.Title, song.Artist, language, song.PreviewUrl)
             {
-                // 比經典還小：榜上的歌排在最前面。
-                Fame = song.Rank - 200000,
+                // **管道的順序要算進 Fame。**
+                //
+                // 原本是 song.Rank - 200000，所以每條管道的第一名都一樣有名——
+                // 日本本地榜的第一名和台灣 J-Pop 榜的第一名並列，兩邊都落進「簡單」。
+                // 但那兩件事在這個遊戲裡不對等：台灣榜是玩家聽過的（宇多田光、
+                // 米津玄師），日本榜是傑尼斯與偶像團（なにわ男子、Aぇ! group），
+                // 台灣人多半不認得。日語的出題比例是「九成簡單、一成困難」，
+                // 而那個「困難」指的就是日本本地榜——所以它必須排在後面。
+                //
+                // 乘 1000 是因為榜單一份最多 100 名，不會互相跨界。
+                //
+                // 補深度的管道（日本本地榜、韓語 1252）要排到**最後面**，
+                // 不是最前面：那些歌同語種但這裡的人多半不認得，屬於「困難」。
+                Fame = channel.Depth
+                    ? 500000 + channelOrder * 1000 + song.Rank
+                    : channelOrder * 1000 + song.Rank - 200000,
             });
 
-            taken++;
+            if (channel.Depth) takenDepth++;
+            else taken++;
+
             chartSongs2++;
         }
     }
 
     Console.WriteLine($"  {Names.Of(language)}：榜上取了 {taken} 首"
+                      + (takenDepth > 0 ? $"＋補深度 {takenDepth} 首" : "")
                       + (taken < options.ChartSongs ? $"（想要 {options.ChartSongs} 首，榜不夠長）" : ""));
 }
 // ── 先把經典歌單種進去 ──────────────────────────────────────
@@ -255,13 +308,16 @@ foreach (var language in Languages.InBank)
     // 難度分級會自動把它們歸到較難那一級，只佔一成的題目。
     var cache = new List<(int Rank, List<PickedSong> Songs, int Used)>();
 
-    foreach (var (artist, artistRank) in roster[language])
+    foreach (var (artist, artistId, artistRank, classic) in roster[language])
     {
         // 兩個額度都滿了就不用再問了。省下來的不只是時間，
         // 也是對方伺服器的請求數——這支工具沒有理由多打。
         if (trackCount >= options.TracksPerLanguage && decoyCount >= options.DecoysPerLanguage) break;
 
-        var found = await client.SearchAsync(artist, searchLimit, default);
+        // **用 id 撈歌，不用名字。** 名字會拿錯人：搜「LiSA」Apple 先給小野麗莎，
+        // 搜「Queen」撈不到 Queen 本人，搜「Perfume」是 0 首。
+        // lookup?id=… 問的是「這位歌手的歌」，沒有歧義（理由寫在 Artists.cs 開頭）。
+        var found = await client.SongsOfArtistAsync(artistId, searchLimit, default);
         requests++;
         touched++;
 
@@ -283,7 +339,8 @@ foreach (var language in Languages.InBank)
                 t.TrackId,
                 TitleCleaner.Clean(t.TrackName!),
                 t.ArtistName!,
-                t.PreviewUrl))
+                t.PreviewUrl,
+                Years.Of(t.ReleaseDate)))
             .Where(t => seenIds.Add(t.Id))
             .Where(t => seenTitles.Add($"{t.Title}|{t.Artist}"))
             .ToList();
@@ -292,12 +349,15 @@ foreach (var language in Languages.InBank)
         var playable = usable.Where(t => !string.IsNullOrWhiteSpace(t.PreviewUrl)).ToList();
 
         var room = Math.Max(0, options.TracksPerLanguage - trackCount);
-        var picked = playable.Take(Math.Min(options.PerArtist, room)).ToList();
+        var wanted = classic ? options.ClassicPerArtist : options.PerArtist;
+        var picked = playable.Take(Math.Min(wanted, room)).ToList();
 
         // 留給第二輪：這位演出者還有哪些可播的歌、已經用掉幾首。
         cache.Add((artistRank, playable, picked.Count));
 
         // Fame 越小越有名。往下第幾首 × SongStep ＋ 歌手名次（見 Track.Fame）。
+        foreach (var one in picked) years[one.Id] = one.Year;
+
         tracks.AddRange(picked.Select((t, index) =>
             new Track(t.Id, t.Title, t.Artist, language, t.PreviewUrl!)
             {
@@ -322,6 +382,9 @@ foreach (var language in Languages.InBank)
     Console.WriteLine($"  ▸ {Names.Of(language)}：問了 {touched} 位演出者，"
                       + $"{trackCount} 首可出題、{decoyCount} 個誘餌"
                       + (skippedByGenre > 0 ? $"（另有 {skippedByGenre} 首曲風不是這個語種，讓給別的管道）" : ""));
+
+    // 年代分佈。標籤會騙人（我以為某個歌手是九〇年代的），releaseDate 不會。
+    Console.WriteLine($"    年代：{Eras.Describe(years, language, tracks)}");
 
     // ── 第二輪：名單用完了還不夠，就在同一批演出者身上挖深一層 ──
     //
@@ -499,7 +562,54 @@ if (size > 600 * 1024)
 /// <remarks>
 /// 原本是匿名型別，但第二輪要把它存進 List 跨迴圈用，匿名型別做不到。
 /// </remarks>
-internal sealed record PickedSong(long Id, string Title, string Artist, string? PreviewUrl);
+/// <summary>
+/// 某個語種的歌分佈在哪些年代。
+/// </summary>
+/// <remarks>
+/// 存在的理由：「各年代都要有歌」這件事我沒辦法靠歌手名單保證——我可能記錯某個
+/// 歌手的年代，而 Apple 也沒有年代排行榜可以對照。releaseDate 是唯一不會騙人的。
+/// 每次重建都印出來，歪掉就看得見。
+/// </remarks>
+internal static class Eras
+{
+    public static string Describe(Dictionary<long, int> years, Language language, List<Track> tracks)
+        {
+        var buckets = new SortedDictionary<int, int>();
+        var unknown = 0;
+
+        foreach (var track in tracks)
+        {
+            if (track.Language != language) continue;
+
+            if (!years.TryGetValue(track.Id, out var year) || year == 0) { unknown++; continue; }
+
+            var decade = year / 10 * 10;
+            buckets[decade] = buckets.TryGetValue(decade, out var had) ? had + 1 : 1;
+        }
+
+        var parts = buckets.Select(b => $"{b.Key}s {b.Value}").ToList();
+        if (unknown > 0) parts.Add($"不明 {unknown}");
+
+        return parts.Count == 0 ? "（還沒有歌）" : string.Join("、", parts);
+    }
+}
+
+internal sealed record PickedSong(long Id, string Title, string Artist, string? PreviewUrl, int Year);
+
+/// <summary>
+/// 從 "2004-08-03T12:00:00Z" 取出 2004。解不出來回 0。
+/// </summary>
+/// <remarks>
+/// 只用來看年代覆蓋，所以解不出來不是錯——那一首就不計入任何年代的統計。
+/// </remarks>
+internal static partial class Years
+{
+    public static int Of(string? releaseDate) =>
+        releaseDate is { Length: >= 4 } && int.TryParse(releaseDate[..4], out var year)
+        && year is > 1900 and < 2100
+            ? year
+            : 0;
+}
 
 /// <summary>語種的中文名。只有這支工具的輸出用得到。</summary>
 internal static class Names
@@ -520,6 +630,7 @@ internal static class Names
 internal sealed record BuilderOptions(
     string Output,
     int PerArtist,
+    int ClassicPerArtist,
     int DecoysPerArtist,
     int TracksPerLanguage,
     int DecoysPerLanguage,
@@ -528,7 +639,8 @@ internal sealed record BuilderOptions(
     int ChartLimit,
     double Carry,
     string Classics,
-    int ChartSongs);
+    int ChartSongs,
+    int DepthSongs);
 
 internal static class CommandLine
 {
@@ -537,9 +649,19 @@ internal static class CommandLine
         var output = DefaultOutput();
         // 5 而不是 15：Search API 的前幾首是最有名的，第 6 首之後多半是
         // 專輯裡的冷門歌。抽到那些的話玩家「大部分題目沒聽過」，那是難度失控而不是難。
-        var perArtist = 5;           // 一位演出者取幾首進題庫
+        var perArtist = 5;           // 榜單上的演出者取幾首進題庫
+        // 經典歌手取幾首。**和榜單歌手不同是刻意的。**
+        // 榜上多半是新人，歌單薄，第 6 首之後就是專輯冷門歌；經典歌手的前十幾首
+        // 全是代表作——伍佰第 16～24 首還是牽掛、夜照亮了夜、白鴿。
+        // 用同一個數字的話，不是收進新人的冷門歌，就是丟掉老歌手的代表作，
+        // 而「太新、太難」正是現場回饋的那兩件事。
+        var classicPerArtist = 15;
         var decoysPerArtist = 14;    // 同一位再取幾首當誘餌
-        var tracks = 450;            // 每個語種的題庫上限
+        // 每個語種的題庫上限。450 → 700：榜單那層固定 100 首，拉高上限等於
+        // 提高經典的比例（榜單佔比從 22% 降到 14%，十題一場平均新歌 2.2 → 1.4 題）。
+        // 體積不是問題：bank.js 在 GitHub Pages 上有 gzip（367 KB → 162 KB），
+        // 700 的話約 276 KB，而一首試聽就是 1024 KB。
+        var tracks = 700;
         var decoys = 500;            // 每個語種的誘餌上限
         var country = "TW";
         // 800 而不是 400：改成榜單兩段式之後請求數變成三四倍，
@@ -551,7 +673,15 @@ internal static class CommandLine
         var chartLimit = 100;        // 榜單一次要幾名（Apple 實測上限 100）
         var carry = 0.30;                   // 上限裡留多少比例給上一版的歌（0 = 直接覆蓋）
         var classics = DefaultClassics();   // 一定會進題庫、而且一定算「簡單」的那些歌
-        var chartSongs = 50;                // 每個語種直接從榜上收幾首（「簡單」的流動性來自這裡）
+        // 每個語種直接從榜上收幾首。**流動性全部來自這一層。**
+        // 100 而不是 50：題庫上限拉到 700 之後，50 首只佔 7%，那個「每個月會換一批」
+        // 的效果就感覺不到了。100 首約 14%，十題一場平均 1.4 題是這個月的新歌。
+        var chartSongs = 100;
+
+        // 補深度的管道另外收幾首（日本本地榜、韓語的 1252）。
+        // 它們是「同語種但這裡的人多半不認得」，所以 Fame 排在最後面、算「困難」——
+        // 日語的出題比例「九成簡單、一成困難」，那一成指的就是這些。
+        var depthSongs = 40;
 
         for (var i = 0; i < args.Length - 1; i += 2)
         {
@@ -560,6 +690,7 @@ internal static class CommandLine
             {
                 case "--out": output = Path.GetFullPath(value); break;
                 case "--per-artist": perArtist = int.Parse(value); break;
+                case "--classic-per-artist": classicPerArtist = int.Parse(value); break;
                 case "--decoys-per-artist": decoysPerArtist = int.Parse(value); break;
                 case "--tracks": tracks = int.Parse(value); break;
                 case "--decoys": decoys = int.Parse(value); break;
@@ -569,14 +700,30 @@ internal static class CommandLine
                 case "--carry": carry = double.Parse(value); break;
                 case "--classics": classics = value; break;
                 case "--chart-songs": chartSongs = int.Parse(value); break;
+                case "--depth-songs": depthSongs = int.Parse(value); break;
             }
         }
 
-        return new BuilderOptions(output, perArtist, decoysPerArtist, tracks, decoys, country, delay, chartLimit, Math.Clamp(carry, 0, 0.9), classics, chartSongs);
+        return new BuilderOptions(output, perArtist, classicPerArtist, decoysPerArtist, tracks, decoys, country, delay, chartLimit, Math.Clamp(carry, 0, 0.9), classics, chartSongs, depthSongs);
     }
 
     /// <summary>經典歌單的預設位置。傳空字串就不種。</summary>
-    private static string DefaultClassics() => Path.Combine(RepoRoot(), "tools", "經典歌單.js");
+    /// <summary>
+    /// 預設**不**種經典歌單。
+    /// </summary>
+    /// <remarks>
+    /// tools/經典歌單.js 是舊流程（用名字搜歌）的產物，而那個流程會拿錯人——
+    /// 它的 80 首日語裡有 13 首根本不是日文歌：小野麗莎 6 首 bossa nova、
+    /// NCT 道在廷（搜「Perfume」搜到的）、布蘭妮·斯皮爾斯、Seungmin、2PM、sombr…
+    /// 錯誤被烘進檔案裡，每次重建都會原封不動地種回題庫。
+    ///
+    /// 而它的角色已經被取代了：Artists.cs 現在有 288 位**驗證過 artistId** 的
+    /// 經典歌手（日語 43 位 × 15 首 = 645 首），比種子檔多也比它乾淨。
+    ///
+    /// 檔案留著沒刪：要重做一份手挑歌單的話它是起點，但要先過一遍語種。
+    /// 要種回去就傳 --classics tools/經典歌單.js。
+    /// </remarks>
+    private static string DefaultClassics() => "";
 
     /// <summary>預設寫到網頁讀的位置，讓「跑完就能玩」成立。</summary>
     private static string DefaultOutput() => Path.Combine(RepoRoot(), "web", "data", "bank.js");

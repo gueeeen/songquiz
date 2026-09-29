@@ -1234,32 +1234,64 @@
 
   group('難度分級');
 
-  test('比例加起來剛好是一', function () {
+  test('每一種比例加起來都剛好是一', function () {
     // 加不到一的話，tierFor 會在最後面靠「浮點誤差的退路」硬撐，
     // 那條退路是給浮點誤差用的，不是給設定錯誤用的。
-    var total = Rules.DIFFICULTY_MIX.reduce(function (sum, item) { return sum + item.share; }, 0);
-    assertTrue(Math.abs(total - 1) < 1e-9, '加起來是 ' + total);
+    Rules.LANGUAGES.forEach(function (language) {
+      var mix = Rules.difficultyMixFor(language);
+      if (!mix) return;   // 純隨機的語種沒有比例可加
+
+      var total = mix.reduce(function (sum, item) { return sum + item.share; }, 0);
+      assertTrue(Math.abs(total - 1) < 1e-9, language + ' 加起來是 ' + total);
+    });
   });
 
-  test('骰到哪一級照比例來', function () {
-    // 簡單六成、中等三成、困難一成，所以邊界在 0.6 和 0.9。
-    assertEqual(Rules.TIERS.EASY, Rules.tierFor(0));
-    assertEqual(Rules.TIERS.EASY, Rules.tierFor(0.59));
-    assertEqual(Rules.TIERS.MEDIUM, Rules.tierFor(0.6));
-    assertEqual(Rules.TIERS.MEDIUM, Rules.tierFor(0.89));
-    assertEqual(Rules.TIERS.HARD, Rules.tierFor(0.9));
-    assertEqual(Rules.TIERS.HARD, Rules.tierFor(0.999));
+  test('華語／台語／西洋是純隨機，不分難度', function () {
+    // 整池都是手挑的經典，再分難度沒有意義——tier 想表達的「認得出來」
+    // 已經由選歌保證了。回 null 就是叫出題層不要篩。
+    ['mandarin', 'taiwanese', 'western'].forEach(function (language) {
+      assertEqual(null, Rules.difficultyMixFor(language), language + ' 應該是純隨機');
+      assertEqual(null, Rules.tierFor(language, 0), language + ' 骰 0');
+      assertEqual(null, Rules.tierFor(language, 0.99), language + ' 骰 0.99');
+    });
+  });
+
+  test('日語九成簡單、一成困難', function () {
+    // 「困難」那一成指的是日本本地榜（傑尼斯與偶像團，台灣人多半不認得），
+    // 它在產生器裡被標成補深度管道，Fame 排在最後面。
+    assertEqual(Rules.TIERS.EASY, Rules.tierFor('japanese', 0));
+    assertEqual(Rules.TIERS.EASY, Rules.tierFor('japanese', 0.89));
+    assertEqual(Rules.TIERS.HARD, Rules.tierFor('japanese', 0.9));
+    assertEqual(Rules.TIERS.HARD, Rules.tierFor('japanese', 0.999));
+  });
+
+  test('韓語維持六成／三成／一成', function () {
+    // 韓語的老團（少女時代、SHINee）和當紅團（NewJeans、IVE）認得出來的
+    // 程度差距大，分級還有價值。
+    assertEqual(Rules.TIERS.EASY, Rules.tierFor('korean', 0));
+    assertEqual(Rules.TIERS.EASY, Rules.tierFor('korean', 0.59));
+    assertEqual(Rules.TIERS.MEDIUM, Rules.tierFor('korean', 0.6));
+    assertEqual(Rules.TIERS.MEDIUM, Rules.tierFor('korean', 0.89));
+    assertEqual(Rules.TIERS.HARD, Rules.tierFor('korean', 0.9));
   });
 
   test('骰到 1 也不會掉出去', function () {
     // rng() 理論上不會回 1，但浮點加總會讓 0.6+0.3+0.1 不是剛好 1，
     // 所以最後那一級一定要有退路——沒有的話會回 undefined，
     // 然後整場的題目全部從「難度是 undefined」那個空集合退回整個 pool。
-    assertEqual(Rules.TIERS.HARD, Rules.tierFor(1));
+    assertEqual(Rules.TIERS.HARD, Rules.tierFor('korean', 1));
+    assertEqual(Rules.TIERS.HARD, Rules.tierFor('japanese', 1));
   });
 
-  test('出題真的偏向簡單的那一級', function () {
-    // 這是整個改動的目的：原本一首冷門歌和一首國民歌中獎率一樣。
+  test('不認識的語種當成純隨機，不要爆掉', function () {
+    // 題庫和 rules.js 的語種清單不同步的時候（見 LANGUAGES 的說明），
+    // 寧可那一個語種變成純隨機，也不要讓出題整個停住。
+    assertEqual(null, Rules.tierFor('klingon', 0.5));
+  });
+
+  test('有分級的語種真的偏向簡單那一級', function () {
+    // 用韓語：華語／台語／西洋現在是純隨機（見上面那幾條），
+    // 拿它們測「偏向簡單」會永遠失敗——不是程式壞了，是那個語種不再分級。
     var bank = { tracks: [], decoys: [] };
 
     // 照題庫真正的比例造：簡單一半、中等四分之一、困難四分之一。
@@ -1274,7 +1306,7 @@
           id: tier * 1000 + i,
           title: name + i,
           artist: '甲',
-          language: 'mandarin',
+          language: 'korean',
           previewUrl: 'u',
           tier: tier,
         });
@@ -1291,7 +1323,7 @@
     var total = 200;
 
     for (var k = 0; k < total; k++) {
-      var question = maker.next(['mandarin'], {}, null);
+      var question = maker.next(['korean'], {}, null);
       if (question.answer.tier === 0) easy++;
     }
 
@@ -1299,7 +1331,65 @@
     // 這裡要抓的是「有沒有偏向」，不是「偏得剛好是 60.0%」。
     var share = easy / total;
     assertTrue(share > 0.5 && share < 0.7, '簡單佔 ' + (share * 100).toFixed(0) + '%（期望六成）');
+  });
 
+  test('純隨機的語種不會偏向任何一級', function () {
+    // 華語的整池都是手挑的經典，所以不分級——抽出來的難度分佈應該貼近
+    // 題庫本身的比例（這裡造成簡單一半），而不是被拉到六成。
+    var bank = { tracks: [], decoys: [] };
+
+    for (var tier = 0; tier < 3; tier++) {
+      for (var i = 0; i < (tier === 0 ? 100 : 50); i++) {
+        bank.tracks.push({
+          id: tier * 1000 + i, title: 't' + tier + '-' + i, artist: '甲',
+          language: 'mandarin', previewUrl: 'u', tier: tier,
+        });
+      }
+    }
+
+    var maker = new window.QuestionMaker(bank, makeRng(11));
+    var easy = 0;
+    var total = 200;
+
+    for (var k = 0; k < total; k++) {
+      if (maker.next(['mandarin'], {}, null).answer.tier === 0) easy++;
+    }
+
+    // 題庫裡簡單佔 100/200 = 50%，所以抽出來也該在五成附近。
+    // 如果它跑到六成，就表示 mandarin 又被套上分級了。
+    var share = easy / total;
+    assertTrue(share > 0.4 && share < 0.6, '簡單佔 ' + (share * 100).toFixed(0) + '%（期望五成）');
+  });
+
+  test('多語種的時候每個語種機會均等', function () {
+    // 原本是直接從混合的池子裡抽，等於按題庫大小加權——哪個語種的歌多就出得多。
+    // 選了兩個語種就該大約各一半，不管兩邊的題庫差幾倍。
+    var bank = { tracks: [], decoys: [] };
+
+    function fill(language, count) {
+      for (var i = 0; i < count; i++) {
+        bank.tracks.push({
+          id: language.length * 10000 + i, title: language + i, artist: '甲',
+          language: language, previewUrl: 'u', tier: 0,
+        });
+      }
+    }
+
+    // 刻意差十倍。
+    fill('mandarin', 200);
+    fill('taiwanese', 20);
+
+    var maker = new window.QuestionMaker(bank, makeRng(3));
+    var mandarin = 0;
+    var total = 200;
+
+    for (var k = 0; k < total; k++) {
+      if (maker.next(['mandarin', 'taiwanese'], {}, null).answer.language === 'mandarin') mandarin++;
+    }
+
+    var share = mandarin / total;
+    assertTrue(share > 0.4 && share < 0.6,
+      '華語佔 ' + (share * 100).toFixed(0) + '%（期望五成；按題庫大小加權會是 91%）');
   });
 
   test('那一級抽不到歌就退回整個題庫，不是出不了題', function () {

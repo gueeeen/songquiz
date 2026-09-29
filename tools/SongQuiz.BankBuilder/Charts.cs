@@ -20,7 +20,22 @@ namespace SongQuiz.BankBuilder;
 /// <param name="Genre">曲風 id。null 表示不分曲風的總榜。</param>
 /// <param name="Language">這條管道撈到的人，算哪一個語種。</param>
 /// <param name="Note">印在畫面上的說明。</param>
-public sealed record ChartChannel(string Storefront, int? Genre, Language Language, string Note);
+/// <param name="Depth">
+/// 這條管道是「補深度」用的，不是「流動性」用的。
+/// </param>
+/// <remarks>
+/// 差別在**難度**：流動性管道（台灣的榜）撈到的是玩家聽過的歌，算「簡單」；
+/// 補深度管道撈到的是同語種但這裡的人多半不認得的——日本本地榜是傑尼斯與偶像團
+/// （なにわ男子、Aぇ! group），韓語的 1252 是獨立與抒情的長尾。那些算「困難」。
+///
+/// 現場的回饋是「歌太新、太難」，而日語的出題比例定成「九成簡單、一成困難」，
+/// 那個「一成困難」指的就是這些。所以它們的 Fame 要排在最後面，
+/// 不能和台灣榜一起擠在最前面（那是原本的行為）。
+/// </remarks>
+public sealed record ChartChannel(string Storefront, int? Genre, Language Language, string Note, bool Depth = false);
+
+/// <summary>榜上的一位演出者。名字只拿來印訊息，抓歌一律用 id。</summary>
+public sealed record ChartArtist(string Name, long ArtistId);
 
 public static class Charts
 {
@@ -70,9 +85,9 @@ public static class Charts
         new("tw", 51, Language.Korean, "台灣・K-Pop"),
         new("us", 51, Language.Korean, "美國・K-Pop"),
         new("jp", 51, Language.Korean, "日本・K-Pop"),
-        new("tw", 1252, Language.Korean, "台灣・韓國流行（補深度，多半是獨立與抒情）"),
+        new("tw", 1252, Language.Korean, "台灣・韓國流行（補深度，多半是獨立與抒情）", Depth: true),
         new("tw", 27, Language.Japanese, "台灣・J-Pop"),
-        new("jp", 27, Language.Japanese, "日本・J-Pop（補深度）"),
+        new("jp", 27, Language.Japanese, "日本・J-Pop（補深度）", Depth: true),
         new("us", 14, Language.Western, "美國・Pop"),
         new("gb", 14, Language.Western, "英國・Pop"),
     ];
@@ -109,7 +124,7 @@ public sealed class ChartClient(HttpClient http)
     /// 依名次回傳不重複的演出者。名次有意義——愈前面愈紅，
     /// 而題庫有上限，所以先撈前面的人。
     /// </summary>
-    public async Task<IReadOnlyList<string>> ArtistsAsync(ChartChannel channel, int limit, CancellationToken token)
+    public async Task<IReadOnlyList<ChartArtist>> ArtistsAsync(ChartChannel channel, int limit, CancellationToken token)
     {
         var url = Charts.UrlOf(channel, limit);
 
@@ -125,8 +140,8 @@ public sealed class ChartClient(HttpClient http)
                 return [];
             }
 
-            var artists = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var artists = new List<ChartArtist>();
+            var seen = new HashSet<long>();
 
             foreach (var entry in entries.EnumerateArray())
             {
@@ -138,7 +153,15 @@ public sealed class ChartClient(HttpClient http)
 
                 var name = label.GetString();
                 if (string.IsNullOrWhiteSpace(name)) continue;
-                if (seen.Add(name)) artists.Add(name);
+
+                // artistId 藏在 im:artist 的連結裡：
+                //   https://music.apple.com/tw/artist/%E6%9D%8E%E4%BD%B3%E8%96%87/211566950?uo=2
+                // 拿到它就不必再用名字去搜一次——而用名字搜會拿錯人
+                //（搜 LiSA 會得到小野麗莎，見 Artists.cs 開頭）。
+                var id = ArtistIdOf(artist);
+                if (id == 0) continue;
+
+                if (seen.Add(id)) artists.Add(new ChartArtist(name, id));
             }
 
             return artists;
@@ -207,6 +230,29 @@ public sealed class ChartClient(HttpClient http)
             Console.WriteLine($"  · 榜單讀不到（{channel.Note}）：{error.Message}");
             return [];
         }
+    }
+
+    /// <summary>
+    /// 從 im:artist 的 href 取出 artistId。取不到回 0（那一位就跳過——
+    /// 沒有 id 就只能用名字去搜，而那正是要避免的事）。
+    /// </summary>
+    private static long ArtistIdOf(JsonElement artist)
+    {
+        if (!artist.TryGetProperty("attributes", out var attributes)
+            || !attributes.TryGetProperty("href", out var href))
+        {
+            return 0;
+        }
+
+        var url = href.GetString();
+        if (string.IsNullOrWhiteSpace(url)) return 0;
+
+        // 最後一段（去掉 ?uo=2）就是 id。
+        var tail = url.Split('?')[0].TrimEnd('/');
+        var slash = tail.LastIndexOf('/');
+        if (slash < 0) return 0;
+
+        return long.TryParse(tail[(slash + 1)..], out var id) ? id : 0;
     }
 
     private static string? Text(JsonElement entry, string property) =>

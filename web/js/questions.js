@@ -63,19 +63,31 @@
     if (pool.length === 0) return null;
 
     /**
-     * 先決定這一題的難度，再從那一級裡挑。
+     * 順序是：先挑語種 → 再挑難度 → 再挑歌。
      *
-     * 為什麼要分兩步：不分的話一首冷門歌和一首國民歌被抽中的機率一樣，
-     * 而題庫裡冷門的比有名的多——玩起來就是「大部分題目沒聽過」。
-     * 比例在 rules.js 的 DIFFICULTY_MIX（目前簡單六成、中等三成、困難一成）。
+     * **語種要先挑，而且每個語種機會均等。** 原本是直接從混合的池子裡抽，
+     * 等於按題庫大小加權——哪個語種的歌多就出得多，而那不是任何人想要的。
+     * 選了三個語種就大約各三分之一，才是選項該有的意思。
      *
-     * 那一級抽不到歌的時候（語種選得窄、題數多、後面幾題把那一級用完了）
-     * 就退回整個 pool。寧可難度偏掉一題，也不要出不了題——
-     * 出不了題的下一步是整場結束，那是更糟的結果。
+     * **難度是每個語種各一組比例**（見 rules.js）：華語／台語／西洋純隨機，
+     * 日語九成簡單一成困難，韓語六三一。所以難度一定要在語種之後決定——
+     * 混著的池子沒有「這一題的難度」可言。
      */
-    var tier = window.Rules.tierFor(rng());
-    var tiered = pool.filter(function (t) { return t.tier === tier; });
-    var from = tiered.length > 0 ? tiered : pool;
+    var byLanguage = {};
+    pool.forEach(function (track) {
+      (byLanguage[track.language] = byLanguage[track.language] || []).push(track);
+    });
+
+    var picks = Object.keys(byLanguage);
+    var language = picks[Math.floor(rng() * picks.length)];
+    var mine = byLanguage[language];
+
+    var tier = window.Rules.tierFor(language, rng());
+
+    // 那一級抽不到歌的時候（題數多、後面幾題把那一級用完了）就退回這個語種的
+    // 整池。寧可難度偏掉一題，也不要出不了題——出不了題的下一步是整場結束。
+    var tiered = tier === null ? mine : mine.filter(function (t) { return t.tier === tier; });
+    var from = tiered.length > 0 ? tiered : mine;
 
     var answer = from[Math.floor(rng() * from.length)];
     var options = this.wrongOptions(answer);
