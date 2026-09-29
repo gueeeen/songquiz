@@ -63,15 +63,18 @@
     if (pool.length === 0) return null;
 
     /**
-     * 順序是：先挑語種 → 再挑難度 → 再挑歌。
+     * 順序是：先挑語種 → 再挑「哪一格」 → 再挑歌。
      *
      * **語種要先挑，而且每個語種機會均等。** 原本是直接從混合的池子裡抽，
      * 等於按題庫大小加權——哪個語種的歌多就出得多，而那不是任何人想要的。
      * 選了三個語種就大約各三分之一，才是選項該有的意思。
      *
-     * **難度是每個語種各一組比例**（見 rules.js）：華語／台語／西洋純隨機，
-     * 日語九成簡單一成困難，韓語六三一。所以難度一定要在語種之後決定——
-     * 混著的池子沒有「這一題的難度」可言。
+     * **「哪一格」是每個語種各一組比例，而且切的維度不一樣**（見 rules.js）：
+     * 華語／台語／西洋按年代（兩成 2000 前、兩成今年、六成中間），
+     * 日語九成簡單一成困難，韓語六三一。所以它一定要在語種之後決定——
+     * 混著的池子沒有「這一題的年代」或「這一題的難度」可言。
+     *
+     * 這裡刻意不知道格子是按年代還是按難度切的，只問 rules.js「吃不吃這一首」。
      */
     var byLanguage = {};
     pool.forEach(function (track) {
@@ -82,12 +85,13 @@
     var language = picks[Math.floor(rng() * picks.length)];
     var mine = byLanguage[language];
 
-    var tier = window.Rules.tierFor(language, rng());
+    var slice = window.Rules.sliceFor(language, rng());
 
-    // 那一級抽不到歌的時候（題數多、後面幾題把那一級用完了）就退回這個語種的
-    // 整池。寧可難度偏掉一題，也不要出不了題——出不了題的下一步是整場結束。
-    var tiered = tier === null ? mine : mine.filter(function (t) { return t.tier === tier; });
-    var from = tiered.length > 0 ? tiered : mine;
+    // 那一格抽不到歌的時候（題數多、後面幾題把那一格用完了）就退回這個語種的
+    // 整池。寧可比例偏掉一題，也不要出不了題——出不了題的下一步是整場結束。
+    // 台語「今年」只有十幾首，長場次一定會走到這條退路。
+    var sliced = mine.filter(function (t) { return window.Rules.sliceAccepts(slice, t); });
+    var from = sliced.length > 0 ? sliced : mine;
 
     var answer = from[Math.floor(rng() * from.length)];
     var options = this.wrongOptions(answer);

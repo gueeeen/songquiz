@@ -1232,66 +1232,172 @@
     assertEqual(play(false), play(true), '有沒有預生會出到不同的題目');
   });
 
-  group('難度分級');
+  group('出題比例');
 
   test('每一種比例加起來都剛好是一', function () {
-    // 加不到一的話，tierFor 會在最後面靠「浮點誤差的退路」硬撐，
+    // 加不到一的話，sliceFor 會在最後面靠「浮點誤差的退路」硬撐，
     // 那條退路是給浮點誤差用的，不是給設定錯誤用的。
     Rules.LANGUAGES.forEach(function (language) {
-      var mix = Rules.difficultyMixFor(language);
-      if (!mix) return;   // 純隨機的語種沒有比例可加
+      var mix = Rules.mixFor(language);
+      if (!mix) return;
 
       var total = mix.reduce(function (sum, item) { return sum + item.share; }, 0);
       assertTrue(Math.abs(total - 1) < 1e-9, language + ' 加起來是 ' + total);
     });
   });
 
-  test('華語／台語／西洋是純隨機，不分難度', function () {
-    // 整池都是手挑的經典，再分難度沒有意義——tier 想表達的「認得出來」
-    // 已經由選歌保證了。回 null 就是叫出題層不要篩。
+  test('華語／台語／西洋按年代：老歌兩成、新歌一成、其餘七成', function () {
     ['mandarin', 'taiwanese', 'western'].forEach(function (language) {
-      assertEqual(null, Rules.difficultyMixFor(language), language + ' 應該是純隨機');
-      assertEqual(null, Rules.tierFor(language, 0), language + ' 骰 0');
-      assertEqual(null, Rules.tierFor(language, 0.99), language + ' 骰 0.99');
+      assertEqual(Rules.ERAS.CLASSIC, Rules.sliceFor(language, 0).era, language + ' 骰 0');
+      assertEqual(Rules.ERAS.CLASSIC, Rules.sliceFor(language, 0.199).era, language + ' 骰 0.199');
+      assertEqual(Rules.ERAS.FRESH, Rules.sliceFor(language, 0.2).era, language + ' 骰 0.2');
+      assertEqual(Rules.ERAS.FRESH, Rules.sliceFor(language, 0.299).era, language + ' 骰 0.299');
+
+      // 最後那七成是「老歌以外」：不指定年代，但排除老歌。
+      //
+      // 這裡用 0.31 而不是 0.3：0.2 + 0.1 在浮點裡是 0.30000000000000004，
+      // 所以骰剛好 0.3 還落在「近兩年」那一格。差 1e-17 不影響比例，
+      // 但測試壓在那種邊界上，量到的是 IEEE 754 而不是規則。
+      var rest = Rules.sliceFor(language, 0.31);
+      assertEqual(undefined, rest.era, language + ' 骰 0.31 不該指定年代');
+      assertEqual(undefined, rest.tier, language + ' 骰 0.31 不該指定難度');
+      assertEqual(Rules.ERAS.CLASSIC, rest.exclude, language + ' 骰 0.31 要排除老歌');
+
+      // 按年代切的語種**都不該**帶 tier——帶了的話 sliceAccepts 會走錯分支。
+      Rules.mixFor(language).forEach(function (slice) {
+        assertEqual(undefined, slice.tier, language + ' 的格子不該有 tier');
+      });
     });
+  });
+
+  test('老歌是上限、新歌是下限——差別在那七成排除誰', function () {
+    // **這是整個設計的重點，而且兩格刻意不對稱。**
+    //
+    //   * 老歌：兩成就是兩成。它被擋在其餘七成之外，所以那兩成同時是下限也是上限。
+    //   * 新歌：至少一成。它沒有被擋，所以在那七成裡還會自然抽到，實際會超過一成。
+    //
+    // 三種寫法的差別（華語：老歌 78、新歌 49、中間 573）：
+    //   什麼都不排除 → 老歌 28%（兩成就不是上限了）
+    //   只留中間年代 → 新歌剛好 10%（一成變成天花板）
+    //   排除老歌     → 老歌 20%、新歌 15.5%　← 現在這個
+    var rest = Rules.sliceFor('mandarin', 0.5);
+
+    assertTrue(!Rules.sliceAccepts(rest, { year: 1985, tier: 2 }, 2026), '不可以吃老歌');
+    assertTrue(Rules.sliceAccepts(rest, { year: 2026, tier: 0 }, 2026), '要吃新歌');
+    assertTrue(Rules.sliceAccepts(rest, { year: 2012, tier: 1 }, 2026), '要吃中間年代');
+    assertTrue(Rules.sliceAccepts(rest, { year: 0, tier: 0 }, 2026), '要吃年份不明的');
+  });
+
+  test('新歌是近兩年，不是只有今年', function () {
+    // 本來是只算今年，改成兩年是因為池子太薄：實測台語今年只有 19 首、
+    // 華語 28 首，那一格會一直重複同樣那十幾首。
+    assertEqual(2, Rules.FRESH_YEARS, '近幾年');
+
+    assertEqual(Rules.ERAS.FRESH, Rules.eraOf(2026, 2026), '今年');
+    assertEqual(Rules.ERAS.FRESH, Rules.eraOf(2025, 2026), '去年也算新');
+    assertEqual(Rules.ERAS.MIDDLE, Rules.eraOf(2024, 2026), '前年就不算了');
+  });
+
+  test('年代那三格互斥而且蓋滿，沒有一首歌是抽不到的', function () {
+    // 三格如果有縫，落在縫裡的歌就永遠不會被出題，而且畫面上看不出來。
+    var now = 2026;
+
+    assertEqual(Rules.ERAS.CLASSIC, Rules.eraOf(1999, now), '1999');
+    assertEqual(Rules.ERAS.CLASSIC, Rules.eraOf(1971, now), '1971');
+    assertEqual(Rules.ERAS.MIDDLE, Rules.eraOf(2000, now), '2000 是「中間」的第一年');
+    assertEqual(Rules.ERAS.MIDDLE, Rules.eraOf(2024, now), '2024');
+
+    // Apple 的 releaseDate 偶爾是未來（預購、跨區上架）。那些算「新」，
+    // 因為它們絕對不是「中間年代」。
+    assertEqual(Rules.ERAS.FRESH, Rules.eraOf(2027, now), '未來的日期');
+
+    // 年份不明。0 不能落進「2000 以前」——那會讓解不出日期的歌全部變成老歌。
+    assertEqual(Rules.ERAS.MIDDLE, Rules.eraOf(0, now), '年份不明');
+  });
+
+  test('今年是看系統時鐘，不是寫死的', function () {
+    // eraOf 不傳第二個參數時要用今年。寫死一個年份的話，
+    // 明年一月這個規則就會靜靜地變成「前年的一成」。
+    var thisYear = new Date().getFullYear();
+
+    assertEqual(Rules.ERAS.FRESH, Rules.eraOf(thisYear), '今年');
+    assertEqual(Rules.ERAS.FRESH, Rules.eraOf(thisYear - 1), '去年');
+    assertEqual(Rules.ERAS.MIDDLE, Rules.eraOf(thisYear - 2), '前年');
+    assertEqual(Rules.ERAS.CLASSIC, Rules.eraOf(1995), '1995');
   });
 
   test('日語九成簡單、一成困難', function () {
     // 「困難」那一成指的是日本本地榜（傑尼斯與偶像團，台灣人多半不認得），
     // 它在產生器裡被標成補深度管道，Fame 排在最後面。
-    assertEqual(Rules.TIERS.EASY, Rules.tierFor('japanese', 0));
-    assertEqual(Rules.TIERS.EASY, Rules.tierFor('japanese', 0.89));
-    assertEqual(Rules.TIERS.HARD, Rules.tierFor('japanese', 0.9));
-    assertEqual(Rules.TIERS.HARD, Rules.tierFor('japanese', 0.999));
+    assertEqual(Rules.TIERS.EASY, Rules.sliceFor('japanese', 0).tier);
+    assertEqual(Rules.TIERS.EASY, Rules.sliceFor('japanese', 0.89).tier);
+    assertEqual(Rules.TIERS.HARD, Rules.sliceFor('japanese', 0.9).tier);
+    assertEqual(Rules.TIERS.HARD, Rules.sliceFor('japanese', 0.999).tier);
   });
 
   test('韓語維持六成／三成／一成', function () {
     // 韓語的老團（少女時代、SHINee）和當紅團（NewJeans、IVE）認得出來的
-    // 程度差距大，分級還有價值。
-    assertEqual(Rules.TIERS.EASY, Rules.tierFor('korean', 0));
-    assertEqual(Rules.TIERS.EASY, Rules.tierFor('korean', 0.59));
-    assertEqual(Rules.TIERS.MEDIUM, Rules.tierFor('korean', 0.6));
-    assertEqual(Rules.TIERS.MEDIUM, Rules.tierFor('korean', 0.89));
-    assertEqual(Rules.TIERS.HARD, Rules.tierFor('korean', 0.9));
+    // 程度差距大，難度分級還有價值。而且韓語沒有老歌可分：實測 700 首裡
+    // 2000 年以前只有 3 首，按年代切會整格空掉。
+    assertEqual(Rules.TIERS.EASY, Rules.sliceFor('korean', 0).tier);
+    assertEqual(Rules.TIERS.EASY, Rules.sliceFor('korean', 0.59).tier);
+    assertEqual(Rules.TIERS.MEDIUM, Rules.sliceFor('korean', 0.6).tier);
+    assertEqual(Rules.TIERS.MEDIUM, Rules.sliceFor('korean', 0.89).tier);
+    assertEqual(Rules.TIERS.HARD, Rules.sliceFor('korean', 0.9).tier);
   });
 
   test('骰到 1 也不會掉出去', function () {
     // rng() 理論上不會回 1，但浮點加總會讓 0.6+0.3+0.1 不是剛好 1，
-    // 所以最後那一級一定要有退路——沒有的話會回 undefined，
-    // 然後整場的題目全部從「難度是 undefined」那個空集合退回整個 pool。
-    assertEqual(Rules.TIERS.HARD, Rules.tierFor('korean', 1));
-    assertEqual(Rules.TIERS.HARD, Rules.tierFor('japanese', 1));
+    // 所以最後那一格一定要有退路——沒有的話會回 undefined，
+    // 然後 sliceAccepts 會拿 undefined.era 去比，整場直接爆掉。
+    assertEqual(Rules.TIERS.HARD, Rules.sliceFor('korean', 1).tier);
+    assertEqual(Rules.TIERS.HARD, Rules.sliceFor('japanese', 1).tier);
+    assertEqual('老歌以外', Rules.sliceFor('mandarin', 1).label);
   });
 
-  test('不認識的語種當成純隨機，不要爆掉', function () {
+  test('不認識的語種當成整池隨機，不要爆掉', function () {
     // 題庫和 rules.js 的語種清單不同步的時候（見 LANGUAGES 的說明），
-    // 寧可那一個語種變成純隨機，也不要讓出題整個停住。
-    assertEqual(null, Rules.tierFor('klingon', 0.5));
+    // 寧可那一個語種變成整池隨機，也不要讓出題整個停住。
+    assertEqual(null, Rules.sliceFor('klingon', 0.5));
+    assertEqual(null, Rules.mixFor('klingon'));
+
+    // null 的格子什麼都吃——那就是「不要篩」。
+    assertTrue(Rules.sliceAccepts(null, { tier: 2, year: 1980 }), 'null 要什麼都吃');
+  });
+
+  test('sliceAccepts 按格子的維度走對分支', function () {
+    // 出題層只問這一個問題，所以它走錯分支的話，整場的比例會靜靜地失效。
+    var era = { era: Rules.ERAS.CLASSIC, share: 0.2 };
+    var tier = { tier: Rules.TIERS.HARD, share: 0.1 };
+
+    assertTrue(Rules.sliceAccepts(era, { year: 1995, tier: 0 }, 2026), '年代格看年份');
+    assertTrue(!Rules.sliceAccepts(era, { year: 2015, tier: 0 }, 2026), '年代格不看 tier');
+
+    assertTrue(Rules.sliceAccepts(tier, { year: 1995, tier: 2 }), '難度格看 tier');
+    assertTrue(!Rules.sliceAccepts(tier, { year: 1995, tier: 0 }), '難度格不看年份');
+
+    // exclude 是反過來的那一種。
+    var notClassic = { exclude: Rules.ERAS.CLASSIC, share: 0.7 };
+    assertTrue(!Rules.sliceAccepts(notClassic, { year: 1995, tier: 0 }, 2026), '排除老歌');
+    assertTrue(Rules.sliceAccepts(notClassic, { year: 2026, tier: 0 }, 2026), '新歌照收');
+    assertTrue(Rules.sliceAccepts(notClassic, { year: 2015, tier: 2 }, 2026), '中間年代照收');
+    assertTrue(Rules.sliceAccepts(notClassic, { tier: 0 }, 2026), '年份不明照收');
+
+    // 兩個維度都沒指定的格子。**這一條是在防一個會靜靜失效的寫法**：
+    // 如果 sliceAccepts 最後一行寫成 track.tier === slice.tier，
+    // 兩邊都是 undefined 時它是 true，看起來會過；但題庫裡的歌都有 tier，
+    // 所以真的跑起來會變成「什麼都不吃」，那一格的題目全部退回整池——
+    // 結果看起來一樣，因為退路剛好也是整池。這一條抓的就是那個。
+    assertTrue(Rules.sliceAccepts({ share: 0.7 }, { tier: 0, year: 2015 }, 2026), 'tier 0');
+    assertTrue(Rules.sliceAccepts({ share: 0.7 }, { tier: 2, year: 1995 }, 2026), 'tier 2');
+
+    // 題庫沒有 year 欄位的時候（舊檔、或造測資時忘了帶）不能爆掉。
+    assertTrue(Rules.sliceAccepts({ era: Rules.ERAS.MIDDLE }, { tier: 0 }, 2026), '沒有 year 欄位');
   });
 
   test('有分級的語種真的偏向簡單那一級', function () {
-    // 用韓語：華語／台語／西洋現在是純隨機（見上面那幾條），
-    // 拿它們測「偏向簡單」會永遠失敗——不是程式壞了，是那個語種不再分級。
+    // 用韓語：華語／台語／西洋現在按年代切（見上面那幾條），
+    // 拿它們測「偏向簡單」會永遠失敗——不是程式壞了，是那個語種不再分難度。
     var bank = { tracks: [], decoys: [] };
 
     // 照題庫真正的比例造：簡單一半、中等四分之一、困難四分之一。
@@ -1333,16 +1439,93 @@
     assertTrue(share > 0.5 && share < 0.7, '簡單佔 ' + (share * 100).toFixed(0) + '%（期望六成）');
   });
 
-  test('純隨機的語種不會偏向任何一級', function () {
-    // 華語的整池都是手挑的經典，所以不分級——抽出來的難度分佈應該貼近
-    // 題庫本身的比例（這裡造成簡單一半），而不是被拉到六成。
+  test('老歌壓在兩成、新歌超過一成', function () {
+    // 這一條是整個改版的重點。**照真實的歪比例造測資**：
+    // 實測華語 700 首裡 2000 年以前只有 78 首（11%）、近兩年 49 首（7%）。
+    //
+    // 期望值：
+    //   老歌 = 0.2                        剛好兩成（被擋在那七成之外）
+    //   新歌 = 0.1 + 0.7 × 49/622 ≈ 0.155  一成是地板，不是天花板
+    //
+    // 整池隨機的話老歌只有 11%、新歌只有 7%，所以這一條同時在驗
+    // 「規則有生效」和「兩格的意思不一樣」。
+    var thisYear = new Date().getFullYear();
     var bank = { tracks: [], decoys: [] };
+    var id = 0;
+
+    function fill(count, year) {
+      for (var i = 0; i < count; i++) {
+        bank.tracks.push({
+          id: ++id, title: 't' + id, artist: '甲',
+          language: 'mandarin', previewUrl: 'u', tier: 0, year: year,
+        });
+      }
+    }
+
+    fill(78, 1995);              // 2000 年以前
+    fill(49, thisYear);          // 近兩年
+    fill(573, thisYear - 8);     // 中間年代
+
+    var maker = new window.QuestionMaker(bank, makeRng(3));
+    var counts = { classic: 0, fresh: 0, middle: 0 };
+    var total = 400;
+
+    for (var k = 0; k < total; k++) {
+      counts[Rules.eraOf(maker.next(['mandarin'], {}, null).answer.year)] += 1;
+    }
+
+    var classic = counts.classic / total;
+    var fresh = counts.fresh / total;
+
+    // 樣本 400 次，區間給寬一點——要抓的是「有沒有生效」，不是打靶。
+    // 老歌的**上界**是這一條最重要的部分：超過 0.28 就表示那七成沒有排除老歌。
+    assertTrue(classic > 0.13 && classic < 0.27,
+      '2000 前佔 ' + (classic * 100).toFixed(0) + '%（期望兩成；沒排除的話會是 28%）');
+
+    // 新歌要**超過**一成——剛好一成表示那七成把新歌也排除了，天花板長出來了。
+    assertTrue(fresh > 0.11 && fresh < 0.24,
+      '近兩年佔 ' + (fresh * 100).toFixed(0) + '%（期望 15%；只留中間年代的話會剛好 10%）');
+  });
+
+  test('年份不明的歌照樣出得到', function () {
+    // 題庫裡年份是 0 的歌（Apple 沒給 releaseDate）歸進「中間年代」，
+    // 而「整池隨機」那七成也吃它。沒有這兩件事的話，
+    // 那些歌會變成下載了卻永遠不出現的死重量。
+    var bank = { tracks: [], decoys: [] };
+
+    for (var i = 0; i < 30; i++) {
+      bank.tracks.push({
+        id: i + 1, title: 't' + i, artist: '甲',
+        language: 'mandarin', previewUrl: 'u', tier: 0, year: 0,
+      });
+    }
+
+    var maker = new window.QuestionMaker(bank, makeRng(5));
+    var seen = {};
+
+    for (var k = 0; k < 200; k++) seen[maker.next(['mandarin'], {}, null).answer.id] = true;
+
+    // 全部年份不明的池子，30 首在 200 次裡該幾乎都被抽到過。
+    assertTrue(Object.keys(seen).length >= 25,
+      '只抽到 ' + Object.keys(seen).length + ' / 30 首');
+  });
+
+  test('按年代切的語種不會偏向任何一級難度', function () {
+    // 年代和難度是兩個獨立的維度。華語按年代切之後，難度就該貼近題庫本身的
+    // 比例（這裡造成簡單一半），而不是被拉到六成——被拉到六成就表示
+    // sliceAccepts 走錯分支，拿年代的格子去比 tier 了。
+    var bank = { tracks: [], decoys: [] };
+    var thisYear = new Date().getFullYear();
+    var id = 0;
 
     for (var tier = 0; tier < 3; tier++) {
       for (var i = 0; i < (tier === 0 ? 100 : 50); i++) {
         bank.tracks.push({
-          id: tier * 1000 + i, title: 't' + tier + '-' + i, artist: '甲',
+          id: ++id, title: 't' + tier + '-' + i, artist: '甲',
           language: 'mandarin', previewUrl: 'u', tier: tier,
+          // 三個年代格都要有歌，而且每一格裡三種難度的比例一樣——
+          // 不一樣的話量到的是「哪一格的歌多」，不是「有沒有偏向難度」。
+          year: i % 3 === 0 ? 1995 : (i % 3 === 1 ? thisYear : thisYear - 8),
         });
       }
     }
@@ -1356,7 +1539,6 @@
     }
 
     // 題庫裡簡單佔 100/200 = 50%，所以抽出來也該在五成附近。
-    // 如果它跑到六成，就表示 mandarin 又被套上分級了。
     var share = easy / total;
     assertTrue(share > 0.4 && share < 0.6, '簡單佔 ' + (share * 100).toFixed(0) + '%（期望五成）');
   });
