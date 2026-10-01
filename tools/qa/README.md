@@ -21,7 +21,23 @@ npm run test:headed            # 看得到畫面
 npm run report                 # 打開上一次的報告
 ```
 
-一輪正常的結果是 **37 通過、11 跳過**。跳過的分兩類：
+一輪正常的結果是 **32 通過、16 跳過**。跳過的那 16 條就是整個 iphone 專案：
+這台機器的 Smart App Control 擋掉未簽章的 `WebKitNetworkProcess.exe`，WebKit 開不了
+頁面（`webkit-check.js` 會在開跑前探到並印出原因）。
+
+**跳過的數字會變，而且變了要看一眼。** SAC 是看「信譽」的：同一台機器同一包 WebKit，
+2026-10-01 早上還跑得動（那幾輪是 37 通過 11 跳過，其中 5 條 iphone 真的跑過），
+下午就被擋了。所以
+
+* 看到 **16 跳過** ＝ WebKit 整組開不起來，iOS 完全沒有機器驗過。
+* 看到 **11 跳過** ＝ WebKit 能跑，跳過的是那些「只有 Chromium 做得到」的
+  （改時鐘、CDP 限速、多開 context）。
+
+**一定要看 Playwright 自己的結束碼，不要接管道。** `npx playwright test | tail -5`
+的結束碼來自 `tail`，永遠是 0——實際上 13 條失敗也會看起來像過了。真的要看摘要就
+導到檔案再 `tail` 那個檔，或直接讀 `test-results/.last-run.json` 的 `status`。
+
+跳過的分兩類：
 
 * **五條只有 Chromium 跑**（限速兩條、囤五首、不等了、多人房）——它們用
   Chrome DevTools Protocol，WebKit 沒有。

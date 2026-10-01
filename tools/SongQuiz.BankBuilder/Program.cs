@@ -602,7 +602,7 @@ internal static class Eras
     /// 被保底的那兩格各有幾首（見 web/js/rules.js 的 ERA_MIX）。
     /// </summary>
     /// <remarks>
-    /// 印它的理由和 Describe 一樣，但更直接：出題規則要求 2000 年以前的歌正好兩成、
+    /// 印它的理由和 Describe 一樣，但更直接：出題規則要求界線以前的歌正好兩成、
     /// 近兩年的至少一成，而「有幾首可以抽」是資料決定的，不是我能保證的。
     ///
     /// 這個數字改過一次規則：本來新歌那格算「今年」，實測台語只有 19 首、
@@ -622,21 +622,26 @@ internal static class Eras
     /// <summary>「新歌」算幾年內。和 rules.js 的 FRESH_YEARS 是同一個數字。</summary>
     private const int FreshYears = 2;
 
+    /// <summary>「老歌」的界線。和 rules.js 的 CLASSIC_BEFORE 是同一個數字。</summary>
+    private const int ClassicBefore = 2005;
+
     public static string DescribeSlices(Language language, List<Track> tracks)
     {
         var freshFrom = DateTime.UtcNow.Year - (FreshYears - 1);
         var mine = tracks.Where(t => t.Language == language).ToList();
         if (mine.Count == 0) return "（還沒有歌）";
 
-        var classic = mine.Count(t => t.Year > 0 && t.Year < 2000);
+        var classic = mine.Count(t => t.Year > 0 && t.Year < ClassicBefore);
         var fresh = mine.Count(t => t.Year >= freshFrom);
         var middle = mine.Count - classic - fresh;
 
         // 兩格的意思不一樣（見 rules.js 的 ERA_MIX）：老歌是上限，新歌是下限。
         // 池子太薄的話出題端會靜靜地退回整池，所以在這裡講出來。
-        var thin = classic < 30 ? "　← 老歌太少，兩成會湊不滿" : "";
+        // 太少湊不滿兩成；太多則表示那兩成是在往下壓，不是在往上拉。
+        var thin = classic < 30 ? "　← 老歌太少，兩成會湊不滿"
+            : classic > mine.Count * 0.2 ? "　← 老歌超過兩成，那一格是在往下壓" : "";
 
-        return $"2000 前 {classic}（正好兩成）、{freshFrom} 年起 {fresh}（至少一成）、"
+        return $"{ClassicBefore} 前 {classic}（正好兩成）、{freshFrom} 年起 {fresh}（至少一成）、"
                + $"其餘 {middle}{thin}";
     }
 }

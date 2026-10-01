@@ -167,10 +167,21 @@ set QA_BASE_URL=https://gueeeen.github.io/songquiz/ && npm test
 Node 沒在 PATH 上的話在
 `%LOCALAPPDATA%\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_*\node-v*-win-x64`。
 
-**跳過是正常的**：WebKit 沒有 CDP，所以限速那兩條和多人那條只在 Chromium 上跑
-（一輪應該是 37 通過、11 跳過；WebKit 整個起不來的機器上 iphone 那 14 條會全部
-跳過，變成 28 通過、14 跳過，
-開頭會印一段警告）。
+**跳過是正常的，但跳幾條有意義**：WebKit 沒有 CDP，所以限速那幾條和多人那幾條
+只在 Chromium 上跑。所以兩種正常結果：
+
+* **32 通過、16 跳過** ＝ WebKit 整組開不起來（跳過的就是整個 iphone 專案）。
+  這台機器現在是這樣：Smart App Control 擋掉未簽章的 `WebKitNetworkProcess.exe`。
+  開頭會印一段警告講原因。**這代表 iOS 完全沒有機器驗過。**
+* **37 通過、11 跳過** ＝ WebKit 跑得動，跳過的只是那些「只有 Chromium 做得到」的。
+
+**這件事會自己變，所以每次都要看一眼跳過幾條。** SAC 是看「信譽」的：
+同一台機器同一包 WebKit，2026-10-01 早上還是 37／11，下午就變成 32／16。
+
+**不要用 `| tail` 接這個指令。** 管道的結束碼來自 `tail`，所以永遠是 0——
+實際上 13 條失敗也會看起來像過了（2026-10-01 真的這樣誤判過一次）。
+要看摘要就先導到檔案再 `tail` 那個檔，或直接讀 `test-results/.last-run.json`
+的 `status`（`passed` / `failed`）。
 
 `tools/qa/diag.js` 不是測試，是查問題用的：它會限速跑一場，
 把每一個音檔請求和播放器事件按時間印出來。當初就是靠它才看出
