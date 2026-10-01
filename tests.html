@@ -1276,10 +1276,10 @@
     //   * 老歌：兩成就是兩成。它被擋在其餘七成之外，所以那兩成同時是下限也是上限。
     //   * 新歌：至少一成。它沒有被擋，所以在那七成裡還會自然抽到，實際會超過一成。
     //
-    // 三種寫法的差別（華語：老歌 78、新歌 49、中間 573）：
-    //   什麼都不排除 → 老歌 28%（兩成就不是上限了）
+    // 三種寫法的差別（華語：老歌 172、新歌 50、中間 478）：
+    //   什麼都不排除 → 老歌 42%（兩成就不是上限了）
     //   只留中間年代 → 新歌剛好 10%（一成變成天花板）
-    //   排除老歌     → 老歌 20%、新歌 15.5%　← 現在這個
+    //   排除老歌     → 老歌 20%、新歌 17%　← 現在這個
     var rest = Rules.sliceFor('mandarin', 0.5);
 
     assertTrue(!Rules.sliceAccepts(rest, { year: 1985, tier: 2 }, 2026), '不可以吃老歌');
@@ -1298,20 +1298,30 @@
     assertEqual(Rules.ERAS.MIDDLE, Rules.eraOf(2024, 2026), '前年就不算了');
   });
 
+  test('老歌的界線是 2005', function () {
+    // **這一條記的是一個決定，不是一個不變量。**
+    //
+    // 界線往後推會讓歌變新不是變老（理由寫在 rules.js 的 CLASSIC_BEFORE），
+    // 所以這個數字被改動時要有人看到。其他邊界測試一律用這個常數表達，
+    // 這樣改界線只要動這一條。
+    assertEqual(2005, Rules.CLASSIC_BEFORE);
+  });
+
   test('年代那三格互斥而且蓋滿，沒有一首歌是抽不到的', function () {
     // 三格如果有縫，落在縫裡的歌就永遠不會被出題，而且畫面上看不出來。
     var now = 2026;
+    var edge = Rules.CLASSIC_BEFORE;
 
-    assertEqual(Rules.ERAS.CLASSIC, Rules.eraOf(1999, now), '1999');
+    assertEqual(Rules.ERAS.CLASSIC, Rules.eraOf(edge - 1, now), '界線前一年');
     assertEqual(Rules.ERAS.CLASSIC, Rules.eraOf(1971, now), '1971');
-    assertEqual(Rules.ERAS.MIDDLE, Rules.eraOf(2000, now), '2000 是「中間」的第一年');
+    assertEqual(Rules.ERAS.MIDDLE, Rules.eraOf(edge, now), '界線那一年是「中間」的第一年');
     assertEqual(Rules.ERAS.MIDDLE, Rules.eraOf(2024, now), '2024');
 
     // Apple 的 releaseDate 偶爾是未來（預購、跨區上架）。那些算「新」，
     // 因為它們絕對不是「中間年代」。
     assertEqual(Rules.ERAS.FRESH, Rules.eraOf(2027, now), '未來的日期');
 
-    // 年份不明。0 不能落進「2000 以前」——那會讓解不出日期的歌全部變成老歌。
+    // 年份不明。0 不能落進老歌那一格——那會讓解不出日期的歌全部變成老歌。
     assertEqual(Rules.ERAS.MIDDLE, Rules.eraOf(0, now), '年份不明');
   });
 
@@ -1338,7 +1348,7 @@
   test('韓語維持六成／三成／一成', function () {
     // 韓語的老團（少女時代、SHINee）和當紅團（NewJeans、IVE）認得出來的
     // 程度差距大，難度分級還有價值。而且韓語沒有老歌可分：實測 700 首裡
-    // 2000 年以前只有 3 首，按年代切會整格空掉。
+    // 2005 年以前只有 5 首，按年代切會整格空掉。
     assertEqual(Rules.TIERS.EASY, Rules.sliceFor('korean', 0).tier);
     assertEqual(Rules.TIERS.EASY, Rules.sliceFor('korean', 0.59).tier);
     assertEqual(Rules.TIERS.MEDIUM, Rules.sliceFor('korean', 0.6).tier);
@@ -1372,6 +1382,8 @@
 
     assertTrue(Rules.sliceAccepts(era, { year: 1995, tier: 0 }, 2026), '年代格看年份');
     assertTrue(!Rules.sliceAccepts(era, { year: 2015, tier: 0 }, 2026), '年代格不看 tier');
+    assertTrue(!Rules.sliceAccepts(era, { year: Rules.CLASSIC_BEFORE, tier: 0 }, 2026),
+      '界線那一年不算老歌');
 
     assertTrue(Rules.sliceAccepts(tier, { year: 1995, tier: 2 }), '難度格看 tier');
     assertTrue(!Rules.sliceAccepts(tier, { year: 1995, tier: 0 }), '難度格不看年份');
@@ -1439,16 +1451,17 @@
     assertTrue(share > 0.5 && share < 0.7, '簡單佔 ' + (share * 100).toFixed(0) + '%（期望六成）');
   });
 
-  test('老歌壓在兩成、新歌超過一成', function () {
+  test('老歌正好兩成、新歌超過一成', function () {
     // 這一條是整個改版的重點。**照真實的歪比例造測資**：
-    // 實測華語 700 首裡 2000 年以前只有 78 首（11%）、近兩年 49 首（7%）。
+    // 實測華語 700 首裡 2005 年以前有 172 首（25%）、近兩年 50 首（7%）。
     //
     // 期望值：
     //   老歌 = 0.2                        剛好兩成（被擋在那七成之外）
-    //   新歌 = 0.1 + 0.7 × 49/622 ≈ 0.155  一成是地板，不是天花板
+    //   新歌 = 0.1 + 0.7 × 50/528 ≈ 0.166  一成是地板，不是天花板
     //
-    // 整池隨機的話老歌只有 11%、新歌只有 7%，所以這一條同時在驗
-    // 「規則有生效」和「兩格的意思不一樣」。
+    // 整池隨機的話老歌有 25%、新歌只有 7%。所以界線 2005 的這組資料裡，
+    // 那兩成是**往下壓**老歌的（界線 2000 的時候是往上拉）——
+    // 這一條驗的是「兩成就是兩成」，上下壓拉都算。
     var thisYear = new Date().getFullYear();
     var bank = { tracks: [], decoys: [] };
     var id = 0;
@@ -1462,9 +1475,9 @@
       }
     }
 
-    fill(78, 1995);              // 2000 年以前
-    fill(49, thisYear);          // 近兩年
-    fill(573, thisYear - 8);     // 中間年代
+    fill(172, 1995);             // 老歌（界線以前）
+    fill(50, thisYear);          // 近兩年
+    fill(478, thisYear - 8);     // 中間年代
 
     var maker = new window.QuestionMaker(bank, makeRng(3));
     var counts = { classic: 0, fresh: 0, middle: 0 };
@@ -1480,11 +1493,11 @@
     // 樣本 400 次，區間給寬一點——要抓的是「有沒有生效」，不是打靶。
     // 老歌的**上界**是這一條最重要的部分：超過 0.28 就表示那七成沒有排除老歌。
     assertTrue(classic > 0.13 && classic < 0.27,
-      '2000 前佔 ' + (classic * 100).toFixed(0) + '%（期望兩成；沒排除的話會是 28%）');
+      '老歌佔 ' + (classic * 100).toFixed(0) + '%（期望兩成；沒排除的話會是 42%）');
 
     // 新歌要**超過**一成——剛好一成表示那七成把新歌也排除了，天花板長出來了。
-    assertTrue(fresh > 0.11 && fresh < 0.24,
-      '近兩年佔 ' + (fresh * 100).toFixed(0) + '%（期望 15%；只留中間年代的話會剛好 10%）');
+    assertTrue(fresh > 0.11 && fresh < 0.26,
+      '近兩年佔 ' + (fresh * 100).toFixed(0) + '%（期望 17%；只留中間年代的話會剛好 10%）');
   });
 
   test('年份不明的歌照樣出得到', function () {
